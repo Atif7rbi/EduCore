@@ -112,3 +112,27 @@ Architecture Pack status:
 READY FOR EXTERNAL ENGINEERING REVIEW.
 
 Not yet APPROVED FOR IMPLEMENTATION.
+
+
+## External Engineering Review — Claude Pass #1
+
+Reviewed target:
+efed277cc634dc16809f2e39713f8e77ea6ae187
+
+Findings:
+- BLOCKER-01: phpunit.xml defaulted Feature/Integration tests to SQLite despite PostgreSQL-only policy.
+- MAJOR-01: AssessmentItemRevision nullable Primary Topic composite FK shape was abbreviated.
+- MINOR-01: reference trigger SQL recommendation; deferred to implementation checkpoint.
+- MINOR-02: PostgreSQL 10.23 is EOL; upgrade remains required before long-term production exposure.
+- MINOR-03: Attempt finalization ordering requires explicit regression coverage during 70_attempts implementation.
+- NIT-01: five-column provenance FK maintainability note.
+
+Remediation:
+- PHPUnit test runtime now requires PostgreSQL.
+- Local .env.testing targets an isolated PostgreSQL test database and is git-ignored.
+- TestCase fails fast when Feature/Integration tests resolve to a non-pgsql driver.
+- AssessmentItemRevision Primary Topic composite FK is now stated explicitly.
+- PostgreSQL verification completed successfully: 7 tests passed / 10 assertions.
+
+External BLOCKER-01: RESOLVED.
+External MAJOR-01: RESOLVED.

@@ -296,7 +296,9 @@ UNIQUE(id,curriculum_version_id)
 FK (assessment_item_id,curriculum_version_id)
   -> assessment_items(id,curriculum_version_id) RESTRICT
 
-Nullable same-version Primary Topic FK RESTRICT.
+Nullable Primary Topic FK:
+(primary_topic_id,curriculum_version_id)
+  -> topics(id,curriculum_version_id) RESTRICT
 
 ### assessment_item_revision_skills
 id UUID PK

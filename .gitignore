@@ -25,3 +25,4 @@ Thumbs.db
 
 # Local bootstrap environments
 .env.sqlite-bootstrap
+.env.testing
