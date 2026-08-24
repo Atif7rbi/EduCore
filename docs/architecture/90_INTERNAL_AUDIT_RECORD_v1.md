@@ -49,3 +49,9 @@ ERA-001 remediation:
 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md added as the authoritative physical contract.
 
 ER-001 remains pending until committed and verified by Engineering Review Pass #2.
+
+ER-002 MAJOR resolved:
+Attempt finalization is explicitly one atomic transaction with deferred end-of-transaction validation for cross-row final-state invariants.
+
+ER-005 MAJOR resolved:
+Practice source-set equality is explicitly a creation-time transactional invariant only; historical Attempts are independent from subsequent PracticeActivity membership changes.

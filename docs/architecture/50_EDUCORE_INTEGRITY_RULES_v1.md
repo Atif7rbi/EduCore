@@ -68,8 +68,15 @@ Composite FKs prove exact GenerationItem provenance.
 
 ## CDA-005
 Exam: AttemptItems exactly equal GenerationItems, no missing/extra.
-Practice: AttemptItems exactly equal PracticeActivityItems at instantiation.
-Application must serialize/lock mutable Practice source during instantiation.
+
+Practice equality is a creation-time transactional invariant only:
+- serialize/lock PracticeActivity membership;
+- capture the source set;
+- create the Attempt and complete AttemptItem set atomically;
+- validate equality before COMMIT.
+
+After successful COMMIT, AttemptItems become independent historical truth.
+Later PracticeActivityItem changes must not cause historical Attempts to fail integrity checks.
 
 ## CDA-006
 AttemptItem.primary_topic_id IS NOT DISTINCT FROM source AssessmentItemRevision.primary_topic_id.
@@ -82,11 +89,23 @@ Application owns semantic correctness of presentation/scoring transformation.
 
 ## AttemptResponse
 Exactly one per AttemptItem.
-While parent in_progress: payload/counters mutable, original correctness NULL.
-At finalization:
+While ordinary attempt interaction is in_progress, original correctness remains NULL.
+
+Finalization is one atomic transaction:
+1. lock the Attempt;
+2. score all answered Responses and write original_is_correct;
+3. leave unanswered payload/correctness NULL;
+4. transition Attempt in_progress → submitted|abandoned;
+5. validate all final Response invariants at transaction end;
+6. COMMIT.
+
+Cross-row enforcement must therefore be deferred where immediate enforcement would reject this legitimate temporary intra-transaction state.
+
+Committed final state:
 NULL response ↔ NULL correctness.
 non-NULL response ↔ BOOLEAN correctness.
-After finalization Response immutable.
+
+After finalization Response is immutable.
 
 ## Regrade
 Only finalized answered Response.

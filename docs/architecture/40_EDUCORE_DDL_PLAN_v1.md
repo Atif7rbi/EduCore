@@ -60,9 +60,25 @@ Partial unique = at most one Attempt per ExamGeneration.
 
 Exact exam provenance uses composite FKs through Attempt, Generation, GenerationItem, Revision, Item, CurriculumVersion.
 
-CDA-005: deferred set-equality check.
+CDA-005:
 Exam AttemptItems = complete GenerationItems.
-Practice AttemptItems = complete PracticeActivityItems at instantiation. Source must be serialized/locked coherently during transaction.
+
+Practice source-set equality is enforced only during Attempt instantiation:
+- lock/serialize the PracticeActivity membership source;
+- capture the complete source set;
+- create Attempt and AttemptItems in the same transaction;
+- validate equality before COMMIT.
+
+After COMMIT, historical AttemptItems are independent from later PracticeActivity mutations.
+No persistent trigger may require old Practice Attempts to equal the current Activity membership.
+
+Attempt finalization is one atomic transaction:
+- lock the Attempt;
+- compute/write original_is_correct for answered responses;
+- transition Attempt from in_progress to submitted|abandoned;
+- validate response/final-state invariants at transaction end.
+
+Cross-row finalization invariants must permit the temporary intra-transaction state required by this choreography and validate the committed state using deferred enforcement where necessary.
 
 CDA-006: deferred classification equality check.
 AttemptItem Primary Topic NULL-safe equals source revision Primary Topic.

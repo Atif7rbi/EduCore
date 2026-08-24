@@ -56,6 +56,9 @@ At instantiation:
 Exam source-set equality: AttemptItems exactly equal GenerationItems.
 Practice source-set equality: AttemptItems exactly equal ActivityItems as observed in the instantiation transaction.
 
+Practice source-set equality is a creation-time transactional invariant, not a permanent relational invariant.
+After successful instantiation, AttemptItems are historical truth and later PracticeActivity mutations do not alter or revalidate the historical Attempt.
+
 AttemptItem is immutable and stores exact revision, logical item, version, presentation order, presented/scoring snapshots, Primary Topic, and optional GenerationItem provenance.
 
 Historical classification:
