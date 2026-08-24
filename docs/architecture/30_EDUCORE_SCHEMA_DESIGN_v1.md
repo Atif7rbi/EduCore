@@ -61,6 +61,9 @@ regrade_corrections
 evidence_scopes
 materialized_skill_performances
 
+## Physical schema authority
+Exact columns, nullability, defaults, candidate keys, composite FK shapes, and per-table physical constraints are authoritative in 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md.
+
 ## Key reconciled table rules
 
 subjects: name UNIQUE.

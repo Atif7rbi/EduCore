@@ -18,6 +18,8 @@ Version: 1.0
 
 Apply family-by-family: create → syntax-check → migrate → PostgreSQL introspection → positive/negative probes → checkpoint close.
 
+Physical DDL for every family must conform to 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md.
+
 ## 00_identity
 Already IMPLEMENTED + VERIFIED. Future changes are forward migrations.
 

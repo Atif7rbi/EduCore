@@ -41,7 +41,7 @@ Exam: rules versioning, deterministic provenance, exact GenerationItems, current
 Attempt: XOR source, exact GenerationItem provenance, exact source-set equality, exact classification equality, exactly one Response, >=1 primary Skill.
 Regrade: immutable corrections, logical numbering, derived effective outcome.
 Measurement: single/multi/supporting semantics, no Supporting Accuracy, abandoned preservation, scope context, repetition deferred, Lifetime cache, sufficiency-before-direction.
-Schema: UUID/TEXT/TIMESTAMPTZ/JSONB, candidate keys/composite FKs, delete actions, XOR checks, no redundant truth.
+Schema: verify 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md fully specifies columns, nullability, defaults, candidate keys, composite FKs, delete actions, XOR checks, and requires no conversational context.
 PostgreSQL: verify compatibility with 10.23.
 Laravel: verify actual generated PostgreSQL DDL rather than assuming helper semantics.
 Concurrency: revision numbers, pointer switches, generation, Attempt instantiation/finalization, Regrade, analytics rebuild.

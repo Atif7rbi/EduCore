@@ -40,3 +40,12 @@ Relational classification exactness is DB-verifiable; Presented/Scoring JSON sem
 ## Next gate
 External engineering review using 70_EDUCORE_ENGINEERING_REVIEW_GUIDE_v1.md.
 Remaining migrations must not execute until findings are resolved and status is explicitly APPROVED FOR IMPLEMENTATION.
+
+
+## Engineering Review Pass #1
+ER-001 BLOCKER: condensed documentation lacked a complete canonical physical schema contract.
+
+ERA-001 remediation:
+35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md added as the authoritative physical contract.
+
+ER-001 remains pending until committed and verified by Engineering Review Pass #2.
