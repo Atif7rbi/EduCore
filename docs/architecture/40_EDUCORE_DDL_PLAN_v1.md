@@ -21,7 +21,19 @@ Apply family-by-family: create → syntax-check → migrate → PostgreSQL intro
 Physical DDL for every family must conform to 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md.
 
 ## 00_identity
-Already IMPLEMENTED + VERIFIED. Future changes are forward migrations.
+Baseline IMPLEMENTED + VERIFIED.
+
+Before 10_curriculum, execute one forward identity-normalization migration:
+- users.name VARCHAR -> TEXT;
+- users.email VARCHAR -> TEXT;
+- users.password VARCHAR -> TEXT;
+- users.status VARCHAR -> TEXT;
+- users.created_at -> TIMESTAMPTZ NOT NULL;
+- users.updated_at remains TIMESTAMPTZ NULL;
+- preserve chk_users_status and uq_users_email_ci;
+- do not rewrite already-applied migration history.
+
+Post-normalization PostgreSQL introspection and regression tests are required before closing Identity.
 
 ## 10_curriculum
 subjects → curricula → curriculum_versions.

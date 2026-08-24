@@ -31,22 +31,23 @@ Implementation must not invent omitted:
 ## Identity
 
 ### users
-AS IMPLEMENTED.
+Target canonical domain shape:
 
 id UUID PK
-name Laravel string
-email Laravel string
+name TEXT NOT NULL
+email TEXT NOT NULL
 email_verified_at TIMESTAMPTZ NULL
-password Laravel string
-status Laravel string NOT NULL DEFAULT 'active'
-remember_token nullable
-created_at current implemented timestamp
-updated_at current implemented timestamp
+password TEXT NOT NULL
+status TEXT NOT NULL DEFAULT 'active'
+remember_token current Laravel auth-compatible nullable representation
+created_at TIMESTAMPTZ NOT NULL
+updated_at TIMESTAMPTZ NULL
 
 CHECK status IN ('active','disabled')
 UNIQUE INDEX lower(email)
 
-Exact normalization is governed by ER-004 / DD-031.
+The already-applied baseline differs in string types and timestamp nullability.
+A forward identity-normalization migration is REQUIRED; no destructive rewrite of migration history.
 
 ### learner_profiles
 id UUID PK

@@ -61,3 +61,9 @@ ER-003 MAJOR resolved:
 Historical aggregate sealing is DB-backed without new columns.
 ExamGeneration.generated_at and Attempt.started_at act as one-way transaction seals.
 Core historical child collections reject post-seal INSERT/UPDATE/DELETE.
+
+
+ER-004 MAJOR resolved at specification level:
+User identity drift will be corrected by a required forward normalization migration before 10_curriculum.
+Already-applied migration history remains immutable.
+Physical closure requires migration + PostgreSQL introspection + regression tests.

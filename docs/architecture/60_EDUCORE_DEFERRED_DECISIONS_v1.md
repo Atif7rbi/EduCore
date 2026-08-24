@@ -96,8 +96,12 @@ No blanket audit table. Reopen on formal actor-audit requirement.
 ## DD-030 User profile/privacy identity fields
 Phone/school/region/guardian/etc. deferred until real requirement.
 
-## DD-031 Identity type/timestamp normalization
-Implementation follow-up. Already-applied Laravel Auth schema may need forward normalization before production baseline.
+## DD-031 Identity type/timestamp normalization — RESOLVED
+Resolved by Engineering Review ER-004.
+
+A forward migration is REQUIRED before 10_curriculum.
+Canonical User domain types/timestamps are defined in 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md.
+Already-applied migration history must not be rewritten.
 
 ## DD-032 Database upgrade
 Current PostgreSQL 10.23 accepted for development. Upgrade to supported release recommended before long-term production.
