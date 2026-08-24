@@ -32,7 +32,7 @@ Cross-Document Final Audit: PASS
 External Engineering Review: PENDING
 Implementation Approval: PENDING
 
-00_identity: IMPLEMENTED + VERIFIED.
+00_identity: BASELINE IMPLEMENTED + VERIFIED; forward normalization REQUIRED before 10_curriculum.
 10_curriculum through 95_indexes: READY, not yet approved for execution.
 
 EduCore v1 contains 30 domain tables. Laravel infrastructure tables are separate.
