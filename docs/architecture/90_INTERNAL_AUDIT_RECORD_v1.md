@@ -136,3 +136,25 @@ Remediation:
 
 External BLOCKER-01: RESOLVED.
 External MAJOR-01: RESOLVED.
+
+
+## Independent External Engineering Review — Work Pass #1
+
+Reviewed target:
+36fcf60a2437799d84927b6ad20fe6c800d6ba53
+
+Findings accepted:
+- EER-001 MAJOR: missing direct ExamTemplate -> CurriculumVersion FK.
+- EER-002 MAJOR: parent/child aggregate concurrency protocol insufficiently uniform.
+- EER-003 MAJOR: LessonProgress could reference an unreleased mutable LessonRevision.
+- EER-004 MINOR: config/database.php retained SQLite fallback.
+- EER-005 MINOR: identity normalization did not specify handling of existing NULL created_at values.
+
+Remediation:
+- ExamTemplate direct CurriculumVersion FK explicitly required.
+- Mandatory shared parent-lock protocol defined for all protected aggregate mutation paths, with two-session race probes required.
+- LessonProgress creation restricted to released LessonRevision with DB-backed lifecycle serialization.
+- Laravel default database connection changed from SQLite to PostgreSQL.
+- Identity normalization now aborts on pre-existing NULL users.created_at unless an explicit remediation is separately approved.
+
+These remediations enforce existing architectural intent and do not reopen deferred product decisions.

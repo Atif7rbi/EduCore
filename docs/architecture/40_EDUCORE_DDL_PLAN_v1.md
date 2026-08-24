@@ -37,6 +37,8 @@ Before 10_curriculum, execute one forward identity-normalization migration:
 - users.created_at -> TIMESTAMPTZ NOT NULL;
 - users.updated_at remains TIMESTAMPTZ NULL;
 - preserve chk_users_status and uq_users_email_ci;
+- before SET NOT NULL, assert users.created_at contains no NULL values;
+- if any NULL exists, abort with a diagnostic and require an explicit approved remediation; do not invent/backfill a historical timestamp implicitly;
 - do not rewrite already-applied migration history.
 
 Post-normalization PostgreSQL introspection and regression tests are required before closing Identity.
@@ -55,6 +57,8 @@ No UNIQUE(placement_id).
 lessons → lesson_revisions → add Lesson current-pointer FK → lesson_revision_skills → lesson_progresses.
 LessonRevision.primary_topic_id NOT NULL.
 Revision number positive and parent-scoped unique.
+LessonProgress creation requires the referenced LessonRevision to be released.
+Creation and revision lifecycle mutation must serialize on the same LessonRevision row.
 
 ## 40_assessment
 assessment_items → assessment_item_revisions → add current-pointer FK → assessment_item_revision_skills.
@@ -68,6 +72,7 @@ Active aggregate completeness deferred to COMMIT.
 
 ## 60_exam_generation
 exam_templates → exam_template_versions → add current-pointer FK → exam_generations → exam_generation_items.
+ExamTemplate.curriculum_version_id has a direct FK to CurriculumVersion(id) RESTRICT.
 CDA-003 composite candidate key on generation items supports exact downstream Attempt provenance.
 
 Historical Generation sealing:
@@ -122,6 +127,19 @@ Lifetime-only cache, bounded BIGINT counts.
 
 ## 90_integrity
 Separate trigger migrations for curriculum, learning, assessment, practice, exam, attempt, analytics.
+
+Mandatory aggregate locking protocol:
+- CurriculumVersion structural child mutation and publish/retire operations lock the same CurriculumVersion row.
+- LessonRevision / AssessmentItemRevision classification mutation and release operations lock the same revision row.
+- LessonProgress creation locks its referenced LessonRevision before verifying released_at IS NOT NULL.
+- PracticeActivity membership mutation, active-completeness validation, and Practice Attempt instantiation lock the same PracticeActivity row.
+- ExamGenerationItem mutation and ExamGeneration sealing lock the same ExamGeneration row.
+- AttemptItem / classification construction and Attempt sealing lock the same Attempt row.
+- competing mutation paths must acquire the parent lock before reading or changing aggregate children.
+- when multiple aggregate locks are needed, acquire them in deterministic parent-to-child order.
+- deferred checks do not replace this locking protocol.
+
+Separate trigger migrations for curriculum, learning, assessment, practice, exam, attempt, analytics.
 Use DB::unprepared raw SQL for PostgreSQL trigger functions/constraint triggers.
 Down: drop trigger then function.
 
@@ -158,7 +176,14 @@ No baseline JSONB GIN.
 Inspect actual tables, column types/nullability, constraints, FK delete actions, indexes, triggers.
 Migration output alone is insufficient.
 
-Negative probes include invalid lifecycle, cross-version FK, released mutation, empty aggregate, duplicate logical item, invalid source, source-set mismatch, wrong classification snapshot, invalid Regrade.
+Negative probes include invalid lifecycle, cross-version FK, released mutation, unreleased LessonProgress source, empty aggregate, duplicate logical item, invalid source, source-set mismatch, wrong classification snapshot, invalid Regrade.
+
+Concurrency verification must include two-session race probes for:
+- CurriculumVersion publish versus structural mutation;
+- revision release versus classification mutation;
+- PracticeActivity membership/completeness and Practice Attempt instantiation;
+- ExamGeneration sealing versus GenerationItem mutation;
+- Attempt sealing versus AttemptItem/classification construction.
 
 ## Gate
 Remaining families execute only after external Engineering Review and explicit APPROVED FOR IMPLEMENTATION.

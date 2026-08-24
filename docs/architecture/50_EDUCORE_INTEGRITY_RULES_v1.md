@@ -19,6 +19,9 @@ Lesson cannot change CurriculumVersion.
 LessonRevision release NULL→timestamp only.
 Released revision and LessonRevisionSkills immutable.
 LessonRevision Primary Topic required.
+LessonProgress may be created only against a released LessonRevision.
+LessonProgress.lesson_revision_id is immutable after creation.
+Creation locks the referenced LessonRevision and verifies released_at IS NOT NULL before INSERT.
 LessonProgress in_progress→completed only, with completed_at consistency.
 
 ## Assessment
@@ -132,14 +135,26 @@ No authoritative entity depends on it.
 Repetition policy, representativeness, current learner CurriculumVersion, Primary Topic inference, full JSON semantics, semantic-vs-editorial identity judgment, Layer3 thresholds.
 
 ## Concurrency
-Lock parent for revision/version allocation and pointer switch.
-Lock Attempt for finalization.
-Lock Response for Regrade numbering.
-Serialize PracticeActivity source during Attempt instantiation.
-Serialize/safely upsert analytics rebuild key.
+DB-backed parent locking is mandatory for every competing mutation path of a protected aggregate.
+
+Required shared lock targets:
+- CurriculumVersion row: structural child mutation and publish/retire.
+- LessonRevision / AssessmentItemRevision row: classification mutation and release.
+- LessonRevision row: LessonProgress creation and release/mutation lifecycle checks.
+- PracticeActivity row: membership mutation, active-completeness checks, and Practice Attempt instantiation.
+- ExamGeneration row: GenerationItem mutation and generation sealing.
+- Attempt row: AttemptItem/classification construction, aggregate sealing, and finalization.
+- Response row: Regrade numbering.
+- analytics rebuild key: serialize or safely upsert.
+
+A deferred constraint trigger validates transaction-end state but is not a substitute for serialization against concurrent write-skew.
+Every competing path must acquire the same parent lock before inspecting or mutating child state.
+When an operation requires multiple locks, acquire them in deterministic parent-to-child order.
 
 ## Tests
-Required negative families cover lifecycle reversal, cross-version corruption, released mutation, aggregate incompleteness, exact source mismatch, exact classification mismatch, invalid finalization, invalid Regrade, invalid analytics counters.
+Required negative families cover lifecycle reversal, cross-version corruption, released mutation, unreleased LessonProgress creation, aggregate incompleteness, exact source mismatch, exact classification mismatch, invalid finalization, invalid Regrade, invalid analytics counters.
+
+Required concurrency coverage includes two-session write-skew probes for every parent/child aggregate protected by the mandatory locking protocol.
 
 ## Historical sealing
 Released Lesson/Assessment revision classifications are sealed by released_at.

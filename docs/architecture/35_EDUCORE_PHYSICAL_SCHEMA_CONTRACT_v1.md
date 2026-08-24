@@ -244,6 +244,10 @@ UNIQUE(learner_profile_id,lesson_revision_id)
 FK learner_profile_id -> learner_profiles(id) RESTRICT
 FK lesson_revision_id -> lesson_revisions(id) RESTRICT
 
+Creation eligibility:
+- LessonProgress may reference only a LessonRevision with released_at IS NOT NULL.
+- DB-backed enforcement must serialize creation against the referenced revision lifecycle.
+
 ## Assessment
 
 ### assessment_items
@@ -383,6 +387,9 @@ updated_at TIMESTAMPTZ NULL
 
 CHECK status IN ('active','archived')
 UNIQUE(id,curriculum_version_id)
+
+FK curriculum_version_id
+  -> curriculum_versions(id) RESTRICT
 
 Current pointer:
 (published_version_id,id)
