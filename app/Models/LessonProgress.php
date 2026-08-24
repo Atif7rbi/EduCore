@@ -10,6 +10,8 @@ class LessonProgress extends Model
 {
     use HasUuids;
 
+    protected $table = 'lesson_progresses';
+
     protected $fillable = [
         'learner_profile_id',
         'lesson_revision_id',
