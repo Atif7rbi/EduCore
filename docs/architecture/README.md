@@ -11,10 +11,10 @@ Project: EduCore
 4. 30_EDUCORE_SCHEMA_DESIGN_v1.md
 5. 35_EDUCORE_PHYSICAL_SCHEMA_CONTRACT_v1.md
 6. 40_EDUCORE_DDL_PLAN_v1.md
-6. 50_EDUCORE_INTEGRITY_RULES_v1.md
-7. 60_EDUCORE_DEFERRED_DECISIONS_v1.md
-8. 70_EDUCORE_ENGINEERING_REVIEW_GUIDE_v1.md
-9. 90_INTERNAL_AUDIT_RECORD_v1.md
+7. 50_EDUCORE_INTEGRITY_RULES_v1.md
+8. 60_EDUCORE_DEFERRED_DECISIONS_v1.md
+9. 70_EDUCORE_ENGINEERING_REVIEW_GUIDE_v1.md
+10. 90_INTERNAL_AUDIT_RECORD_v1.md
 
 ## Authority
 Architecture → Domain Model → Measurement Semantics → Schema Design → Physical Schema Contract → DDL Plan → Integrity Rules → Deferred Decisions → Engineering Review Guide.

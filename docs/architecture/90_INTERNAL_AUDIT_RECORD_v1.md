@@ -73,3 +73,20 @@ ER-006 MAJOR resolved:
 Project bootstrap is PostgreSQL-first.
 SQLite is not a supported domain/integration database.
 Implicit migration execution is removed from Composer bootstrap/setup paths.
+
+
+ER-007 MINOR resolved:
+Identity schema regression coverage committed and verified on PostgreSQL:
+5 tests passed / 8 assertions.
+
+
+## Engineering Review Pass #2 Remediation
+
+ER-008 BLOCKER resolved at specification level:
+Canonical Physical Schema Contract now states the exact composite FK column mappings for all previously abbreviated relationships.
+
+ER-009 MINOR resolved:
+Architecture README reading-order numbering corrected.
+
+ER-010 MINOR resolved:
+Internal Audit now records ER-007 closure.

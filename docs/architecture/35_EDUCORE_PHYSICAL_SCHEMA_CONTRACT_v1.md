@@ -216,12 +216,14 @@ created_at TIMESTAMPTZ NOT NULL
 
 UNIQUE(lesson_revision_id,skill_version_placement_id)
 
-Same-version composite FKs to:
-- lesson_revisions
-- skill_version_placements
+FK curriculum_version_id
+  -> curriculum_versions(id) RESTRICT
 
-Direct CurriculumVersion FK.
-All RESTRICT.
+FK (lesson_revision_id,curriculum_version_id)
+  -> lesson_revisions(id,curriculum_version_id) RESTRICT
+
+FK (skill_version_placement_id,curriculum_version_id)
+  -> skill_version_placements(id,curriculum_version_id) RESTRICT
 
 ### lesson_progresses
 id UUID PK
@@ -307,9 +309,14 @@ created_at TIMESTAMPTZ NOT NULL
 CHECK role IN ('primary','supporting')
 UNIQUE(assessment_item_revision_id,skill_version_placement_id)
 
-Same-version composite FKs to revision and placement.
-Direct CurriculumVersion FK.
-All RESTRICT.
+FK curriculum_version_id
+  -> curriculum_versions(id) RESTRICT
+
+FK (assessment_item_revision_id,curriculum_version_id)
+  -> assessment_item_revisions(id,curriculum_version_id) RESTRICT
+
+FK (skill_version_placement_id,curriculum_version_id)
+  -> skill_version_placements(id,curriculum_version_id) RESTRICT
 
 ## Practice
 
@@ -326,8 +333,12 @@ updated_at TIMESTAMPTZ NULL
 CHECK status IN ('active','archived')
 UNIQUE(id,curriculum_version_id)
 
-Direct CurriculumVersion FK and nullable same-version Lesson FK.
-RESTRICT.
+FK curriculum_version_id
+  -> curriculum_versions(id) RESTRICT
+
+Nullable composite FK:
+(lesson_id,curriculum_version_id)
+  -> lessons(id,curriculum_version_id) RESTRICT
 
 ### practice_activity_items
 id UUID PK
@@ -344,13 +355,17 @@ UNIQUE(practice_activity_id,assessment_item_revision_id)
 UNIQUE(practice_activity_id,assessment_item_id)
 UNIQUE(practice_activity_id,display_order)
 
-Composite FKs prove:
-- activity/version
-- revision/version
-- revision/item
-- item/version
+FK (practice_activity_id,curriculum_version_id)
+  -> practice_activities(id,curriculum_version_id) RESTRICT
 
-All RESTRICT.
+FK (assessment_item_revision_id,curriculum_version_id)
+  -> assessment_item_revisions(id,curriculum_version_id) RESTRICT
+
+FK (assessment_item_revision_id,assessment_item_id)
+  -> assessment_item_revisions(id,assessment_item_id) RESTRICT
+
+FK (assessment_item_id,curriculum_version_id)
+  -> assessment_items(id,curriculum_version_id) RESTRICT
 
 ## Exam
 
@@ -393,7 +408,8 @@ UNIQUE(exam_template_id,version_number)
 UNIQUE(id,exam_template_id)
 UNIQUE(id,curriculum_version_id)
 
-Same-version parent FK RESTRICT.
+FK (exam_template_id,curriculum_version_id)
+  -> exam_templates(id,curriculum_version_id) RESTRICT.
 
 ### exam_generations
 id UUID PK
@@ -411,7 +427,8 @@ CHECK jsonb_typeof(rules_snapshot) = 'object'
 
 UNIQUE(id,curriculum_version_id)
 
-Exact same-version TemplateVersion FK RESTRICT.
+FK (exam_template_version_id,curriculum_version_id)
+  -> exam_template_versions(id,curriculum_version_id) RESTRICT.
 
 ### exam_generation_items
 id UUID PK
@@ -437,7 +454,17 @@ UNIQUE(
  curriculum_version_id
 )
 
-Exact composite FKs RESTRICT.
+FK (exam_generation_id,curriculum_version_id)
+  -> exam_generations(id,curriculum_version_id) RESTRICT
+
+FK (assessment_item_revision_id,curriculum_version_id)
+  -> assessment_item_revisions(id,curriculum_version_id) RESTRICT
+
+FK (assessment_item_revision_id,assessment_item_id)
+  -> assessment_item_revisions(id,assessment_item_id) RESTRICT
+
+FK (assessment_item_id,curriculum_version_id)
+  -> assessment_items(id,curriculum_version_id) RESTRICT
 
 ## Attempts
 
@@ -466,7 +493,16 @@ UNIQUE(id,exam_generation_id,curriculum_version_id)
 Partial UNIQUE(exam_generation_id)
 WHERE exam_generation_id IS NOT NULL
 
-Source/version FKs RESTRICT.
+FK learner_profile_id
+  -> learner_profiles(id) RESTRICT
+
+Nullable exam-source FK:
+(exam_generation_id,curriculum_version_id)
+  -> exam_generations(id,curriculum_version_id) RESTRICT
+
+Nullable practice-source FK:
+(practice_activity_id,curriculum_version_id)
+  -> practice_activities(id,curriculum_version_id) RESTRICT
 
 ### attempt_items
 id UUID PK
@@ -497,9 +533,39 @@ UNIQUE(attempt_id,assessment_item_id)
 CHECK exam_generation_id and exam_generation_item_id
 are both NULL or both NOT NULL.
 
-Exact composite FKs prove:
-Attempt/source/GenerationItem/revision/item/version provenance.
-All RESTRICT.
+FK (attempt_id,curriculum_version_id)
+  -> attempts(id,curriculum_version_id) RESTRICT
+
+Exam-path provenance FK:
+(attempt_id,exam_generation_id,curriculum_version_id)
+  -> attempts(id,exam_generation_id,curriculum_version_id) RESTRICT
+
+Exact GenerationItem provenance FK:
+(exam_generation_item_id,
+ exam_generation_id,
+ assessment_item_revision_id,
+ assessment_item_id,
+ curriculum_version_id)
+  -> exam_generation_items(
+       id,
+       exam_generation_id,
+       assessment_item_revision_id,
+       assessment_item_id,
+       curriculum_version_id
+     ) RESTRICT
+
+FK (assessment_item_revision_id,curriculum_version_id)
+  -> assessment_item_revisions(id,curriculum_version_id) RESTRICT
+
+FK (assessment_item_revision_id,assessment_item_id)
+  -> assessment_item_revisions(id,assessment_item_id) RESTRICT
+
+FK (assessment_item_id,curriculum_version_id)
+  -> assessment_items(id,curriculum_version_id) RESTRICT
+
+Nullable Primary Topic FK:
+(primary_topic_id,curriculum_version_id)
+  -> topics(id,curriculum_version_id) RESTRICT
 
 ### attempt_item_classification_skills
 id UUID PK
