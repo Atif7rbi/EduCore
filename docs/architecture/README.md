@@ -29,8 +29,8 @@ SUPERSEDED = replaced by approved later decision.
 Documentation Drafting: COMPLETE
 Cross-DDL Audit: PASS
 Cross-Document Final Audit: PASS
-External Engineering Review: PENDING
-Implementation Approval: PENDING
+External Engineering Review: APPROVED
+Implementation Approval: APPROVED
 
 00_identity: BASELINE IMPLEMENTED + VERIFIED; forward normalization REQUIRED before 10_curriculum.
 10_curriculum through 95_indexes: READY, not yet approved for execution.
@@ -62,4 +62,4 @@ Final reconciliation:
 - lesson_revisions.primary_topic_id NOT NULL.
 - assessment_item_revisions.primary_topic_id nullable.
 
-This pack is internally approved for engineering review, not yet approved for implementation.
+This Architecture Pack is APPROVED FOR IMPLEMENTATION.

@@ -139,7 +139,6 @@ Mandatory aggregate locking protocol:
 - when multiple aggregate locks are needed, acquire them in deterministic parent-to-child order.
 - deferred checks do not replace this locking protocol.
 
-Separate trigger migrations for curriculum, learning, assessment, practice, exam, attempt, analytics.
 Use DB::unprepared raw SQL for PostgreSQL trigger functions/constraint triggers.
 Down: drop trigger then function.
 
