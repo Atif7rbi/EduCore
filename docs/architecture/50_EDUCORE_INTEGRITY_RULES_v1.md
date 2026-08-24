@@ -43,16 +43,19 @@ Template current pointer must target same-template published version.
 CDA-007: published→retired rejected while version remains current pointer.
 
 Generation creation requires published TemplateVersion.
-At COMMIT generation requires >=1 item and all selected revisions released.
-Generation and committed GenerationItems are historical; UPDATE/DELETE blocked.
-Post-commit append boundary remains application-controlled.
+Generation is assembled with generated_at NULL.
+At COMMIT generation requires >=1 item, all selected revisions released, and generated_at non-NULL.
+generated_at transitions NULL→timestamp exactly once and is the aggregate seal.
+After sealing, GenerationItems reject INSERT/UPDATE/DELETE.
 
 ## Attempt
 Exact source XOR via CHECK.
 Source/version composite FKs.
 At most one Attempt per Generation.
 Lifecycle in_progress→submitted|abandoned.
-Learner/source/version/started_at immutable.
+Learner/source/version immutable.
+started_at is NULL only during atomic instantiation, then transitions NULL→timestamp exactly once and seals the Attempt aggregate.
+After sealing, AttemptItems and AttemptItemClassificationSkills reject INSERT/UPDATE/DELETE.
 finalized_at required only for final state and >= started_at.
 
 At COMMIT Attempt must:
@@ -138,8 +141,11 @@ Serialize/safely upsert analytics rebuild key.
 ## Tests
 Required negative families cover lifecycle reversal, cross-version corruption, released mutation, aggregate incompleteness, exact source mismatch, exact classification mismatch, invalid finalization, invalid Regrade, invalid analytics counters.
 
-## Known limitation
-Absolute DB-only post-commit append prevention is not claimed for every immutable child collection without artificial finalized markers.
+## Historical sealing
+Released Lesson/Assessment revision classifications are sealed by released_at.
+GenerationItems are sealed by ExamGeneration.generated_at.
+AttemptItems and historical Classification Snapshot rows are sealed by Attempt.started_at.
+Post-commit historical child append is therefore rejected at DB level for these core historical aggregates.
 
 ## No silent downgrade
 If an intended DB invariant proves impractical, stop and submit an amendment; do not silently weaken it.

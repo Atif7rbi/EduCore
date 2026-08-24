@@ -129,5 +129,17 @@ No effective_is_correct, Topic performance table, Student Progress Snapshot, glo
 ## Enforcement hierarchy
 Declarative constraints → deferred constraint triggers → normal triggers → application-only semantics.
 
-## Known DB boundary
-No claim of absolute post-commit child-append prevention for every immutable child collection without an aggregate-finalized marker. DB still protects completeness, referential integrity, UPDATE and DELETE; application service boundary controls append.
+## Historical aggregate sealing
+Historical aggregate child collections are sealed at DB level.
+
+ExamGeneration:
+- generated_at is NULL only while the generation aggregate is assembled in its transaction;
+- COMMIT requires generated_at non-NULL;
+- after generated_at becomes non-NULL, GenerationItems cannot be inserted, updated, or deleted.
+
+Attempt:
+- started_at is NULL only while the complete Attempt aggregate is instantiated;
+- COMMIT requires started_at non-NULL;
+- after started_at becomes non-NULL, AttemptItems and their historical Classification Snapshot cannot be appended, updated, or deleted.
+
+The seal timestamps are one-way and cannot return to NULL.

@@ -402,7 +402,7 @@ rules_snapshot JSONB NOT NULL
 rules_schema_version INTEGER NOT NULL
 generator_version TEXT NOT NULL
 seed TEXT NOT NULL
-generated_at TIMESTAMPTZ NOT NULL
+generated_at TIMESTAMPTZ NULL physically; MUST be non-NULL at successful generation COMMIT
 created_at TIMESTAMPTZ NOT NULL
 
 CHECK rules_schema_version >= 1
@@ -447,7 +447,7 @@ exam_generation_id UUID NULL
 practice_activity_id UUID NULL
 curriculum_version_id UUID NOT NULL
 status TEXT NOT NULL DEFAULT 'in_progress'
-started_at TIMESTAMPTZ NOT NULL
+started_at TIMESTAMPTZ NULL physically; MUST be non-NULL at successful Attempt instantiation COMMIT
 finalized_at TIMESTAMPTZ NULL
 created_at TIMESTAMPTZ NOT NULL
 updated_at TIMESTAMPTZ NULL

@@ -52,8 +52,22 @@ Active aggregate completeness deferred to COMMIT.
 exam_templates → exam_template_versions → add current-pointer FK → exam_generations → exam_generation_items.
 CDA-003 composite candidate key on generation items supports exact downstream Attempt provenance.
 
+Historical Generation sealing:
+- insert ExamGeneration with generated_at NULL inside the creation transaction;
+- insert complete GenerationItems;
+- set generated_at exactly once;
+- deferred COMMIT validation requires generated_at non-NULL;
+- after generated_at is set, GenerationItems reject INSERT/UPDATE/DELETE.
+
 ## 70_attempts
 attempts → attempt_items → attempt_item_classification_skills → attempt_responses → regrade_corrections.
+
+Attempt aggregate sealing:
+- create Attempt with started_at NULL;
+- create complete AttemptItems, Classification Snapshot rows, and Responses;
+- set started_at exactly once before COMMIT;
+- deferred validation requires started_at non-NULL;
+- after started_at is set, historical AttemptItems and Classification Snapshot rows reject INSERT/UPDATE/DELETE.
 
 Attempt CHECK = ExamGeneration XOR PracticeActivity.
 Partial unique = at most one Attempt per ExamGeneration.

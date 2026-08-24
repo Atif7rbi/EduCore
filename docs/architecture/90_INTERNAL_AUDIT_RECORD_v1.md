@@ -55,3 +55,9 @@ Attempt finalization is explicitly one atomic transaction with deferred end-of-t
 
 ER-005 MAJOR resolved:
 Practice source-set equality is explicitly a creation-time transactional invariant only; historical Attempts are independent from subsequent PracticeActivity membership changes.
+
+
+ER-003 MAJOR resolved:
+Historical aggregate sealing is DB-backed without new columns.
+ExamGeneration.generated_at and Attempt.started_at act as one-way transaction seals.
+Core historical child collections reject post-seal INSERT/UPDATE/DELETE.
