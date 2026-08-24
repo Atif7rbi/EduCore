@@ -3,6 +3,12 @@
 Status: FROZEN
 Version: 1.0
 
+## Bootstrap policy
+EduCore bootstrap is PostgreSQL-first.
+SQLite is not supported for domain/integration schema verification.
+Composer/bootstrap scripts must not automatically execute pending migrations.
+Migration execution occurs only through the approved checkpoint workflow.
+
 ## Migration families
 00_identity
 10_curriculum

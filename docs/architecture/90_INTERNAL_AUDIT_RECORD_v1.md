@@ -67,3 +67,9 @@ ER-004 MAJOR resolved at specification level:
 User identity drift will be corrected by a required forward normalization migration before 10_curriculum.
 Already-applied migration history remains immutable.
 Physical closure requires migration + PostgreSQL introspection + regression tests.
+
+
+ER-006 MAJOR resolved:
+Project bootstrap is PostgreSQL-first.
+SQLite is not a supported domain/integration database.
+Implicit migration execution is removed from Composer bootstrap/setup paths.

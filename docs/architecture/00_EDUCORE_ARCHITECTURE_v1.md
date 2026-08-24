@@ -132,6 +132,10 @@ No global student score in v1.
 
 ## Data architecture
 Laravel 12 + PostgreSQL.
+
+PostgreSQL is the canonical and supported database for EduCore domain/integration execution.
+SQLite is not a supported substitute for domain schema, migration, trigger, or integration verification.
+Project bootstrap must not execute pending domain migrations implicitly.
 UUID PKs, TEXT for unconstrained domain strings, TIMESTAMPTZ, JSONB whole documents, TEXT+CHECK states, composite FKs, RESTRICT historical relationships.
 Single data space; no tenant_id.
 
