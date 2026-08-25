@@ -707,6 +707,7 @@ class BuildExamAttemptTest extends TestCase
             'email' => "attempt-{$userId}@example.test",
             'password' => 'not-used',
             'status' => 'active',
+            'role' => 'student',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

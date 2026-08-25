@@ -37,6 +37,8 @@ class TransactionManagerTest extends TestCase
                 'email' => 'transaction-success@example.test',
                 'password' => 'not-used',
                 'status' => 'active',
+
+                'role' => 'student',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -65,6 +67,8 @@ class TransactionManagerTest extends TestCase
                     'email' => 'transaction-rollback@example.test',
                     'password' => 'not-used',
                     'status' => 'active',
+
+                    'role' => 'student',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -94,6 +98,7 @@ class TransactionManagerTest extends TestCase
             'email' => 'transaction-duplicate@example.test',
             'password' => 'not-used',
             'status' => 'active',
+            'role' => 'student',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -106,6 +111,8 @@ class TransactionManagerTest extends TestCase
                     'email' => 'transaction-temp@example.test',
                     'password' => 'not-used',
                     'status' => 'active',
+
+                    'role' => 'student',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -116,6 +123,8 @@ class TransactionManagerTest extends TestCase
                     'email' => 'transaction-duplicate@example.test',
                     'password' => 'not-used',
                     'status' => 'active',
+
+                    'role' => 'student',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);

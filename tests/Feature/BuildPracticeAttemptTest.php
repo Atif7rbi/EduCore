@@ -187,6 +187,7 @@ class BuildPracticeAttemptTest extends TestCase
             'email' => "practice-{$userId}@example.test",
             'password' => 'not-used',
             'status' => 'active',
+            'role' => 'student',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

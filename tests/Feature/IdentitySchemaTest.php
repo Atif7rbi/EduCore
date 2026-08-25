@@ -54,6 +54,26 @@ class IdentitySchemaTest extends TestCase
         ]);
     }
 
+    public function test_user_role_accepts_v1_roles(): void
+    {
+        foreach (['student', 'teacher', 'admin'] as $role) {
+            $user = User::factory()->create([
+                'role' => $role,
+            ]);
+
+            $this->assertSame($role, $user->role);
+        }
+    }
+
+    public function test_user_role_rejects_invalid_value(): void
+    {
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        User::factory()->create([
+            'role' => 'invalid',
+        ]);
+    }
+
     public function test_user_status_rejects_invalid_value(): void
     {
         $this->expectException(\Illuminate\Database\QueryException::class);
