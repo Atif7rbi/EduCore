@@ -109,7 +109,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
     )->whereUuid('examTemplateVersionId');
 });
 
-Route::middleware(['web', 'auth:web', 'active'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
     Route::post(
         '/exam-generations/{examGenerationId}/attempts',
         [
@@ -195,7 +195,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     )->whereUuid('practiceActivityId');
 });
 
-Route::middleware(['web', 'auth:web', 'active'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
     Route::get(
         '/attempts/{attemptId}',
         [

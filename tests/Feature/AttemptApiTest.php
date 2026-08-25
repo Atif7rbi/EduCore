@@ -485,6 +485,170 @@ class AttemptApiTest extends TestCase
         );
     }
 
+    public function test_attempt_read_never_exposes_scoring_snapshot_or_correctness(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response->assertOk();
+
+        $item = $response->json('data.items.0');
+
+        $this->assertArrayHasKey(
+            'presented_payload',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'primary_topic_id',
+            $item
+        );
+    }
+
+    public function test_response_update_does_not_expose_original_correctness(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $created->json(
+            'data.items.0.id'
+        );
+
+        $response = $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1200,
+            ],
+        );
+
+        $response->assertOk();
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $response->json('data')
+        );
+    }
+
+    public function test_archived_practice_activity_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        DB::table('practice_activities')
+            ->where('id', $activityId)
+            ->update([
+                'status' => 'archived',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'practice_activity_id',
+                    $activityId
+                )
+                ->count()
+        );
+    }
+
+    public function test_practice_activity_in_unpublished_curriculum_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $versionId = DB::table('practice_activities')
+            ->where('id', $activityId)
+            ->value('curriculum_version_id');
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'practice_activity_id',
+                    $activityId
+                )
+                ->count()
+        );
+    }
+
     /**
      * @return array{string, string, string, string}
      */
@@ -524,6 +688,13 @@ class AttemptApiTest extends TestCase
             ->where('id', $activityId)
             ->update([
                 'status' => 'active',
+                'updated_at' => now(),
+            ]);
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
                 'updated_at' => now(),
             ]);
 

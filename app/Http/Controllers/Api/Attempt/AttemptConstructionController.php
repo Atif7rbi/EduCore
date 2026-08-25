@@ -7,6 +7,7 @@ use App\Application\Attempt\BuildPracticeAttempt;
 use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
+use App\Models\PracticeActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -36,6 +37,16 @@ class AttemptConstructionController extends Controller
         BuildPracticeAttempt $service,
     ): JsonResponse {
         $learner = $learnerContext->resolve($request->user());
+
+        PracticeActivity::query()
+            ->whereKey($practiceActivityId)
+            ->where('status', 'active')
+            ->whereHas(
+                'curriculumVersion',
+                fn ($query) => $query
+                    ->where('status', 'published')
+            )
+            ->firstOrFail();
 
         $attempt = $service->execute(
             $learner->id,

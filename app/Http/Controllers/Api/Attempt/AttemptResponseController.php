@@ -45,7 +45,6 @@ class AttemptResponseController extends Controller
             'response_payload' => $response->response_payload,
             'answer_change_count' => $response->answer_change_count,
             'time_spent_ms' => $response->time_spent_ms,
-            'original_is_correct' => $response->original_is_correct,
         ]);
     }
 }
