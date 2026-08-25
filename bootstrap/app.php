@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'active' => \App\Http\Middleware\RequireActiveUser::class,
             'management' => \App\Http\Middleware\RequireManagementAuthorization::class,
         ]);
         //
