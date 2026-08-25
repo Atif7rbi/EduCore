@@ -50,3 +50,31 @@ Route::prefix('lessons')->group(function (): void {
         ]
     )->whereUuid('lessonId');
 });
+
+Route::prefix('assessment-item-revisions')->group(function (): void {
+    Route::post(
+        '/{assessmentItemRevisionId}/release',
+        [
+            \App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController::class,
+            'release',
+        ]
+    )->whereUuid('assessmentItemRevisionId');
+});
+
+Route::prefix('assessment-items')->group(function (): void {
+    Route::post(
+        '/{assessmentItemId}/publish',
+        [
+            \App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController::class,
+            'publish',
+        ]
+    )->whereUuid('assessmentItemId');
+
+    Route::post(
+        '/{assessmentItemId}/retire',
+        [
+            \App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController::class,
+            'retire',
+        ]
+    )->whereUuid('assessmentItemId');
+});
