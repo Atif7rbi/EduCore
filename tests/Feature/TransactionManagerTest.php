@@ -11,6 +11,19 @@ use Tests\TestCase;
 
 class TransactionManagerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DB::table('users')->whereIn('id', [
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        ])->delete();
+    }
+
     public function test_successful_transaction_commits_and_returns_result(): void
     {
         $manager = new TransactionManager(

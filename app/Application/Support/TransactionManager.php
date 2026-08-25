@@ -5,6 +5,7 @@ namespace App\Application\Support;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use PDOException;
 
 class TransactionManager
 {
@@ -26,7 +27,7 @@ class TransactionManager
                 callback: $callback,
                 attempts: 1,
             );
-        } catch (QueryException $exception) {
+        } catch (QueryException|PDOException $exception) {
             throw $this->translator->translate($exception);
         }
     }

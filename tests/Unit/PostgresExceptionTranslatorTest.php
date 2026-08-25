@@ -49,6 +49,28 @@ class PostgresExceptionTranslatorTest extends TestCase
         }
     }
 
+    public function test_pdo_exception_from_deferred_commit_is_translated(): void
+    {
+        $translator = new PostgresExceptionTranslator();
+
+        $exception = new PDOException('deferred constraint failed');
+        $exception->errorInfo = [
+            'P0001',
+            null,
+            'deferred constraint failed',
+        ];
+
+        $translated = $translator->translate($exception);
+
+        $this->assertInstanceOf(
+            IntegrityConstraintViolation::class,
+            $translated
+        );
+
+        $this->assertSame('P0001', $translated->sqlState);
+        $this->assertSame($exception, $translated->getPrevious());
+    }
+
     public function test_unknown_sqlstate_is_not_hidden(): void
     {
         $translator = new PostgresExceptionTranslator();

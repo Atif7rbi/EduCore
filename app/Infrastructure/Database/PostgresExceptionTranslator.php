@@ -5,11 +5,12 @@ namespace App\Infrastructure\Database;
 use App\Application\Exceptions\ConcurrencyConflict;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use Illuminate\Database\QueryException;
+use PDOException;
 use Throwable;
 
 class PostgresExceptionTranslator
 {
-    public function translate(QueryException $exception): Throwable
+    public function translate(Throwable $exception): Throwable
     {
         $sqlState = $this->sqlState($exception);
 
@@ -33,8 +34,15 @@ class PostgresExceptionTranslator
         return $exception;
     }
 
-    private function sqlState(QueryException $exception): ?string
+    private function sqlState(Throwable $exception): ?string
     {
+        if (
+            ! $exception instanceof QueryException
+            && ! $exception instanceof PDOException
+        ) {
+            return null;
+        }
+
         $errorInfo = $exception->errorInfo;
 
         if (! is_array($errorInfo)) {
