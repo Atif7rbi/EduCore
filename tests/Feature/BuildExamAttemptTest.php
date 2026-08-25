@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildExamAttempt;
+use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
@@ -255,6 +256,215 @@ class BuildExamAttemptTest extends TestCase
         $this->assertSame(0, $response->answer_change_count);
         $this->assertSame(0, $response->time_spent_ms);
         $this->assertNull($response->original_is_correct);
+    }
+
+    public function test_answered_attempt_can_be_submitted_with_original_correctness(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1800,
+        );
+
+        $finalized = $this->finalizeService()->execute(
+            $attempt->id,
+            [
+                $attemptItemId => true,
+            ],
+        );
+
+        $this->assertSame('submitted', $finalized->status);
+        $this->assertNotNull($finalized->finalized_at);
+
+        $response = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->first();
+
+        $this->assertNotNull($response);
+        $this->assertTrue($response->original_is_correct);
+    }
+
+    public function test_incorrect_answer_can_be_frozen_as_originally_incorrect(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 1],
+            900,
+        );
+
+        $this->finalizeService()->execute(
+            $attempt->id,
+            [
+                $attemptItemId => false,
+            ],
+        );
+
+        $response = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->first();
+
+        $this->assertNotNull($response);
+        $this->assertFalse($response->original_is_correct);
+    }
+
+    public function test_unanswered_item_remains_without_original_correctness(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $finalized = $this->finalizeService()->execute(
+            $attempt->id,
+            [],
+        );
+
+        $this->assertSame('submitted', $finalized->status);
+        $this->assertNotNull($finalized->finalized_at);
+
+        $response = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->first();
+
+        $this->assertNotNull($response);
+        $this->assertNull($response->response_payload);
+        $this->assertNull($response->original_is_correct);
+    }
+
+    public function test_answered_item_without_correctness_cannot_be_finalized(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1200,
+        );
+
+        try {
+            $this->finalizeService()->execute(
+                $attempt->id,
+                [],
+            );
+
+            $this->fail(
+                'Expected IntegrityConstraintViolation was not thrown.'
+            );
+        } catch (IntegrityConstraintViolation $exception) {
+            $this->assertSame('P0001', $exception->sqlState);
+        }
+
+        $storedAttempt = DB::table('attempts')
+            ->where('id', $attempt->id)
+            ->first();
+
+        $this->assertNotNull($storedAttempt);
+        $this->assertSame('in_progress', $storedAttempt->status);
+        $this->assertNull($storedAttempt->finalized_at);
+
+        $response = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->first();
+
+        $this->assertNotNull($response);
+        $this->assertNull($response->original_is_correct);
+    }
+
+    public function test_finalized_attempt_cannot_be_finalized_again(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1000,
+        );
+
+        $firstFinalization = $this->finalizeService()->execute(
+            $attempt->id,
+            [
+                $attemptItemId => true,
+            ],
+        );
+
+        $firstFinalizedAt = $firstFinalization->finalized_at;
+
+        try {
+            $this->finalizeService()->execute(
+                $attempt->id,
+                [
+                    $attemptItemId => true,
+                ],
+            );
+
+            $this->fail(
+                'Expected IntegrityConstraintViolation was not thrown.'
+            );
+        } catch (IntegrityConstraintViolation $exception) {
+            $this->assertSame('P0001', $exception->sqlState);
+        }
+
+        $storedAttempt = $attempt->fresh();
+
+        $this->assertSame('submitted', $storedAttempt->status);
+        $this->assertTrue(
+            $firstFinalizedAt->equalTo($storedAttempt->finalized_at)
+        );
+    }
+
+    private function finalizeService(): FinalizeAttempt
+    {
+        return new FinalizeAttempt(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        );
     }
 
     private function responseService(): SaveAttemptResponse
