@@ -15,7 +15,7 @@ class PostgresExceptionTranslatorTest extends TestCase
     {
         $translator = new PostgresExceptionTranslator();
 
-        foreach (['23505', '23503', '23514'] as $sqlState) {
+        foreach (['23505', '23503', '23514', 'P0001'] as $sqlState) {
             $exception = $this->queryException($sqlState);
 
             $translated = $translator->translate($exception);

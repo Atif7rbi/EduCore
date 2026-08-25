@@ -13,7 +13,10 @@ class PostgresExceptionTranslator
     {
         $sqlState = $this->sqlState($exception);
 
-        if ($sqlState !== null && str_starts_with($sqlState, '23')) {
+        if (
+            ($sqlState !== null && str_starts_with($sqlState, '23'))
+            || $sqlState === 'P0001'
+        ) {
             return new IntegrityConstraintViolation(
                 sqlState: $sqlState,
                 previous: $exception,
