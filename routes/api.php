@@ -78,3 +78,23 @@ Route::prefix('assessment-items')->group(function (): void {
         ]
     )->whereUuid('assessmentItemId');
 });
+
+Route::prefix('practice-activities')->group(function (): void {
+    Route::post(
+        '/{practiceActivityId}/items',
+        [
+            \App\Http\Controllers\Api\Practice\PracticeActivityItemController::class,
+            'store',
+        ]
+    )->whereUuid('practiceActivityId');
+
+    Route::delete(
+        '/{practiceActivityId}/items/{practiceActivityItemId}',
+        [
+            \App\Http\Controllers\Api\Practice\PracticeActivityItemController::class,
+            'destroy',
+        ]
+    )
+        ->whereUuid('practiceActivityId')
+        ->whereUuid('practiceActivityItemId');
+});
