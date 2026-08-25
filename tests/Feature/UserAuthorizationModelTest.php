@@ -46,6 +46,20 @@ class UserAuthorizationModelTest extends TestCase
         $this->assertFalse($user->isTeacher());
     }
 
+    public function test_active_status_is_exposed_through_authorization_abstraction(): void
+    {
+        $active = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        $disabled = User::factory()->create([
+            'status' => 'disabled',
+        ]);
+
+        $this->assertTrue($active->isActive());
+        $this->assertFalse($disabled->isActive());
+    }
+
     public function test_unknown_role_query_does_not_grant_access(): void
     {
         $user = User::factory()->create([

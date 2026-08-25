@@ -37,6 +37,11 @@ class User extends Authenticatable
         return $this->role === $role;
     }
 
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
     public function isStudent(): bool
     {
         return $this->hasRole('student');

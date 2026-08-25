@@ -2,16 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AuthorizationBoundaryTest extends TestCase
 {
-    public function test_management_routes_are_fail_closed(): void
-    {
-        $id = (string) Str::uuid();
+    use RefreshDatabase;
 
-        $requests = [
+    private function managementRequests(string $id): array
+    {
+        return [
             ['postJson', "/api/curriculum-versions/{$id}/publish", []],
             ['postJson', "/api/curriculum-versions/{$id}/retire", []],
             ['postJson', "/api/lesson-revisions/{$id}/release", []],
@@ -45,14 +47,98 @@ class AuthorizationBoundaryTest extends TestCase
                 'reason' => 'test',
             ]],
         ];
+    }
 
-        foreach ($requests as [$method, $uri, $payload]) {
+    public function test_management_routes_reject_guest(): void
+    {
+        $id = (string) Str::uuid();
+
+        foreach ($this->managementRequests($id) as [$method, $uri, $payload]) {
+            $this->{$method}($uri, $payload)
+                ->assertStatus(401)
+                ->assertJsonPath('error.code', 'unauthenticated');
+        }
+    }
+
+    public function test_management_routes_reject_student(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $id = (string) Str::uuid();
+
+        foreach ($this->managementRequests($id) as [$method, $uri, $payload]) {
             $this->{$method}($uri, $payload)
                 ->assertStatus(403)
-                ->assertJsonPath(
-                    'error.code',
-                    'management_authorization_required'
-                );
+                ->assertJsonPath('error.code', 'management_forbidden');
+        }
+    }
+
+    public function test_management_routes_reject_teacher(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $id = (string) Str::uuid();
+
+        foreach ($this->managementRequests($id) as [$method, $uri, $payload]) {
+            $this->{$method}($uri, $payload)
+                ->assertStatus(403)
+                ->assertJsonPath('error.code', 'management_forbidden');
+        }
+    }
+
+    public function test_management_routes_reject_disabled_admin(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'admin',
+            'status' => 'disabled',
+        ]);
+
+        $this->actingAs($user);
+
+        $id = (string) Str::uuid();
+
+        foreach ($this->managementRequests($id) as [$method, $uri, $payload]) {
+            $this->{$method}($uri, $payload)
+                ->assertStatus(403)
+                ->assertJsonPath('error.code', 'account_disabled');
+        }
+    }
+
+    public function test_active_admin_passes_management_boundary(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $id = (string) Str::uuid();
+
+        foreach ($this->managementRequests($id) as [$method, $uri, $payload]) {
+            $response = $this->{$method}($uri, $payload);
+
+            $this->assertNotSame(
+                401,
+                $response->getStatusCode(),
+                "Active admin was rejected as unauthenticated for {$uri}"
+            );
+
+            $this->assertNotSame(
+                403,
+                $response->getStatusCode(),
+                "Active admin was rejected by management boundary for {$uri}"
+            );
         }
     }
 
