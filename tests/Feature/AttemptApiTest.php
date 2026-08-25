@@ -699,6 +699,102 @@ class AttemptApiTest extends TestCase
             );
     }
 
+    public function test_attempt_can_be_read_without_scoring_truth(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [
+                'learner_profile_id' => $learnerId,
+            ],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 2100,
+            ],
+        )->assertOk();
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.id', $attemptId)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            )
+            ->assertJsonPath(
+                'data.practice_activity_id',
+                $activityId
+            )
+            ->assertJsonPath(
+                'data.status',
+                'in_progress'
+            )
+            ->assertJsonPath(
+                'data.items.0.id',
+                $attemptItemId
+            )
+            ->assertJsonPath(
+                'data.items.0.response.response_payload.selected_option',
+                2
+            )
+            ->assertJsonPath(
+                'data.items.0.response.answer_change_count',
+                0
+            )
+            ->assertJsonPath(
+                'data.items.0.response.time_spent_ms',
+                2100
+            );
+
+        $item = $response->json('data.items.0');
+        $itemResponse = $response->json(
+            'data.items.0.response'
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $itemResponse
+        );
+    }
+
+    public function test_missing_attempt_read_returns_not_found(): void
+    {
+        $attemptId = (string) Str::uuid();
+
+        $this->getJson(
+            "/api/attempts/{$attemptId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
     /**
      * @return array{string, string, string, string}
      */
