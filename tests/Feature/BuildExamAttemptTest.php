@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildExamAttempt;
+use App\Application\Attempt\SaveAttemptResponse;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
@@ -124,6 +125,144 @@ class BuildExamAttemptTest extends TestCase
             DB::table('attempts')
                 ->where('exam_generation_id', $generationId)
                 ->count()
+        );
+    }
+
+    public function test_first_answer_is_saved_without_incrementing_change_count(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $response = $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1500,
+        );
+
+        $this->assertEquals(
+            ['selected_option' => 2],
+            $response->response_payload
+        );
+        $this->assertSame(0, $response->answer_change_count);
+        $this->assertSame(1500, $response->time_spent_ms);
+        $this->assertNull($response->original_is_correct);
+    }
+
+    public function test_saving_same_answer_does_not_increment_change_count(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1000,
+        );
+
+        $response = $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            2200,
+        );
+
+        $this->assertSame(0, $response->answer_change_count);
+        $this->assertSame(2200, $response->time_spent_ms);
+    }
+
+    public function test_changing_existing_answer_increments_change_count(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 1],
+            1000,
+        );
+
+        $response = $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            2500,
+        );
+
+        $this->assertEquals(
+            ['selected_option' => 2],
+            $response->response_payload
+        );
+        $this->assertSame(1, $response->answer_change_count);
+        $this->assertSame(2500, $response->time_spent_ms);
+        $this->assertNull($response->original_is_correct);
+    }
+
+    public function test_negative_time_spent_is_rejected_and_response_rolls_back(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        try {
+            $this->responseService()->execute(
+                $attemptItemId,
+                ['selected_option' => 2],
+                -1,
+            );
+
+            $this->fail(
+                'Expected IntegrityConstraintViolation was not thrown.'
+            );
+        } catch (IntegrityConstraintViolation $exception) {
+            $this->assertSame('23514', $exception->sqlState);
+        }
+
+        $response = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->first();
+
+        $this->assertNotNull($response);
+        $this->assertNull($response->response_payload);
+        $this->assertSame(0, $response->answer_change_count);
+        $this->assertSame(0, $response->time_spent_ms);
+        $this->assertNull($response->original_is_correct);
+    }
+
+    private function responseService(): SaveAttemptResponse
+    {
+        return new SaveAttemptResponse(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
         );
     }
 
