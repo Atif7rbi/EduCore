@@ -14,6 +14,7 @@ class CurriculumReadController extends Controller
         string $curriculumVersionId,
     ): JsonResponse {
         $version = CurriculumVersion::query()
+            ->where('status', 'published')
             ->with([
                 'topics' => fn ($query) => $query
                     ->orderBy('display_order'),
@@ -41,6 +42,7 @@ class CurriculumReadController extends Controller
         string $curriculumVersionId,
     ): JsonResponse {
         CurriculumVersion::query()
+            ->where('status', 'published')
             ->findOrFail($curriculumVersionId);
 
         $lessons = Lesson::query()
@@ -48,6 +50,8 @@ class CurriculumReadController extends Controller
                 'curriculum_version_id',
                 $curriculumVersionId
             )
+            ->where('status', 'published')
+            ->whereNotNull('published_revision_id')
             ->orderBy('display_order')
             ->orderBy('id')
             ->get();

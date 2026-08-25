@@ -142,7 +142,7 @@ class AuthorizationBoundaryTest extends TestCase
         }
     }
 
-    public function test_public_read_and_health_routes_are_not_management_blocked(): void
+    public function test_health_is_public_and_learner_catalog_requires_authentication(): void
     {
         $missingId = (string) Str::uuid();
 
@@ -153,19 +153,16 @@ class AuthorizationBoundaryTest extends TestCase
         $this->getJson(
             "/api/curriculum-versions/{$missingId}"
         )
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->assertStatus(401);
 
         $this->getJson(
             "/api/lessons/{$missingId}"
         )
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->assertStatus(401);
 
         $this->getJson(
             "/api/practice-activities/{$missingId}"
         )
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->assertStatus(401);
     }
 }

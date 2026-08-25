@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => \App\Http\Middleware\RequireActiveUser::class,
+            'learner' => \App\Http\Middleware\RequireLearnerProfile::class,
             'management' => \App\Http\Middleware\RequireManagementAuthorization::class,
         ]);
         //

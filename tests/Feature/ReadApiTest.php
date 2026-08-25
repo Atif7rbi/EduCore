@@ -2,134 +2,201 @@
 
 namespace Tests\Feature;
 
+use App\Application\Assessment\ReleaseAssessmentItemRevision;
+use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\LearnerProfile;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ReadApiTest extends TestCase
 {
-    public function test_curriculum_version_returns_topics_in_display_order(): void
+    public function test_catalog_routes_require_authentication(): void
     {
-        [$versionId] = $this->createCurriculumVersion();
+        $id = (string) Str::uuid();
 
-        $topicLater = (string) Str::uuid();
-        $topicFirst = (string) Str::uuid();
+        $this->getJson("/api/curriculum-versions/{$id}")
+            ->assertStatus(401);
 
-        DB::table('topics')->insert([
-            [
-                'id' => $topicLater,
-                'curriculum_version_id' => $versionId,
-                'name' => 'Later Topic',
-                'display_order' => 2,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => $topicFirst,
-                'curriculum_version_id' => $versionId,
-                'name' => 'First Topic',
-                'display_order' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
+        $this->getJson("/api/lessons/{$id}")
+            ->assertStatus(401);
+
+        $this->getJson("/api/practice-activities/{$id}")
+            ->assertStatus(401);
+    }
+
+    public function test_catalog_routes_require_learner_profile(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
         ]);
+
+        $this->actingAs($user);
+
+        $id = (string) Str::uuid();
+
+        $this->getJson("/api/curriculum-versions/{$id}")
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+    }
+
+    public function test_published_curriculum_version_returns_topics_in_display_order(): void
+    {
+        $this->authenticateLearner();
+
+        $versionId = $this->createCurriculumVersion();
+
+        $topicLater = $this->createTopic(
+            $versionId,
+            'Later Topic',
+            2,
+        );
+
+        $topicFirst = $this->createTopic(
+            $versionId,
+            'First Topic',
+            1,
+        );
+
+        $this->publishCurriculumVersion($versionId);
 
         $this->getJson(
             "/api/curriculum-versions/{$versionId}"
         )
             ->assertOk()
-            ->assertJsonPath('data.id', $versionId)
+            ->assertJsonPath('data.status', 'published')
             ->assertJsonPath('data.topics.0.id', $topicFirst)
-            ->assertJsonPath('data.topics.0.display_order', 1)
-            ->assertJsonPath('data.topics.1.id', $topicLater)
-            ->assertJsonPath('data.topics.1.display_order', 2);
+            ->assertJsonPath('data.topics.1.id', $topicLater);
     }
 
-    public function test_curriculum_lessons_are_returned_in_display_order(): void
+    public function test_draft_and_retired_curriculum_versions_are_not_visible(): void
     {
-        [$versionId] = $this->createCurriculumVersion();
+        $this->authenticateLearner();
 
-        $lessonLater = $this->createLesson(
-            $versionId,
-            title: 'Later Lesson',
-            displayOrder: 2,
-        );
-
-        $lessonFirst = $this->createLesson(
-            $versionId,
-            title: 'First Lesson',
-            displayOrder: 1,
-        );
+        $draftId = $this->createCurriculumVersion();
 
         $this->getJson(
-            "/api/curriculum-versions/{$versionId}/lessons"
+            "/api/curriculum-versions/{$draftId}"
         )
-            ->assertOk()
-            ->assertJsonPath('data.0.id', $lessonFirst)
-            ->assertJsonPath('data.0.display_order', 1)
-            ->assertJsonPath('data.1.id', $lessonLater)
-            ->assertJsonPath('data.1.display_order', 2);
-    }
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
 
-    public function test_lesson_read_returns_published_revision_and_practice_activities(): void
-    {
-        [$versionId] = $this->createCurriculumVersion();
+        $retiredId = $this->createCurriculumVersion();
 
-        $topicId = $this->createTopic($versionId);
-
-        $lessonId = $this->createLesson(
-            $versionId,
-            title: 'Published Lesson',
-            displayOrder: 0,
-        );
-
-        $revisionId = (string) Str::uuid();
-
-        DB::table('lesson_revisions')->insert([
-            'id' => $revisionId,
-            'lesson_id' => $lessonId,
-            'curriculum_version_id' => $versionId,
-            'revision_number' => 1,
-            'primary_topic_id' => $topicId,
-            'content_payload' => json_encode([
-                'blocks' => [
-                    ['type' => 'text', 'value' => 'Lesson content'],
-                ],
-            ], JSON_THROW_ON_ERROR),
-            'content_schema_version' => 1,
-            'released_at' => null,
-            'created_at' => now(),
-        ]);
-
-        (new ReleaseLessonRevision(
-            new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
-        ))->execute($revisionId);
-
-        DB::table('lessons')
-            ->where('id', $lessonId)
+        DB::table('curriculum_versions')
+            ->where('id', $retiredId)
             ->update([
                 'status' => 'published',
-                'published_revision_id' => $revisionId,
                 'updated_at' => now(),
             ]);
 
-        $activityId = (string) Str::uuid();
+        DB::table('curriculum_versions')
+            ->where('id', $retiredId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
 
-        DB::table('practice_activities')->insert([
-            'id' => $activityId,
-            'curriculum_version_id' => $versionId,
-            'lesson_id' => $lessonId,
-            'name' => 'Lesson Practice',
-            'description' => 'Practice description',
-            'status' => 'archived',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->getJson(
+            "/api/curriculum-versions/{$retiredId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
+    }
+
+    public function test_curriculum_lessons_returns_only_published_lessons(): void
+    {
+        $this->authenticateLearner();
+
+        $versionId = $this->createCurriculumVersion();
+        $topicId = $this->createTopic(
+            $versionId,
+            'Main Topic',
+            0,
+        );
+
+        $publishedLater = $this->createPublishedLesson(
+            $versionId,
+            $topicId,
+            'Published Later',
+            2,
+        );
+
+        $publishedFirst = $this->createPublishedLesson(
+            $versionId,
+            $topicId,
+            'Published First',
+            1,
+        );
+
+        $this->createDraftLesson(
+            $versionId,
+            'Draft Hidden',
+            0,
+        );
+
+        $this->publishCurriculumVersion($versionId);
+
+        $response = $this->getJson(
+            "/api/curriculum-versions/{$versionId}/lessons"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', $publishedFirst)
+            ->assertJsonPath('data.1.id', $publishedLater);
+    }
+
+    public function test_published_lesson_returns_only_active_practice_activities(): void
+    {
+        $this->authenticateLearner();
+
+        $versionId = $this->createCurriculumVersion();
+        $topicId = $this->createTopic(
+            $versionId,
+            'Lesson Topic',
+            0,
+        );
+
+        $lessonId = $this->createPublishedLesson(
+            $versionId,
+            $topicId,
+            'Published Lesson',
+            0,
+        );
+
+        [$revisionId, $itemId] =
+            $this->createReleasedAssessmentRevision(
+                $versionId,
+                $topicId,
+            );
+
+        $activeActivityId = $this->createPracticeActivity(
+            $versionId,
+            $lessonId,
+            $revisionId,
+            $itemId,
+            true,
+        );
+
+        $archivedActivityId = $this->createPracticeActivity(
+            $versionId,
+            $lessonId,
+            $revisionId,
+            $itemId,
+            false,
+        );
+
+        $this->publishCurriculumVersion($versionId);
 
         $response = $this->getJson(
             "/api/lessons/{$lessonId}"
@@ -138,92 +205,177 @@ class ReadApiTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('data.id', $lessonId)
-            ->assertJsonPath(
-                'data.published_revision.id',
-                $revisionId
-            )
-            ->assertJsonPath(
-                'data.published_revision.content_payload.blocks.0.value',
-                'Lesson content'
-            )
+            ->assertJsonCount(1, 'data.practice_activities')
             ->assertJsonPath(
                 'data.practice_activities.0.id',
-                $activityId
+                $activeActivityId
             );
 
-        $this->assertArrayNotHasKey(
-            'scoring_payload',
-            $response->json('data.published_revision')
+        $ids = collect(
+            $response->json('data.practice_activities')
+        )->pluck('id')->all();
+
+        $this->assertNotContains(
+            $archivedActivityId,
+            $ids
         );
     }
 
-    public function test_practice_activity_read_returns_membership_without_scoring_truth(): void
+    public function test_draft_lesson_and_lesson_in_unpublished_curriculum_are_not_visible(): void
     {
-        [$versionId] = $this->createCurriculumVersion();
+        $this->authenticateLearner();
 
-        $activityId = (string) Str::uuid();
+        $publishedVersionId = $this->createCurriculumVersion();
+        $publishedTopicId = $this->createTopic(
+            $publishedVersionId,
+            'Published Topic',
+            0,
+        );
 
-        DB::table('practice_activities')->insert([
-            'id' => $activityId,
-            'curriculum_version_id' => $versionId,
-            'lesson_id' => null,
-            'name' => 'Standalone Practice',
-            'description' => null,
-            'status' => 'archived',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $draftLessonId = $this->createDraftLesson(
+            $publishedVersionId,
+            'Draft Lesson',
+            0,
+        );
+
+        $this->publishCurriculumVersion(
+            $publishedVersionId
+        );
+
+        $this->getJson(
+            "/api/lessons/{$draftLessonId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
+
+        $draftVersionId = $this->createCurriculumVersion();
+        $draftTopicId = $this->createTopic(
+            $draftVersionId,
+            'Draft Curriculum Topic',
+            0,
+        );
+
+        $publishedLessonInDraftVersion =
+            $this->createPublishedLesson(
+                $draftVersionId,
+                $draftTopicId,
+                'Hidden Published Lesson',
+                0,
+            );
+
+        $this->getJson(
+            "/api/lessons/{$publishedLessonInDraftVersion}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
+    }
+
+    public function test_active_practice_activity_is_visible_only_in_published_curriculum(): void
+    {
+        $this->authenticateLearner();
+
+        $publishedVersionId =
+            $this->createCurriculumVersion();
+
+        $publishedTopicId = $this->createTopic(
+            $publishedVersionId,
+            'Practice Topic',
+            0,
+        );
+
+        [$publishedRevisionId, $publishedItemId] =
+            $this->createReleasedAssessmentRevision(
+                $publishedVersionId,
+                $publishedTopicId,
+            );
+
+        $visibleActivityId = $this->createPracticeActivity(
+            $publishedVersionId,
+            null,
+            $publishedRevisionId,
+            $publishedItemId,
+            true,
+        );
+
+        $this->publishCurriculumVersion(
+            $publishedVersionId
+        );
+
+        $this->getJson(
+            "/api/practice-activities/{$visibleActivityId}"
+        )
+            ->assertOk()
+            ->assertJsonPath('data.id', $visibleActivityId)
+            ->assertJsonPath('data.status', 'active');
+
+        $draftVersionId =
+            $this->createCurriculumVersion();
+
+        $draftTopicId = $this->createTopic(
+            $draftVersionId,
+            'Hidden Practice Topic',
+            0,
+        );
+
+        [$draftRevisionId, $draftItemId] =
+            $this->createReleasedAssessmentRevision(
+                $draftVersionId,
+                $draftTopicId,
+            );
+
+        $hiddenActivityId = $this->createPracticeActivity(
+            $draftVersionId,
+            null,
+            $draftRevisionId,
+            $draftItemId,
+            true,
+        );
+
+        $this->getJson(
+            "/api/practice-activities/{$hiddenActivityId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
+    }
+
+    public function test_archived_practice_activity_is_not_visible(): void
+    {
+        $this->authenticateLearner();
+
+        $versionId = $this->createCurriculumVersion();
+        $topicId = $this->createTopic(
+            $versionId,
+            'Archived Practice Topic',
+            0,
+        );
 
         [$revisionId, $itemId] =
-            $this->createAssessmentRevision($versionId);
-
-        $membershipId = (string) Str::uuid();
-
-        DB::table('practice_activity_items')->insert([
-            'id' => $membershipId,
-            'practice_activity_id' => $activityId,
-            'assessment_item_revision_id' => $revisionId,
-            'assessment_item_id' => $itemId,
-            'curriculum_version_id' => $versionId,
-            'display_order' => 0,
-            'created_at' => now(),
-        ]);
-
-        $response = $this->getJson(
-            "/api/practice-activities/{$activityId}"
-        );
-
-        $response
-            ->assertOk()
-            ->assertJsonPath('data.id', $activityId)
-            ->assertJsonPath(
-                'data.items.0.id',
-                $membershipId
-            )
-            ->assertJsonPath(
-                'data.items.0.assessment_item_revision_id',
-                $revisionId
-            )
-            ->assertJsonPath(
-                'data.items.0.assessment_item_id',
-                $itemId
+            $this->createReleasedAssessmentRevision(
+                $versionId,
+                $topicId,
             );
 
-        $item = $response->json('data.items.0');
-
-        $this->assertArrayNotHasKey(
-            'scoring_payload',
-            $item
+        $activityId = $this->createPracticeActivity(
+            $versionId,
+            null,
+            $revisionId,
+            $itemId,
+            false,
         );
 
-        $this->assertArrayNotHasKey(
-            'scoring_snapshot',
-            $item
-        );
+        $this->publishCurriculumVersion($versionId);
+
+        $this->getJson(
+            "/api/practice-activities/{$activityId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'not_found');
     }
 
-    public function test_missing_read_resources_return_not_found(): void
+    public function test_missing_visible_resources_return_not_found(): void
     {
+        $this->authenticateLearner();
+
         $missingId = (string) Str::uuid();
 
         $this->getJson(
@@ -245,10 +397,23 @@ class ReadApiTest extends TestCase
             ->assertJsonPath('error.code', 'not_found');
     }
 
-    /**
-     * @return array{string, string, string}
-     */
-    private function createCurriculumVersion(): array
+    private function authenticateLearner(): LearnerProfile
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $learner = LearnerProfile::create([
+            'user_id' => $user->id,
+        ]);
+
+        $this->actingAs($user);
+
+        return $learner;
+    }
+
+    private function createCurriculumVersion(): string
     {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
@@ -256,7 +421,7 @@ class ReadApiTest extends TestCase
 
         DB::table('subjects')->insert([
             'id' => $subjectId,
-            'name' => "Read API Subject {$subjectId}",
+            'name' => "Learner Subject {$subjectId}",
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -264,7 +429,7 @@ class ReadApiTest extends TestCase
         DB::table('curricula')->insert([
             'id' => $curriculumId,
             'subject_id' => $subjectId,
-            'name' => "Read API Curriculum {$curriculumId}",
+            'name' => "Learner Curriculum {$curriculumId}",
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -279,22 +444,31 @@ class ReadApiTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        return [
-            $versionId,
-            $curriculumId,
-            $subjectId,
-        ];
+        return $versionId;
     }
 
-    private function createTopic(string $versionId): string
-    {
+    private function publishCurriculumVersion(
+        string $versionId,
+    ): void {
+        (new PublishCurriculumVersion(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($versionId);
+    }
+
+    private function createTopic(
+        string $versionId,
+        string $name,
+        int $displayOrder,
+    ): string {
         $topicId = (string) Str::uuid();
 
         DB::table('topics')->insert([
             'id' => $topicId,
             'curriculum_version_id' => $versionId,
-            'name' => "Read API Topic {$topicId}",
-            'display_order' => 0,
+            'name' => $name,
+            'display_order' => $displayOrder,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -302,7 +476,7 @@ class ReadApiTest extends TestCase
         return $topicId;
     }
 
-    private function createLesson(
+    private function createDraftLesson(
         string $versionId,
         string $title,
         int $displayOrder,
@@ -324,21 +498,88 @@ class ReadApiTest extends TestCase
         return $lessonId;
     }
 
+    private function createPublishedLesson(
+        string $versionId,
+        string $topicId,
+        string $title,
+        int $displayOrder,
+    ): string {
+        $lessonId = $this->createDraftLesson(
+            $versionId,
+            $title,
+            $displayOrder,
+        );
+
+        $revisionId = (string) Str::uuid();
+
+        DB::table('lesson_revisions')->insert([
+            'id' => $revisionId,
+            'lesson_id' => $lessonId,
+            'curriculum_version_id' => $versionId,
+            'revision_number' => 1,
+            'primary_topic_id' => $topicId,
+            'content_payload' => json_encode([
+                'blocks' => [
+                    [
+                        'type' => 'text',
+                        'value' => 'Learner lesson content',
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'content_schema_version' => 1,
+            'released_at' => null,
+            'created_at' => now(),
+        ]);
+
+        (new ReleaseLessonRevision(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($revisionId);
+
+        DB::table('lessons')
+            ->where('id', $lessonId)
+            ->update([
+                'status' => 'published',
+                'published_revision_id' => $revisionId,
+                'updated_at' => now(),
+            ]);
+
+        return $lessonId;
+    }
+
     /**
      * @return array{string, string}
      */
-    private function createAssessmentRevision(
+    private function createReleasedAssessmentRevision(
         string $versionId,
+        string $topicId,
     ): array {
-        $topicId = $this->createTopic($versionId);
+        $skillId = (string) Str::uuid();
+        $placementId = (string) Str::uuid();
         $itemId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
+
+        DB::table('skills')->insert([
+            'id' => $skillId,
+            'name' => "Learner Skill {$skillId}",
+            'description' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('skill_version_placements')->insert([
+            'id' => $placementId,
+            'skill_id' => $skillId,
+            'curriculum_version_id' => $versionId,
+            'created_at' => now(),
+        ]);
 
         DB::table('assessment_items')->insert([
             'id' => $itemId,
             'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' => "Read API Item {$itemId}",
+            'internal_label' => "Learner Item {$itemId}",
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -365,9 +606,65 @@ class ReadApiTest extends TestCase
             'created_at' => now(),
         ]);
 
-        return [
-            $revisionId,
-            $itemId,
-        ];
+        DB::table(
+            'assessment_item_revision_skills'
+        )->insert([
+            'id' => (string) Str::uuid(),
+            'assessment_item_revision_id' => $revisionId,
+            'skill_version_placement_id' => $placementId,
+            'curriculum_version_id' => $versionId,
+            'role' => 'primary',
+            'created_at' => now(),
+        ]);
+
+        (new ReleaseAssessmentItemRevision(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($revisionId);
+
+        return [$revisionId, $itemId];
+    }
+
+    private function createPracticeActivity(
+        string $versionId,
+        ?string $lessonId,
+        string $revisionId,
+        string $itemId,
+        bool $active,
+    ): string {
+        $activityId = (string) Str::uuid();
+
+        DB::table('practice_activities')->insert([
+            'id' => $activityId,
+            'curriculum_version_id' => $versionId,
+            'lesson_id' => $lessonId,
+            'name' => "Learner Practice {$activityId}",
+            'description' => null,
+            'status' => 'archived',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('practice_activity_items')->insert([
+            'id' => (string) Str::uuid(),
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $revisionId,
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $versionId,
+            'display_order' => 0,
+            'created_at' => now(),
+        ]);
+
+        if ($active) {
+            DB::table('practice_activities')
+                ->where('id', $activityId)
+                ->update([
+                    'status' => 'active',
+                    'updated_at' => now(),
+                ]);
+        }
+
+        return $activityId;
     }
 }

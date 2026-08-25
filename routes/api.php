@@ -145,37 +145,39 @@ Route::middleware('management')->group(function (): void {
     )->whereUuid('attemptResponseId');
 });
 
-Route::get(
-    '/curriculum-versions/{curriculumVersionId}',
-    [
-        \App\Http\Controllers\Api\Read\CurriculumReadController::class,
-        'showVersion',
-    ]
-)->whereUuid('curriculumVersionId');
+Route::middleware(['auth:web', 'active', 'learner'])->group(function (): void {
+    Route::get(
+        '/curriculum-versions/{curriculumVersionId}',
+        [
+            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            'showVersion',
+        ]
+    )->whereUuid('curriculumVersionId');
 
-Route::get(
-    '/curriculum-versions/{curriculumVersionId}/lessons',
-    [
-        \App\Http\Controllers\Api\Read\CurriculumReadController::class,
-        'lessons',
-    ]
-)->whereUuid('curriculumVersionId');
+    Route::get(
+        '/curriculum-versions/{curriculumVersionId}/lessons',
+        [
+            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            'lessons',
+        ]
+    )->whereUuid('curriculumVersionId');
 
-Route::get(
-    '/lessons/{lessonId}',
-    [
-        \App\Http\Controllers\Api\Read\LearningReadController::class,
-        'lesson',
-    ]
-)->whereUuid('lessonId');
+    Route::get(
+        '/lessons/{lessonId}',
+        [
+            \App\Http\Controllers\Api\Read\LearningReadController::class,
+            'lesson',
+        ]
+    )->whereUuid('lessonId');
 
-Route::get(
-    '/practice-activities/{practiceActivityId}',
-    [
-        \App\Http\Controllers\Api\Read\LearningReadController::class,
-        'practiceActivity',
-    ]
-)->whereUuid('practiceActivityId');
+    Route::get(
+        '/practice-activities/{practiceActivityId}',
+        [
+            \App\Http\Controllers\Api\Read\LearningReadController::class,
+            'practiceActivity',
+        ]
+    )->whereUuid('practiceActivityId');
+});
 
 Route::middleware(['auth:web', 'active'])->group(function (): void {
     Route::get(
