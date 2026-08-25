@@ -1,7 +1,17 @@
 <?php
 
+use App\Http\Controllers\Auth\SessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+Route::prefix('auth')->group(function (): void {
+    Route::post('/login', [SessionController::class, 'login']);
+
+    Route::middleware(['auth:web', 'active'])->group(function (): void {
+        Route::post('/logout', [SessionController::class, 'logout']);
+        Route::get('/me', [SessionController::class, 'me']);
+    });
 });

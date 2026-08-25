@@ -6,6 +6,7 @@ use App\Http\Responses\ApiResponse;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class RequireManagementAuthorization
@@ -14,15 +15,31 @@ class RequireManagementAuthorization
         Request $request,
         Closure $next,
     ): Response {
-        $user = $request->user();
+        $authenticatedUser = $request->user();
 
-        if (! $user instanceof User) {
+        if (! $authenticatedUser instanceof User) {
             return ApiResponse::error(
                 'unauthenticated',
                 'Authentication is required.',
                 Response::HTTP_UNAUTHORIZED,
             );
         }
+
+        $user = User::query()->find(
+            $authenticatedUser->getAuthIdentifier()
+        );
+
+        if ($user === null) {
+            Auth::guard('web')->logout();
+
+            return ApiResponse::error(
+                'unauthenticated',
+                'Authentication is required.',
+                Response::HTTP_UNAUTHORIZED,
+            );
+        }
+
+        Auth::guard('web')->setUser($user);
 
         if (! $user->isActive()) {
             return ApiResponse::error(
