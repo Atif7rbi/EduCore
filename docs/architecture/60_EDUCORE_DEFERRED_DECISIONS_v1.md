@@ -30,8 +30,109 @@ Coverage denominator deferred; must be explicit.
 ## DD-008 Learner→applicable CurriculumVersion assignment
 Enrollment/cohort/program/etc. model deferred. Never infer MAX/latest.
 
-## DD-009 Full role/permission model
-User actor identity and LearnerProfile learner identity are frozen; complete Student/Teacher/Admin authorization model deferred.
+## DD-009 Full role/permission model — RESOLVED FOR v1
+
+Resolved before Application Phase A4.
+
+### User role
+
+Each User has exactly one effective v1 role:
+
+- `student`
+- `teacher`
+- `admin`
+
+Physical representation:
+
+- `users.role TEXT NOT NULL`
+- database CHECK restricts the value to the three roles above.
+
+No generic RBAC tables are introduced in v1:
+
+- no `roles`
+- no `permissions`
+- no `user_roles`
+- no `role_permissions`
+
+Single-role v1 is intentional. If a later real product requirement needs simultaneous roles or finer capabilities, the authorization abstraction must permit the storage model to evolve without rewriting controllers.
+
+### Learner identity
+
+User actor identity and LearnerProfile learner identity remain distinct.
+
+A User is treated as a learner only when an actual LearnerProfile exists.
+
+`role = student` does not manufacture or imply a LearnerProfile.
+
+Teacher or Admin users likewise do not become learners merely because they are authenticated.
+
+### Student boundary
+
+Student may use learner-facing capabilities authorized to their LearnerProfile, including owned Attempts and Responses.
+
+Student may not perform:
+
+- management mutations
+- trusted scoring
+- regrade operations
+
+Learner ownership remains mandatory.
+
+### Teacher boundary
+
+Teacher is a recognized authenticated actor role in v1.
+
+Teacher receives no implicit Admin-equivalent management authority.
+
+Teacher supervision capabilities remain deferred until the Teacher Supervision domain is designed.
+
+### Admin boundary
+
+Admin may perform the management operations explicitly assigned to the Admin boundary, including:
+
+- curriculum/content lifecycle management
+- PracticeActivity configuration
+- ExamGeneration management
+- regrade operations
+
+Adding `users.role` alone does not activate these capabilities.
+
+The existing management boundary remains fail-closed until role and active-status enforcement are implemented and verified.
+
+### User status enforcement
+
+Canonical User status remains:
+
+- `active`
+- `disabled`
+
+`disabled` must be enforced on every authenticated request, not only during login.
+
+A session created while a User was active must not continue granting authenticated API access after that User becomes disabled.
+
+### Authentication v1
+
+Laravel `web` / session authentication is the v1 authentication mechanism.
+
+Sanctum or other token authentication is not introduced until an actual external/mobile API requirement exists.
+
+End-to-end session behavior must be verified with a real login → session/cookie → authenticated request integration test; `actingAs()` alone is not sufficient evidence of the browser authentication contract.
+
+### Authorization consumption rule
+
+Role checks must use one centralized authorization abstraction.
+
+Controllers and application services must not accumulate scattered raw checks such as:
+
+`$user->role === 'admin'`
+
+This keeps a future transition to capability-based or multi-role authorization localized.
+
+### Resolution effect
+
+DD-009 is resolved sufficiently for v1 implementation.
+
+Teacher Supervision remains independently deferred under DD-010.
 
 ## DD-010 Teacher supervision domain
 Classroom/cohort/enrollment/assignment/supervision entities deferred.
