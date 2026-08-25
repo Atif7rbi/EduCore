@@ -98,3 +98,11 @@ Route::prefix('practice-activities')->group(function (): void {
         ->whereUuid('practiceActivityId')
         ->whereUuid('practiceActivityItemId');
 });
+
+Route::post(
+    '/exam-template-versions/{examTemplateVersionId}/generations',
+    [
+        \App\Http\Controllers\Api\Exam\ExamGenerationController::class,
+        'store',
+    ]
+)->whereUuid('examTemplateVersionId');
