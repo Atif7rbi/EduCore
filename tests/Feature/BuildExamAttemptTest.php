@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
+use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
@@ -455,6 +456,203 @@ class BuildExamAttemptTest extends TestCase
         $this->assertSame('submitted', $storedAttempt->status);
         $this->assertTrue(
             $firstFinalizedAt->equalTo($storedAttempt->finalized_at)
+        );
+    }
+
+    public function test_first_regrade_correction_uses_sequence_one(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 1],
+            1000,
+        );
+
+        $this->finalizeService()->execute(
+            $attempt->id,
+            [
+                $attemptItemId => false,
+            ],
+        );
+
+        $responseId = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->value('id');
+
+        $correction = $this->regradeService()->execute(
+            $responseId,
+            true,
+            'Manual review confirmed correct answer.',
+        );
+
+        $this->assertSame($responseId, $correction->attempt_response_id);
+        $this->assertSame(1, $correction->correction_number);
+        $this->assertTrue($correction->corrected_is_correct);
+        $this->assertSame(
+            'Manual review confirmed correct answer.',
+            $correction->reason
+        );
+        $this->assertNotNull($correction->corrected_at);
+    }
+
+    public function test_second_regrade_correction_uses_next_sequence_number(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1000,
+        );
+
+        $this->finalizeService()->execute(
+            $attempt->id,
+            [
+                $attemptItemId => true,
+            ],
+        );
+
+        $responseId = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->value('id');
+
+        $first = $this->regradeService()->execute(
+            $responseId,
+            false,
+            'First correction.',
+        );
+
+        $second = $this->regradeService()->execute(
+            $responseId,
+            true,
+            'Second correction.',
+        );
+
+        $this->assertSame(1, $first->correction_number);
+        $this->assertSame(2, $second->correction_number);
+
+        $this->assertSame(
+            2,
+            DB::table('regrade_corrections')
+                ->where('attempt_response_id', $responseId)
+                ->count()
+        );
+    }
+
+    public function test_regrade_before_attempt_finalization_is_rejected(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->responseService()->execute(
+            $attemptItemId,
+            ['selected_option' => 2],
+            1000,
+        );
+
+        $responseId = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->value('id');
+
+        try {
+            $this->regradeService()->execute(
+                $responseId,
+                false,
+                'Should fail.',
+            );
+
+            $this->fail(
+                'Expected IntegrityConstraintViolation was not thrown.'
+            );
+        } catch (IntegrityConstraintViolation $exception) {
+            $this->assertSame('P0001', $exception->sqlState);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('regrade_corrections')
+                ->where('attempt_response_id', $responseId)
+                ->count()
+        );
+    }
+
+    public function test_unanswered_finalized_response_cannot_be_regraded(): void
+    {
+        [$learnerId, $generationId] = $this->createExamFixture();
+
+        $attempt = $this->service()->execute(
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId = DB::table('attempt_items')
+            ->where('attempt_id', $attempt->id)
+            ->value('id');
+
+        $this->finalizeService()->execute(
+            $attempt->id,
+            [],
+        );
+
+        $responseId = DB::table('attempt_responses')
+            ->where('attempt_item_id', $attemptItemId)
+            ->value('id');
+
+        try {
+            $this->regradeService()->execute(
+                $responseId,
+                true,
+                'Should fail.',
+            );
+
+            $this->fail(
+                'Expected IntegrityConstraintViolation was not thrown.'
+            );
+        } catch (IntegrityConstraintViolation $exception) {
+            $this->assertSame('P0001', $exception->sqlState);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('regrade_corrections')
+                ->where('attempt_response_id', $responseId)
+                ->count()
+        );
+    }
+
+    private function regradeService(): AddRegradeCorrection
+    {
+        return new AddRegradeCorrection(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
         );
     }
 
