@@ -11,7 +11,7 @@ Route::get('/health', function () {
     ]);
 });
 
-Route::middleware('management')->group(function (): void {
+Route::middleware(['web', 'management'])->group(function (): void {
     Route::prefix('curriculum-versions')->group(function (): void {
         Route::post(
             '/{curriculumVersionId}/publish',
@@ -109,7 +109,7 @@ Route::middleware('management')->group(function (): void {
     )->whereUuid('examTemplateVersionId');
 });
 
-Route::middleware(['auth:web', 'active'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active'])->group(function (): void {
     Route::post(
         '/exam-generations/{examGenerationId}/attempts',
         [
@@ -135,7 +135,7 @@ Route::middleware(['auth:web', 'active'])->group(function (): void {
     )->whereUuid('attemptItemId');
 });
 
-Route::middleware('management')->group(function (): void {
+Route::middleware(['web', 'management'])->group(function (): void {
     Route::post(
         '/attempt-responses/{attemptResponseId}/regrade-corrections',
         [
@@ -145,7 +145,23 @@ Route::middleware('management')->group(function (): void {
     )->whereUuid('attemptResponseId');
 });
 
-Route::middleware(['auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+    Route::post(
+        '/lessons/{lessonId}/progress',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'start',
+        ]
+    )->whereUuid('lessonId');
+
+    Route::post(
+        '/lessons/{lessonId}/complete',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'complete',
+        ]
+    )->whereUuid('lessonId');
+
     Route::get(
         '/curriculum-versions/{curriculumVersionId}',
         [
@@ -179,7 +195,7 @@ Route::middleware(['auth:web', 'active', 'learner'])->group(function (): void {
     )->whereUuid('practiceActivityId');
 });
 
-Route::middleware(['auth:web', 'active'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active'])->group(function (): void {
     Route::get(
         '/attempts/{attemptId}',
         [
