@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\RequireManagementAuthorization;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -11,6 +12,15 @@ use Tests\TestCase;
 
 class PracticeApiTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(
+            RequireManagementAuthorization::class
+        );
+    }
+
     public function test_released_revision_can_be_added_to_active_activity_via_api(): void
     {
         [$activityId, $versionId] = $this->createActiveActivity();

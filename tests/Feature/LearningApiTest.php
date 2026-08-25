@@ -2,12 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class LearningApiTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(
+            RequireManagementAuthorization::class
+        );
+    }
+
     public function test_lesson_revision_can_be_released_via_api(): void
     {
         [, $revisionId] = $this->createLessonFixture();

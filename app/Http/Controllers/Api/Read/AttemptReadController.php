@@ -2,23 +2,32 @@
 
 namespace App\Http\Controllers\Api\Read;
 
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Models\Attempt;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AttemptReadController extends Controller
 {
-    public function show(string $attemptId): JsonResponse
-    {
+    public function show(
+        string $attemptId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+    ): JsonResponse {
+        $learner = $learnerContext->resolve($request->user());
+
         $attempt = Attempt::query()
+            ->whereKey($attemptId)
+            ->where('learner_profile_id', $learner->id)
             ->with([
                 'items' => fn ($query) => $query
                     ->orderBy('presentation_position')
                     ->orderBy('id'),
                 'items.response',
             ])
-            ->findOrFail($attemptId);
+            ->firstOrFail();
 
         return ApiResponse::success([
             'id' => $attempt->id,

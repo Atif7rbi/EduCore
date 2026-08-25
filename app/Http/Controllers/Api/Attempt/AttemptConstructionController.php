@@ -4,21 +4,25 @@ namespace App\Http\Controllers\Api\Attempt;
 
 use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Attempt\BuildPracticeAttempt;
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Attempt\BuildAttemptRequest;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class AttemptConstructionController extends Controller
 {
     public function fromExam(
         string $examGenerationId,
-        BuildAttemptRequest $request,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
         BuildExamAttempt $service,
     ): JsonResponse {
+        $learner = $learnerContext->resolve($request->user());
+
         $attempt = $service->execute(
-            $request->validated('learner_profile_id'),
+            $learner->id,
             $examGenerationId,
         );
 
@@ -27,11 +31,14 @@ class AttemptConstructionController extends Controller
 
     public function fromPractice(
         string $practiceActivityId,
-        BuildAttemptRequest $request,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
         BuildPracticeAttempt $service,
     ): JsonResponse {
+        $learner = $learnerContext->resolve($request->user());
+
         $attempt = $service->execute(
-            $request->validated('learner_profile_id'),
+            $learner->id,
             $practiceActivityId,
         );
 

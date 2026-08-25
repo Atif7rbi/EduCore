@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\Attempt;
 
 use App\Application\Attempt\SaveAttemptResponse;
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attempt\SaveAttemptResponseRequest;
 use App\Http\Responses\ApiResponse;
+use App\Models\AttemptItem;
 use Illuminate\Http\JsonResponse;
 
 class AttemptResponseController extends Controller
@@ -13,8 +15,22 @@ class AttemptResponseController extends Controller
     public function update(
         string $attemptItemId,
         SaveAttemptResponseRequest $request,
+        AuthenticatedLearner $learnerContext,
         SaveAttemptResponse $service,
     ): JsonResponse {
+        $learner = $learnerContext->resolve($request->user());
+
+        AttemptItem::query()
+            ->whereKey($attemptItemId)
+            ->whereHas(
+                'attempt',
+                fn ($query) => $query->where(
+                    'learner_profile_id',
+                    $learner->id
+                )
+            )
+            ->firstOrFail();
+
         $validated = $request->validated();
 
         $response = $service->execute(

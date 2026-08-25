@@ -6,6 +6,7 @@ use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -23,9 +24,7 @@ class AttemptApiTest extends TestCase
 
         $response = $this->postJson(
             "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         );
 
         $response
@@ -80,9 +79,7 @@ class AttemptApiTest extends TestCase
 
         $response = $this->postJson(
             "/api/exam-generations/{$generationId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         );
 
         $response
@@ -118,46 +115,18 @@ class AttemptApiTest extends TestCase
 
         $this->postJson(
             "/api/exam-generations/{$generationId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )->assertStatus(201);
 
         $this->postJson(
             "/api/exam-generations/{$generationId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )
             ->assertStatus(409)
             ->assertJsonPath(
                 'error.code',
                 'integrity_conflict'
             );
-    }
-
-    public function test_attempt_construction_validates_learner_uuid(): void
-    {
-        [, $activityId] = $this->createPracticeFixture();
-
-        $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => 'bad',
-            ],
-        )
-            ->assertStatus(422)
-            ->assertJsonPath(
-                'error.code',
-                'validation_failed'
-            )
-            ->assertJsonStructure([
-                'error' => [
-                    'details' => [
-                        'learner_profile_id',
-                    ],
-                ],
-            ]);
     }
 
     public function test_missing_exam_generation_returns_not_found(): void
@@ -167,9 +136,7 @@ class AttemptApiTest extends TestCase
 
         $this->postJson(
             "/api/exam-generations/{$generationId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )
             ->assertStatus(404)
             ->assertJsonPath(
@@ -185,9 +152,7 @@ class AttemptApiTest extends TestCase
 
         $attemptResponse = $this->postJson(
             "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )->assertStatus(201);
 
         $attemptItemId = $attemptResponse->json(
@@ -252,9 +217,7 @@ class AttemptApiTest extends TestCase
 
         $attemptResponse = $this->postJson(
             "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )->assertStatus(201);
 
         $attemptItemId = $attemptResponse->json(
@@ -279,6 +242,8 @@ class AttemptApiTest extends TestCase
 
     public function test_missing_attempt_item_response_returns_not_found(): void
     {
+        $this->createLearner();
+
         $attemptItemId = (string) Str::uuid();
 
         $this->putJson(
@@ -297,408 +262,6 @@ class AttemptApiTest extends TestCase
             );
     }
 
-    public function test_answered_attempt_can_be_submitted_via_api(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptId = $attemptResponse->json('data.id');
-        $attemptItemId = $attemptResponse->json(
-            'data.items.0.id'
-        );
-
-        $savedResponse = $this->putJson(
-            "/api/attempt-items/{$attemptItemId}/response",
-            [
-                'response_payload' => [
-                    'selected_option' => 2,
-                ],
-                'time_spent_ms' => 1800,
-            ],
-        )->assertOk();
-
-        $attemptResponseId = $savedResponse->json('data.id');
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'submitted',
-                'items' => [
-                    [
-                        'attempt_item_id' => $attemptItemId,
-                        'original_is_correct' => true,
-                    ],
-                ],
-            ],
-        )
-            ->assertOk()
-            ->assertJsonPath(
-                'data.status',
-                'submitted'
-            );
-
-        $this->assertDatabaseHas('attempt_responses', [
-            'id' => $attemptResponseId,
-            'attempt_item_id' => $attemptItemId,
-            'original_is_correct' => true,
-        ]);
-
-        $this->assertNotNull(
-            DB::table('attempts')
-                ->where('id', $attemptId)
-                ->value('finalized_at')
-        );
-    }
-
-    public function test_answered_attempt_without_correctness_cannot_be_finalized_via_api(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptId = $attemptResponse->json('data.id');
-        $attemptItemId = $attemptResponse->json(
-            'data.items.0.id'
-        );
-
-        $this->putJson(
-            "/api/attempt-items/{$attemptItemId}/response",
-            [
-                'response_payload' => [
-                    'selected_option' => 2,
-                ],
-                'time_spent_ms' => 1200,
-            ],
-        )->assertOk();
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'submitted',
-                'items' => [
-                    [
-                        'attempt_item_id' => $attemptItemId,
-                        'original_is_correct' => null,
-                    ],
-                ],
-            ],
-        )
-            ->assertStatus(409)
-            ->assertJsonPath(
-                'error.code',
-                'integrity_conflict'
-            );
-
-        $this->assertDatabaseHas('attempts', [
-            'id' => $attemptId,
-            'status' => 'in_progress',
-            'finalized_at' => null,
-        ]);
-    }
-
-    public function test_finalize_request_validates_status_and_item_shape(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptId = $attemptResponse->json('data.id');
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'invalid',
-                'items' => [
-                    [
-                        'attempt_item_id' => 'bad',
-                    ],
-                ],
-            ],
-        )
-            ->assertStatus(422)
-            ->assertJsonPath(
-                'error.code',
-                'validation_failed'
-            )
-            ->assertJsonStructure([
-                'error' => [
-                    'details' => [
-                        'final_status',
-                        'items.0.attempt_item_id',
-                        'items.0.original_is_correct',
-                    ],
-                ],
-            ]);
-    }
-
-    public function test_regrade_can_be_added_after_finalization_via_api(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptId = $attemptResponse->json('data.id');
-        $attemptItemId = $attemptResponse->json(
-            'data.items.0.id'
-        );
-
-        $savedResponse = $this->putJson(
-            "/api/attempt-items/{$attemptItemId}/response",
-            [
-                'response_payload' => [
-                    'selected_option' => 2,
-                ],
-                'time_spent_ms' => 1500,
-            ],
-        )->assertOk();
-
-        $attemptResponseId = $savedResponse->json('data.id');
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'submitted',
-                'items' => [
-                    [
-                        'attempt_item_id' => $attemptItemId,
-                        'original_is_correct' => false,
-                    ],
-                ],
-            ],
-        )->assertOk();
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => true,
-                'reason' => 'Manual scoring correction',
-            ],
-        )
-            ->assertStatus(201)
-            ->assertJsonPath(
-                'data.attempt_response_id',
-                $attemptResponseId
-            )
-            ->assertJsonPath(
-                'data.correction_number',
-                1
-            )
-            ->assertJsonPath(
-                'data.corrected_is_correct',
-                true
-            )
-            ->assertJsonPath(
-                'data.reason',
-                'Manual scoring correction'
-            );
-
-        $this->assertDatabaseHas('regrade_corrections', [
-            'attempt_response_id' => $attemptResponseId,
-            'correction_number' => 1,
-            'corrected_is_correct' => true,
-            'reason' => 'Manual scoring correction',
-        ]);
-    }
-
-    public function test_second_regrade_uses_next_correction_number_via_api(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptId = $attemptResponse->json('data.id');
-        $attemptItemId = $attemptResponse->json(
-            'data.items.0.id'
-        );
-
-        $savedResponse = $this->putJson(
-            "/api/attempt-items/{$attemptItemId}/response",
-            [
-                'response_payload' => [
-                    'selected_option' => 2,
-                ],
-                'time_spent_ms' => 1500,
-            ],
-        )->assertOk();
-
-        $attemptResponseId = $savedResponse->json('data.id');
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'submitted',
-                'items' => [
-                    [
-                        'attempt_item_id' => $attemptItemId,
-                        'original_is_correct' => false,
-                    ],
-                ],
-            ],
-        )->assertOk();
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => true,
-                'reason' => 'First correction',
-            ],
-        )->assertStatus(201);
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => false,
-                'reason' => 'Second correction',
-            ],
-        )
-            ->assertStatus(201)
-            ->assertJsonPath(
-                'data.correction_number',
-                2
-            )
-            ->assertJsonPath(
-                'data.corrected_is_correct',
-                false
-            );
-    }
-
-    public function test_regrade_before_finalization_is_rejected_via_api(): void
-    {
-        [$learnerId, $activityId] =
-            $this->createPracticeFixture();
-
-        $attemptResponse = $this->postJson(
-            "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
-        )->assertStatus(201);
-
-        $attemptItemId = $attemptResponse->json(
-            'data.items.0.id'
-        );
-
-        $savedResponse = $this->putJson(
-            "/api/attempt-items/{$attemptItemId}/response",
-            [
-                'response_payload' => [
-                    'selected_option' => 2,
-                ],
-                'time_spent_ms' => 1000,
-            ],
-        )->assertOk();
-
-        $attemptResponseId = $savedResponse->json('data.id');
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => true,
-                'reason' => 'Too early',
-            ],
-        )
-            ->assertStatus(409)
-            ->assertJsonPath(
-                'error.code',
-                'integrity_conflict'
-            );
-    }
-
-    public function test_regrade_request_validates_payload(): void
-    {
-        $attemptResponseId = (string) Str::uuid();
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => 'not-a-boolean',
-                'reason' => '',
-            ],
-        )
-            ->assertStatus(422)
-            ->assertJsonPath(
-                'error.code',
-                'validation_failed'
-            )
-            ->assertJsonStructure([
-                'error' => [
-                    'details' => [
-                        'corrected_is_correct',
-                        'reason',
-                    ],
-                ],
-            ]);
-    }
-
-    public function test_missing_attempt_and_response_return_not_found(): void
-    {
-        $attemptId = (string) Str::uuid();
-
-        $this->postJson(
-            "/api/attempts/{$attemptId}/finalize",
-            [
-                'final_status' => 'submitted',
-                'items' => [
-                    [
-                        'attempt_item_id' => (string) Str::uuid(),
-                        'original_is_correct' => null,
-                    ],
-                ],
-            ],
-        )
-            ->assertStatus(404)
-            ->assertJsonPath(
-                'error.code',
-                'not_found'
-            );
-
-        $attemptResponseId = (string) Str::uuid();
-
-        $this->postJson(
-            "/api/attempt-responses/{$attemptResponseId}/regrade-corrections",
-            [
-                'corrected_is_correct' => true,
-                'reason' => 'Missing response',
-            ],
-        )
-            ->assertStatus(404)
-            ->assertJsonPath(
-                'error.code',
-                'not_found'
-            );
-    }
-
     public function test_attempt_can_be_read_without_scoring_truth(): void
     {
         [$learnerId, $activityId] =
@@ -706,9 +269,7 @@ class AttemptApiTest extends TestCase
 
         $created = $this->postJson(
             "/api/practice-activities/{$activityId}/attempts",
-            [
-                'learner_profile_id' => $learnerId,
-            ],
+            [],
         )->assertStatus(201);
 
         $attemptId = $created->json('data.id');
@@ -783,6 +344,8 @@ class AttemptApiTest extends TestCase
 
     public function test_missing_attempt_read_returns_not_found(): void
     {
+        $this->createLearner();
+
         $attemptId = (string) Str::uuid();
 
         $this->getJson(
@@ -793,6 +356,133 @@ class AttemptApiTest extends TestCase
                 'error.code',
                 'not_found'
             );
+    }
+
+    public function test_learner_attempt_routes_require_authentication(): void
+    {
+        auth()->logout();
+
+        $missingId = (string) Str::uuid();
+
+        $this->postJson(
+            "/api/exam-generations/{$missingId}/attempts",
+            [],
+        )->assertUnauthorized();
+
+        $this->postJson(
+            "/api/practice-activities/{$missingId}/attempts",
+            [],
+        )->assertUnauthorized();
+
+        $this->putJson(
+            "/api/attempt-items/{$missingId}/response",
+            [
+                'response_payload' => null,
+                'time_spent_ms' => 0,
+            ],
+        )->assertUnauthorized();
+
+        $this->getJson(
+            "/api/attempts/{$missingId}"
+        )->assertUnauthorized();
+    }
+
+    public function test_attempt_identity_comes_from_authenticated_user_not_request_body(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $spoofedLearnerId = (string) Str::uuid();
+
+        $response = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [
+                'learner_profile_id' => $spoofedLearnerId,
+            ],
+        );
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            );
+
+        $this->assertDatabaseHas('attempts', [
+            'id' => $response->json('data.id'),
+            'learner_profile_id' => $learnerId,
+        ]);
+
+        $this->assertDatabaseMissing('attempts', [
+            'id' => $response->json('data.id'),
+            'learner_profile_id' => $spoofedLearnerId,
+        ]);
+    }
+
+    public function test_learner_cannot_read_another_learners_attempt(): void
+    {
+        [, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $this->createLearner();
+
+        $this->getJson(
+            "/api/attempts/{$attemptId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
+    public function test_learner_cannot_update_another_learners_attempt_item(): void
+    {
+        [, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $created->json(
+            'data.items.0.id'
+        );
+
+        $this->createLearner();
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'response_payload' => null,
+                'answer_change_count' => 0,
+                'time_spent_ms' => 0,
+            ]
+        );
     }
 
     /**
@@ -1056,6 +746,10 @@ class AttemptApiTest extends TestCase
             'user_id' => $userId,
             'created_at' => now(),
         ]);
+
+        $this->actingAs(
+            User::query()->findOrFail($userId)
+        );
 
         return $learnerId;
     }

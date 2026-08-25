@@ -2,12 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CurriculumApiTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(
+            RequireManagementAuthorization::class
+        );
+    }
+
     public function test_draft_curriculum_version_can_be_published_via_api(): void
     {
         $versionId = $this->createCurriculumVersion('draft');

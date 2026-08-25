@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\RequireManagementAuthorization;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -11,6 +12,15 @@ use Tests\TestCase;
 
 class ExamGenerationApiTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(
+            RequireManagementAuthorization::class
+        );
+    }
+
     public function test_published_template_can_build_generation_via_api(): void
     {
         [$templateVersionId, $versionId, $rules] =
