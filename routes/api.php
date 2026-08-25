@@ -106,3 +106,67 @@ Route::post(
         'store',
     ]
 )->whereUuid('examTemplateVersionId');
+
+Route::post(
+    '/exam-generations/{examGenerationId}/attempts',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+        'fromExam',
+    ]
+)->whereUuid('examGenerationId');
+
+Route::post(
+    '/practice-activities/{practiceActivityId}/attempts',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+        'fromPractice',
+    ]
+)->whereUuid('practiceActivityId');
+
+Route::put(
+    '/attempt-items/{attemptItemId}/response',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptResponseController::class,
+        'update',
+    ]
+)->whereUuid('attemptItemId');
+
+Route::post(
+    '/exam-generations/{examGenerationId}/attempts',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+        'fromExam',
+    ]
+)->whereUuid('examGenerationId');
+
+Route::post(
+    '/practice-activities/{practiceActivityId}/attempts',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+        'fromPractice',
+    ]
+)->whereUuid('practiceActivityId');
+
+Route::put(
+    '/attempt-items/{attemptItemId}/response',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptResponseController::class,
+        'update',
+    ]
+)->whereUuid('attemptItemId');
+
+Route::post(
+    '/attempts/{attemptId}/finalize',
+    [
+        \App\Http\Controllers\Api\Attempt\AttemptFinalizationController::class,
+        'update',
+    ]
+)->whereUuid('attemptId');
+
+Route::post(
+    '/attempt-responses/{attemptResponseId}/regrade-corrections',
+    [
+        \App\Http\Controllers\Api\Attempt\RegradeCorrectionController::class,
+        'store',
+    ]
+)->whereUuid('attemptResponseId');
