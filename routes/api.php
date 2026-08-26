@@ -149,6 +149,72 @@ Route::middleware(['web', 'management'])->group(function (): void {
             ]
         )->whereUuid('placementId');
 
+        Route::get(
+            '/curriculum-versions/{curriculumVersionId}/lessons',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'lessons',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/lessons',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'storeLesson',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::put(
+            '/lessons/{lessonId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'updateLesson',
+            ]
+        )->whereUuid('lessonId');
+
+        Route::get(
+            '/lessons/{lessonId}/revisions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'revisions',
+            ]
+        )->whereUuid('lessonId');
+
+        Route::post(
+            '/lessons/{lessonId}/revisions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'storeRevision',
+            ]
+        )->whereUuid('lessonId');
+
+        Route::get(
+            '/lesson-revisions/{lessonRevisionId}/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'revisionSkills',
+            ]
+        )->whereUuid('lessonRevisionId');
+
+        Route::post(
+            '/lesson-revisions/{lessonRevisionId}/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'storeRevisionSkill',
+            ]
+        )->whereUuid('lessonRevisionId');
+
+        Route::delete(
+            '/lesson-revisions/{lessonRevisionId}/skills/{lessonRevisionSkillId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                'destroyRevisionSkill',
+            ]
+        )
+            ->whereUuid('lessonRevisionId')
+            ->whereUuid('lessonRevisionSkillId');
+
         Route::delete(
             '/skill-placements/{placementId}/home-topics/{homeTopicId}',
             [

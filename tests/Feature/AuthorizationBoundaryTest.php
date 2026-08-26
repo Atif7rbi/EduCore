@@ -56,6 +56,34 @@ class AuthorizationBoundaryTest extends TestCase
                 'description' => 'Updated description',
             ]],
 
+            ['getJson', "/api/admin/curriculum-versions/{$id}/lessons", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/lessons", [
+                'title' => 'Test Lesson',
+                'description' => 'Test lesson description',
+                'display_order' => 0,
+            ]],
+            ['putJson', "/api/admin/lessons/{$id}", [
+                'title' => 'Updated Lesson',
+                'description' => 'Updated lesson description',
+                'display_order' => 1,
+            ]],
+
+            ['getJson', "/api/admin/lessons/{$id}/revisions", []],
+            ['postJson', "/api/admin/lessons/{$id}/revisions", [
+                'revision_number' => 1,
+                'primary_topic_id' => $id,
+                'content_payload' => [
+                    'blocks' => [],
+                ],
+                'content_schema_version' => 1,
+            ]],
+
+            ['getJson', "/api/admin/lesson-revisions/{$id}/skills", []],
+            ['postJson', "/api/admin/lesson-revisions/{$id}/skills", [
+                'skill_version_placement_id' => $id,
+            ]],
+            ['deleteJson', "/api/admin/lesson-revisions/{$id}/skills/{$id}", []],
+
             ['getJson', "/api/admin/curriculum-versions/{$id}/skill-placements", []],
             ['postJson', "/api/admin/curriculum-versions/{$id}/skill-placements", [
                 'skill_id' => $id,
