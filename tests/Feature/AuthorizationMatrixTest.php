@@ -40,7 +40,11 @@ class AuthorizationMatrixTest extends TestCase
         $this
             ->actingAs($user)
             ->postJson('/api/practice-activities/'.Str::uuid().'/attempts')
-            ->assertStatus(404);
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
     }
 
     public function test_teacher_has_no_management_capability(): void
