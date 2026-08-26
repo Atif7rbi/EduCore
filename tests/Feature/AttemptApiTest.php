@@ -567,6 +567,134 @@ class AttemptApiTest extends TestCase
         );
     }
 
+    public function test_exam_generation_in_unpublished_curriculum_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $versionId = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->value('curriculum_version_id');
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'exam_generation_id',
+                    $generationId
+                )
+                ->count()
+        );
+    }
+
+    public function test_exam_generation_from_retired_template_version_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $templateVersionId = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->value('exam_template_version_id');
+
+        DB::table('exam_template_versions')
+            ->where('id', $templateVersionId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'exam_generation_id',
+                    $generationId
+                )
+                ->count()
+        );
+    }
+
+    public function test_exam_attempt_creation_never_exposes_scoring_truth(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $response = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        );
+
+        $response->assertStatus(201);
+
+        $item = $response->json('data.items.0');
+
+        $this->assertArrayHasKey(
+            'presented_payload',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'primary_topic_id',
+            $item
+        );
+    }
+
     public function test_archived_practice_activity_cannot_start_learner_attempt(): void
     {
         [
@@ -769,6 +897,13 @@ class AttemptApiTest extends TestCase
                 ],
             ],
         );
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
 
         return [
             $learnerId,
