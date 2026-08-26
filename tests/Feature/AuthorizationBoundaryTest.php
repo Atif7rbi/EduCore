@@ -14,6 +14,26 @@ class AuthorizationBoundaryTest extends TestCase
     private function managementRequests(string $id): array
     {
         return [
+            ['postJson', '/api/admin/subjects', [
+                'name' => 'Test Subject',
+            ]],
+            ['putJson', "/api/admin/subjects/{$id}", [
+                'name' => 'Updated Subject',
+            ]],
+            ['postJson', "/api/admin/subjects/{$id}/curricula", [
+                'name' => 'Test Curriculum',
+            ]],
+            ['putJson', "/api/admin/curricula/{$id}", [
+                'name' => 'Updated Curriculum',
+            ]],
+            ['postJson', "/api/admin/curricula/{$id}/versions", [
+                'version_number' => 1,
+                'label' => 'Version One',
+            ]],
+            ['putJson', "/api/admin/curriculum-versions/{$id}", [
+                'version_number' => 1,
+                'label' => 'Updated Version',
+            ]],
             ['getJson', '/api/admin/subjects', []],
             ['getJson', "/api/admin/subjects/{$id}/curricula", []],
             ['getJson', "/api/admin/curricula/{$id}/versions", []],

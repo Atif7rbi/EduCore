@@ -13,6 +13,54 @@ Route::get('/health', function () {
 
 Route::middleware(['web', 'management'])->group(function (): void {
     Route::prefix('admin')->group(function (): void {
+        Route::post(
+            '/subjects',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'storeSubject',
+            ]
+        );
+
+        Route::put(
+            '/subjects/{subjectId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'updateSubject',
+            ]
+        )->whereUuid('subjectId');
+
+        Route::post(
+            '/subjects/{subjectId}/curricula',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'storeCurriculum',
+            ]
+        )->whereUuid('subjectId');
+
+        Route::put(
+            '/curricula/{curriculumId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'updateCurriculum',
+            ]
+        )->whereUuid('curriculumId');
+
+        Route::post(
+            '/curricula/{curriculumId}/versions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'storeVersion',
+            ]
+        )->whereUuid('curriculumId');
+
+        Route::put(
+            '/curriculum-versions/{curriculumVersionId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                'updateVersion',
+            ]
+        )->whereUuid('curriculumVersionId');
+
         Route::get(
             '/subjects',
             [
