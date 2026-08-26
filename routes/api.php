@@ -656,6 +656,14 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     );
 
     Route::get(
+        '/analytics/skills',
+        [
+            \App\Http\Controllers\Api\Read\SkillAnalyticsReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
         '/attempts',
         [
             \App\Http\Controllers\Api\Read\AttemptReadController::class,
