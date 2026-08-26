@@ -385,6 +385,13 @@ class AttemptApiTest extends TestCase
         $this->getJson(
             "/api/attempts/{$missingId}"
         )->assertUnauthorized();
+
+        $this->postJson(
+            "/api/attempts/{$missingId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertUnauthorized();
     }
 
     public function test_attempt_identity_comes_from_authenticated_user_not_request_body(): void
@@ -565,6 +572,224 @@ class AttemptApiTest extends TestCase
             'original_is_correct',
             $response->json('data')
         );
+    }
+
+    public function test_learner_can_finalize_own_attempt_with_server_side_scoring(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1500,
+            ],
+        )->assertOk();
+
+        $response = $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.id', $attemptId)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            )
+            ->assertJsonPath(
+                'data.status',
+                'submitted'
+            );
+
+        $this->assertNotNull(
+            $response->json('data.finalized_at')
+        );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'original_is_correct' => true,
+            ]
+        );
+    }
+
+    public function test_finalization_ignores_spoofed_correctness_and_scores_from_snapshot(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 900,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+
+                // These fields are deliberately hostile input.
+                // They are not part of the trusted HTTP contract.
+                'original_is_correct' => false,
+                'items' => [
+                    [
+                        'attempt_item_id' => $attemptItemId,
+                        'original_is_correct' => false,
+                    ],
+                ],
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.status',
+                'submitted'
+            );
+
+        $stored = DB::table('attempt_responses')
+            ->where(
+                'attempt_item_id',
+                $attemptItemId
+            )
+            ->first();
+
+        $this->assertNotNull($stored);
+        $this->assertTrue(
+            $stored->original_is_correct
+        );
+    }
+
+    public function test_learner_cannot_finalize_another_learners_attempt(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $this->createLearner();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $attemptId,
+                'status' => 'in_progress',
+                'finalized_at' => null,
+            ]
+        );
+    }
+
+    public function test_attempt_finalization_requires_learner_profile(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $this->postJson(
+            '/api/attempts/'.Str::uuid().'/finalize',
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+    }
+
+    public function test_finalized_attempt_cannot_be_finalized_again_via_api(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 700,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'error.code',
+                'integrity_conflict'
+            );
     }
 
     public function test_exam_generation_in_unpublished_curriculum_cannot_start_learner_attempt(): void

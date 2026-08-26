@@ -133,6 +133,15 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
             'update',
         ]
     )->whereUuid('attemptItemId');
+
+
+    Route::post(
+        '/attempts/{attemptId}/finalize',
+        [
+            \App\Http\Controllers\Api\Attempt\AttemptFinalizationController::class,
+            'update',
+        ]
+    )->whereUuid('attemptId');
 });
 
 Route::middleware(['web', 'management'])->group(function (): void {

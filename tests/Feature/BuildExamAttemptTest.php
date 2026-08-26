@@ -259,7 +259,7 @@ class BuildExamAttemptTest extends TestCase
         $this->assertNull($response->original_is_correct);
     }
 
-    public function test_answered_attempt_can_be_submitted_with_original_correctness(): void
+    public function test_answered_attempt_is_scored_from_server_snapshot_on_submission(): void
     {
         [$learnerId, $generationId] = $this->createExamFixture();
 
@@ -280,9 +280,6 @@ class BuildExamAttemptTest extends TestCase
 
         $finalized = $this->finalizeService()->execute(
             $attempt->id,
-            [
-                $attemptItemId => true,
-            ],
         );
 
         $this->assertSame('submitted', $finalized->status);
@@ -296,7 +293,7 @@ class BuildExamAttemptTest extends TestCase
         $this->assertTrue($response->original_is_correct);
     }
 
-    public function test_incorrect_answer_can_be_frozen_as_originally_incorrect(): void
+    public function test_incorrect_answer_is_scored_from_server_snapshot_on_submission(): void
     {
         [$learnerId, $generationId] = $this->createExamFixture();
 
@@ -317,9 +314,6 @@ class BuildExamAttemptTest extends TestCase
 
         $this->finalizeService()->execute(
             $attempt->id,
-            [
-                $attemptItemId => false,
-            ],
         );
 
         $response = DB::table('attempt_responses')
@@ -345,7 +339,6 @@ class BuildExamAttemptTest extends TestCase
 
         $finalized = $this->finalizeService()->execute(
             $attempt->id,
-            [],
         );
 
         $this->assertSame('submitted', $finalized->status);
@@ -360,7 +353,7 @@ class BuildExamAttemptTest extends TestCase
         $this->assertNull($response->original_is_correct);
     }
 
-    public function test_answered_item_without_correctness_cannot_be_finalized(): void
+    public function test_abandoned_attempt_freezes_existing_server_scored_evidence(): void
     {
         [$learnerId, $generationId] = $this->createExamFixture();
 
@@ -375,37 +368,38 @@ class BuildExamAttemptTest extends TestCase
 
         $this->responseService()->execute(
             $attemptItemId,
-            ['selected_option' => 2],
-            1200,
+            ['selected_option' => 1],
+            850,
         );
 
-        try {
-            $this->finalizeService()->execute(
-                $attempt->id,
-                [],
-            );
+        $finalized = $this->finalizeService()->execute(
+            $attempt->id,
+            'abandoned',
+        );
 
-            $this->fail(
-                'Expected IntegrityConstraintViolation was not thrown.'
-            );
-        } catch (IntegrityConstraintViolation $exception) {
-            $this->assertSame('P0001', $exception->sqlState);
-        }
+        $this->assertSame(
+            'abandoned',
+            $finalized->status
+        );
 
-        $storedAttempt = DB::table('attempts')
-            ->where('id', $attempt->id)
-            ->first();
-
-        $this->assertNotNull($storedAttempt);
-        $this->assertSame('in_progress', $storedAttempt->status);
-        $this->assertNull($storedAttempt->finalized_at);
+        $this->assertNotNull(
+            $finalized->finalized_at
+        );
 
         $response = DB::table('attempt_responses')
             ->where('attempt_item_id', $attemptItemId)
             ->first();
 
         $this->assertNotNull($response);
-        $this->assertNull($response->original_is_correct);
+
+        $this->assertFalse(
+            $response->original_is_correct
+        );
+
+        $this->assertSame(
+            850,
+            $response->time_spent_ms
+        );
     }
 
     public function test_finalized_attempt_cannot_be_finalized_again(): void
@@ -429,20 +423,14 @@ class BuildExamAttemptTest extends TestCase
 
         $firstFinalization = $this->finalizeService()->execute(
             $attempt->id,
-            [
-                $attemptItemId => true,
-            ],
         );
 
         $firstFinalizedAt = $firstFinalization->finalized_at;
 
         try {
             $this->finalizeService()->execute(
-                $attempt->id,
-                [
-                    $attemptItemId => true,
-                ],
-            );
+            $attempt->id,
+        );
 
             $this->fail(
                 'Expected IntegrityConstraintViolation was not thrown.'
@@ -480,9 +468,6 @@ class BuildExamAttemptTest extends TestCase
 
         $this->finalizeService()->execute(
             $attempt->id,
-            [
-                $attemptItemId => false,
-            ],
         );
 
         $responseId = DB::table('attempt_responses')
@@ -526,9 +511,6 @@ class BuildExamAttemptTest extends TestCase
 
         $this->finalizeService()->execute(
             $attempt->id,
-            [
-                $attemptItemId => true,
-            ],
         );
 
         $responseId = DB::table('attempt_responses')
@@ -618,7 +600,6 @@ class BuildExamAttemptTest extends TestCase
 
         $this->finalizeService()->execute(
             $attempt->id,
-            [],
         );
 
         $responseId = DB::table('attempt_responses')

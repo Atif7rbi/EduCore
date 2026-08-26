@@ -4,9 +4,10 @@ namespace App\Application\Attempt;
 
 use App\Application\Support\TransactionManager;
 use App\Models\Attempt;
-use App\Models\AttemptResponse;
+use App\Models\AttemptItem;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class FinalizeAttempt
 {
@@ -15,18 +16,13 @@ class FinalizeAttempt
     ) {
     }
 
-    /**
-     * @param array<string, bool|null> $correctnessByAttemptItemId
-     */
     public function execute(
         string $attemptId,
-        array $correctnessByAttemptItemId,
         string $finalStatus = 'submitted',
     ): Attempt {
         return $this->transactions->run(
             function () use (
                 $attemptId,
-                $correctnessByAttemptItemId,
                 $finalStatus,
             ): Attempt {
                 $attempt = Attempt::query()
@@ -34,23 +30,26 @@ class FinalizeAttempt
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                $responses = AttemptResponse::query()
-                    ->join(
-                        'attempt_items',
-                        'attempt_items.id',
-                        '=',
-                        'attempt_responses.attempt_item_id'
-                    )
-                    ->where('attempt_items.attempt_id', $attempt->id)
-                    ->select('attempt_responses.*')
-                    ->orderBy('attempt_responses.id')
+                $items = AttemptItem::query()
+                    ->where('attempt_id', $attempt->id)
+                    ->with('response')
+                    ->orderBy('id')
                     ->lockForUpdate()
                     ->get();
 
-                foreach ($responses as $response) {
-                    $correctness = $correctnessByAttemptItemId[
-                        $response->attempt_item_id
-                    ] ?? null;
+                foreach ($items as $item) {
+                    $response = $item->response;
+
+                    if ($response === null) {
+                        throw new RuntimeException(
+                            'Attempt item is missing its response row.'
+                        );
+                    }
+
+                    $correctness = $this->score(
+                        $item->scoring_snapshot,
+                        $response->response_payload,
+                    );
 
                     DB::table('attempt_responses')
                         ->where('id', $response->id)
@@ -71,5 +70,41 @@ class FinalizeAttempt
                 return $attempt->refresh();
             }
         );
+    }
+
+    /**
+     * @param array<string, mixed> $scoringSnapshot
+     * @param array<string, mixed>|null $responsePayload
+     */
+    private function score(
+        array $scoringSnapshot,
+        ?array $responsePayload,
+    ): ?bool {
+        if ($responsePayload === null) {
+            return null;
+        }
+
+        if (
+            ! array_key_exists(
+                'correct_option',
+                $scoringSnapshot
+            )
+        ) {
+            throw new RuntimeException(
+                'Unsupported scoring snapshot.'
+            );
+        }
+
+        if (
+            ! array_key_exists(
+                'selected_option',
+                $responsePayload
+            )
+        ) {
+            return null;
+        }
+
+        return $responsePayload['selected_option']
+            === $scoringSnapshot['correct_option'];
     }
 }

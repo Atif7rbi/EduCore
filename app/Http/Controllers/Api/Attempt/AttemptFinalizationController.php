@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\Attempt;
 
 use App\Application\Attempt\FinalizeAttempt;
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attempt\FinalizeAttemptRequest;
 use App\Http\Responses\ApiResponse;
+use App\Models\Attempt;
 use Illuminate\Http\JsonResponse;
 
 class AttemptFinalizationController extends Controller
@@ -13,21 +15,23 @@ class AttemptFinalizationController extends Controller
     public function update(
         string $attemptId,
         FinalizeAttemptRequest $request,
+        AuthenticatedLearner $learnerContext,
         FinalizeAttempt $service,
     ): JsonResponse {
+        $learner = $learnerContext->resolve($request->user());
+
+        Attempt::query()
+            ->whereKey($attemptId)
+            ->where(
+                'learner_profile_id',
+                $learner->id
+            )
+            ->firstOrFail();
+
         $validated = $request->validated();
-
-        $correctnessByAttemptItemId = [];
-
-        foreach ($validated['items'] as $item) {
-            $correctnessByAttemptItemId[
-                $item['attempt_item_id']
-            ] = $item['original_is_correct'];
-        }
 
         $attempt = $service->execute(
             $attemptId,
-            $correctnessByAttemptItemId,
             $validated['final_status'],
         );
 

@@ -19,19 +19,6 @@ class FinalizeAttemptRequest extends FormRequest
                 'string',
                 'in:submitted,abandoned',
             ],
-            'items' => [
-                'required',
-                'array',
-            ],
-            'items.*.attempt_item_id' => [
-                'required',
-                'uuid',
-            ],
-            'items.*.original_is_correct' => [
-                'present',
-                'nullable',
-                'boolean',
-            ],
         ];
     }
 }
