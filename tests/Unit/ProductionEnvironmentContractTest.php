@@ -83,6 +83,27 @@ class ProductionEnvironmentContractTest extends TestCase
         )->validate();
     }
 
+    public function test_unencrypted_session_is_rejected(): void
+    {
+        $this->safeConfiguration();
+
+        config([
+            'session.encrypt' => false,
+        ]);
+
+        $this->expectException(
+            RuntimeException::class
+        );
+
+        $this->expectExceptionMessage(
+            'SESSION_ENCRYPT must be true'
+        );
+
+        app(
+            ProductionEnvironmentContract::class
+        )->validate();
+    }
+
     public function test_insecure_session_cookie_is_rejected(): void
     {
         $this->safeConfiguration();
@@ -228,6 +249,9 @@ class ProductionEnvironmentContractTest extends TestCase
                 'database',
 
             'session.secure' =>
+                true,
+
+            'session.encrypt' =>
                 true,
 
             'session.http_only' =>

@@ -19,12 +19,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(
+            \App\Http\Middleware\SecurityHeaders::class
+        );
+
         $middleware->alias([
             'active' => \App\Http\Middleware\RequireActiveUser::class,
             'learner' => \App\Http\Middleware\RequireLearnerProfile::class,
             'management' => \App\Http\Middleware\RequireManagementAuthorization::class,
         ]);
-        //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(

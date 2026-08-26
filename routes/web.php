@@ -8,7 +8,10 @@ Route::get('/', function () {
 });
 
 Route::prefix('auth')->group(function (): void {
-    Route::post('/login', [SessionController::class, 'login']);
+    Route::post(
+        '/login',
+        [SessionController::class, 'login']
+    )->middleware('throttle:login');
 
     Route::middleware(['auth:web', 'active'])->group(function (): void {
         Route::post('/logout', [SessionController::class, 'logout']);

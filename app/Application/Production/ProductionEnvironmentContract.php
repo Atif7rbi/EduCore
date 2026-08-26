@@ -52,6 +52,11 @@ class ProductionEnvironmentContract
                 'SESSION_SECURE_COOKIE must be true in production.';
         }
 
+        if (config('session.encrypt') !== true) {
+            $violations[] =
+                'SESSION_ENCRYPT must be true in production.';
+        }
+
         if (config('session.http_only') !== true) {
             $violations[] =
                 'SESSION_HTTP_ONLY must be true in production.';
