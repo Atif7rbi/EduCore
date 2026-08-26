@@ -150,6 +150,72 @@ Route::middleware(['web', 'management'])->group(function (): void {
         )->whereUuid('placementId');
 
         Route::get(
+            '/curriculum-versions/{curriculumVersionId}/assessment-items',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'items',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/assessment-items',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'storeItem',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::put(
+            '/assessment-items/{assessmentItemId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'updateItem',
+            ]
+        )->whereUuid('assessmentItemId');
+
+        Route::get(
+            '/assessment-items/{assessmentItemId}/revisions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'revisions',
+            ]
+        )->whereUuid('assessmentItemId');
+
+        Route::post(
+            '/assessment-items/{assessmentItemId}/revisions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'storeRevision',
+            ]
+        )->whereUuid('assessmentItemId');
+
+        Route::get(
+            '/assessment-item-revisions/{assessmentItemRevisionId}/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'revisionSkills',
+            ]
+        )->whereUuid('assessmentItemRevisionId');
+
+        Route::post(
+            '/assessment-item-revisions/{assessmentItemRevisionId}/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'storeRevisionSkill',
+            ]
+        )->whereUuid('assessmentItemRevisionId');
+
+        Route::delete(
+            '/assessment-item-revisions/{assessmentItemRevisionId}/skills/{assessmentItemRevisionSkillId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                'destroyRevisionSkill',
+            ]
+        )
+            ->whereUuid('assessmentItemRevisionId')
+            ->whereUuid('assessmentItemRevisionSkillId');
+
+        Route::get(
             '/curriculum-versions/{curriculumVersionId}/lessons',
             [
                 \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,

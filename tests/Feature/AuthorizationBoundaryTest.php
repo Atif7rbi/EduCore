@@ -56,6 +56,38 @@ class AuthorizationBoundaryTest extends TestCase
                 'description' => 'Updated description',
             ]],
 
+            ['getJson', "/api/admin/curriculum-versions/{$id}/assessment-items", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/assessment-items", [
+                'item_type' => 'multiple_choice',
+                'internal_label' => 'Test Assessment Item',
+            ]],
+            ['putJson', "/api/admin/assessment-items/{$id}", [
+                'item_type' => 'multiple_choice',
+                'internal_label' => 'Updated Assessment Item',
+            ]],
+
+            ['getJson', "/api/admin/assessment-items/{$id}/revisions", []],
+            ['postJson', "/api/admin/assessment-items/{$id}/revisions", [
+                'revision_number' => 1,
+                'primary_topic_id' => null,
+                'difficulty' => 'medium',
+                'content_payload' => [
+                    'prompt' => 'Test question',
+                ],
+                'content_schema_version' => 1,
+                'scoring_payload' => [
+                    'correct_choice' => 0,
+                ],
+                'scoring_schema_version' => 1,
+            ]],
+
+            ['getJson', "/api/admin/assessment-item-revisions/{$id}/skills", []],
+            ['postJson', "/api/admin/assessment-item-revisions/{$id}/skills", [
+                'skill_version_placement_id' => $id,
+                'role' => 'primary',
+            ]],
+            ['deleteJson', "/api/admin/assessment-item-revisions/{$id}/skills/{$id}", []],
+
             ['getJson', "/api/admin/curriculum-versions/{$id}/lessons", []],
             ['postJson', "/api/admin/curriculum-versions/{$id}/lessons", [
                 'title' => 'Test Lesson',
