@@ -150,6 +150,86 @@ Route::middleware(['web', 'management'])->group(function (): void {
         )->whereUuid('placementId');
 
         Route::get(
+            '/curriculum-versions/{curriculumVersionId}/exam-templates',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'index',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/exam-templates',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'store',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::put(
+            '/exam-templates/{examTemplateId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'update',
+            ]
+        )->whereUuid('examTemplateId');
+
+        Route::post(
+            '/exam-templates/{examTemplateId}/archive',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'archive',
+            ]
+        )->whereUuid('examTemplateId');
+
+        Route::post(
+            '/exam-templates/{examTemplateId}/activate',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'activate',
+            ]
+        )->whereUuid('examTemplateId');
+
+        Route::get(
+            '/exam-templates/{examTemplateId}/versions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'versions',
+            ]
+        )->whereUuid('examTemplateId');
+
+        Route::post(
+            '/exam-templates/{examTemplateId}/versions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'storeVersion',
+            ]
+        )->whereUuid('examTemplateId');
+
+        Route::put(
+            '/exam-template-versions/{examTemplateVersionId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'updateVersion',
+            ]
+        )->whereUuid('examTemplateVersionId');
+
+        Route::post(
+            '/exam-template-versions/{examTemplateVersionId}/publish',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'publishVersion',
+            ]
+        )->whereUuid('examTemplateVersionId');
+
+        Route::post(
+            '/exam-template-versions/{examTemplateVersionId}/retire',
+            [
+                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                'retireVersion',
+            ]
+        )->whereUuid('examTemplateVersionId');
+
+        Route::get(
             '/curriculum-versions/{curriculumVersionId}/practice-activities',
             [
                 \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,

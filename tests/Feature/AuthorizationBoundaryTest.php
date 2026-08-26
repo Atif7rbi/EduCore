@@ -56,6 +56,37 @@ class AuthorizationBoundaryTest extends TestCase
                 'description' => 'Updated description',
             ]],
 
+            ['getJson', "/api/admin/curriculum-versions/{$id}/exam-templates", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/exam-templates", [
+                'name' => 'Test Exam Template',
+                'description' => 'Test exam template description',
+            ]],
+            ['putJson', "/api/admin/exam-templates/{$id}", [
+                'name' => 'Updated Exam Template',
+                'description' => 'Updated description',
+            ]],
+            ['postJson', "/api/admin/exam-templates/{$id}/archive", []],
+            ['postJson', "/api/admin/exam-templates/{$id}/activate", []],
+
+            ['getJson', "/api/admin/exam-templates/{$id}/versions", []],
+            ['postJson', "/api/admin/exam-templates/{$id}/versions", [
+                'version_number' => 1,
+                'label' => 'v1',
+                'rules_payload' => [
+                    'question_count' => 20,
+                ],
+                'rules_schema_version' => 1,
+            ]],
+            ['putJson', "/api/admin/exam-template-versions/{$id}", [
+                'label' => 'Updated v1',
+                'rules_payload' => [
+                    'question_count' => 25,
+                ],
+                'rules_schema_version' => 1,
+            ]],
+            ['postJson', "/api/admin/exam-template-versions/{$id}/publish", []],
+            ['postJson', "/api/admin/exam-template-versions/{$id}/retire", []],
+
             ['getJson', "/api/admin/curriculum-versions/{$id}/practice-activities", []],
             ['postJson', "/api/admin/curriculum-versions/{$id}/practice-activities", [
                 'lesson_id' => null,
