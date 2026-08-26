@@ -12,6 +12,32 @@ Route::get('/health', function () {
 });
 
 Route::middleware(['web', 'management'])->group(function (): void {
+    Route::prefix('admin')->group(function (): void {
+        Route::get(
+            '/subjects',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                'subjects',
+            ]
+        );
+
+        Route::get(
+            '/subjects/{subjectId}/curricula',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                'curricula',
+            ]
+        )->whereUuid('subjectId');
+
+        Route::get(
+            '/curricula/{curriculumId}/versions',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                'versions',
+            ]
+        )->whereUuid('curriculumId');
+    });
+
     Route::prefix('curriculum-versions')->group(function (): void {
         Route::post(
             '/{curriculumVersionId}/publish',
