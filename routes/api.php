@@ -648,6 +648,14 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
 
 Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
     Route::get(
+        '/progress/overview',
+        [
+            \App\Http\Controllers\Api\Read\ProgressReadController::class,
+            'overview',
+        ]
+    );
+
+    Route::get(
         '/attempts',
         [
             \App\Http\Controllers\Api\Read\AttemptReadController::class,
