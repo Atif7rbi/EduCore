@@ -35,6 +35,37 @@ class AuthorizationBoundaryTest extends TestCase
                 'label' => 'Updated Version',
             ]],
             ['getJson', '/api/admin/subjects', []],
+
+            ['getJson', "/api/admin/curriculum-versions/{$id}/topics", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/topics", [
+                'name' => 'Test Topic',
+                'display_order' => 0,
+            ]],
+            ['putJson', "/api/admin/topics/{$id}", [
+                'name' => 'Updated Topic',
+                'display_order' => 1,
+            ]],
+
+            ['getJson', '/api/admin/skills', []],
+            ['postJson', '/api/admin/skills', [
+                'name' => 'Test Skill',
+                'description' => 'Test description',
+            ]],
+            ['putJson', "/api/admin/skills/{$id}", [
+                'name' => 'Updated Skill',
+                'description' => 'Updated description',
+            ]],
+
+            ['getJson', "/api/admin/curriculum-versions/{$id}/skill-placements", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/skill-placements", [
+                'skill_id' => $id,
+            ]],
+            ['deleteJson', "/api/admin/skill-placements/{$id}", []],
+
+            ['postJson', "/api/admin/skill-placements/{$id}/home-topics", [
+                'topic_id' => $id,
+            ]],
+            ['deleteJson', "/api/admin/skill-placements/{$id}/home-topics/{$id}", []],
             ['getJson', "/api/admin/subjects/{$id}/curricula", []],
             ['getJson', "/api/admin/curricula/{$id}/versions", []],
             ['postJson', "/api/curriculum-versions/{$id}/publish", []],

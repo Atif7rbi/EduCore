@@ -70,6 +70,96 @@ Route::middleware(['web', 'management'])->group(function (): void {
         );
 
         Route::get(
+            '/curriculum-versions/{curriculumVersionId}/topics',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'topics',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/topics',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'storeTopic',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::put(
+            '/topics/{topicId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'updateTopic',
+            ]
+        )->whereUuid('topicId');
+
+        Route::get(
+            '/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'skills',
+            ]
+        );
+
+        Route::post(
+            '/skills',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'storeSkill',
+            ]
+        );
+
+        Route::put(
+            '/skills/{skillId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'updateSkill',
+            ]
+        )->whereUuid('skillId');
+
+        Route::get(
+            '/curriculum-versions/{curriculumVersionId}/skill-placements',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'placements',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/skill-placements',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'storePlacement',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::delete(
+            '/skill-placements/{placementId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'destroyPlacement',
+            ]
+        )->whereUuid('placementId');
+
+        Route::post(
+            '/skill-placements/{placementId}/home-topics',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'storeHomeTopic',
+            ]
+        )->whereUuid('placementId');
+
+        Route::delete(
+            '/skill-placements/{placementId}/home-topics/{homeTopicId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                'destroyHomeTopic',
+            ]
+        )
+            ->whereUuid('placementId')
+            ->whereUuid('homeTopicId');
+
+        Route::get(
             '/subjects/{subjectId}/curricula',
             [
                 \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
