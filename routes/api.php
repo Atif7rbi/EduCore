@@ -150,6 +150,72 @@ Route::middleware(['web', 'management'])->group(function (): void {
         )->whereUuid('placementId');
 
         Route::get(
+            '/curriculum-versions/{curriculumVersionId}/practice-activities',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'index',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::post(
+            '/curriculum-versions/{curriculumVersionId}/practice-activities',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'store',
+            ]
+        )->whereUuid('curriculumVersionId');
+
+        Route::put(
+            '/practice-activities/{practiceActivityId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'update',
+            ]
+        )->whereUuid('practiceActivityId');
+
+        Route::post(
+            '/practice-activities/{practiceActivityId}/activate',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'activate',
+            ]
+        )->whereUuid('practiceActivityId');
+
+        Route::post(
+            '/practice-activities/{practiceActivityId}/archive',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'archive',
+            ]
+        )->whereUuid('practiceActivityId');
+
+        Route::get(
+            '/practice-activities/{practiceActivityId}/items',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'items',
+            ]
+        )->whereUuid('practiceActivityId');
+
+        Route::post(
+            '/practice-activities/{practiceActivityId}/items',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'storeItem',
+            ]
+        )->whereUuid('practiceActivityId');
+
+        Route::delete(
+            '/practice-activities/{practiceActivityId}/items/{practiceActivityItemId}',
+            [
+                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                'destroyItem',
+            ]
+        )
+            ->whereUuid('practiceActivityId')
+            ->whereUuid('practiceActivityItemId');
+
+        Route::get(
             '/curriculum-versions/{curriculumVersionId}/assessment-items',
             [
                 \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,

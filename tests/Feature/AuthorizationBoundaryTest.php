@@ -56,6 +56,27 @@ class AuthorizationBoundaryTest extends TestCase
                 'description' => 'Updated description',
             ]],
 
+            ['getJson', "/api/admin/curriculum-versions/{$id}/practice-activities", []],
+            ['postJson', "/api/admin/curriculum-versions/{$id}/practice-activities", [
+                'lesson_id' => null,
+                'name' => 'Test Practice Activity',
+                'description' => 'Test practice description',
+            ]],
+            ['putJson', "/api/admin/practice-activities/{$id}", [
+                'lesson_id' => null,
+                'name' => 'Updated Practice Activity',
+                'description' => 'Updated practice description',
+            ]],
+            ['postJson', "/api/admin/practice-activities/{$id}/activate", []],
+            ['postJson', "/api/admin/practice-activities/{$id}/archive", []],
+
+            ['getJson', "/api/admin/practice-activities/{$id}/items", []],
+            ['postJson', "/api/admin/practice-activities/{$id}/items", [
+                'assessment_item_revision_id' => $id,
+                'display_order' => 0,
+            ]],
+            ['deleteJson', "/api/admin/practice-activities/{$id}/items/{$id}", []],
+
             ['getJson', "/api/admin/curriculum-versions/{$id}/assessment-items", []],
             ['postJson', "/api/admin/curriculum-versions/{$id}/assessment-items", [
                 'item_type' => 'multiple_choice',
