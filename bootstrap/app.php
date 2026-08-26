@@ -3,6 +3,7 @@
 use App\Application\Exceptions\ConcurrencyConflict;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Http\Responses\ApiResponse;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(
+            \App\Http\Middleware\RequestCorrelation::class
+        );
+
         $middleware->append(
             \App\Http\Middleware\SecurityHeaders::class
         );
@@ -95,6 +100,40 @@ return Application::configure(basePath: dirname(__DIR__))
                     'not_found',
                     'The requested resource was not found.',
                     404,
+                );
+            }
+        );
+
+        $exceptions->render(
+            function (
+                AuthenticationException $exception,
+                Request $request,
+            ) {
+                if (! $request->is('api/*')) {
+                    return null;
+                }
+
+                return ApiResponse::error(
+                    'unauthenticated',
+                    'Authentication is required.',
+                    401,
+                );
+            }
+        );
+
+        $exceptions->render(
+            function (
+                \Throwable $exception,
+                Request $request,
+            ) {
+                if (! $request->is('api/*')) {
+                    return null;
+                }
+
+                return ApiResponse::error(
+                    'internal_error',
+                    'An unexpected server error occurred.',
+                    500,
                 );
             }
         );
