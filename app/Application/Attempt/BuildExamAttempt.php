@@ -6,7 +6,9 @@ use App\Application\Support\TransactionManager;
 use App\Models\Attempt;
 use App\Models\AttemptItem;
 use App\Models\AssessmentItemRevision;
+use App\Models\CurriculumVersion;
 use App\Models\ExamGeneration;
+use App\Models\ExamTemplateVersion;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -27,8 +29,55 @@ class BuildExamAttempt
                 $learnerProfileId,
                 $examGenerationId,
             ): Attempt {
+                $generationIdentity = ExamGeneration::query()
+                    ->whereKey($examGenerationId)
+                    ->firstOrFail([
+                        'id',
+                        'curriculum_version_id',
+                        'exam_template_version_id',
+                    ]);
+
+                /*
+                 * Learner-facing eligibility must be revalidated
+                 * inside this transaction after acquiring the
+                 * lifecycle rows that can make the generation
+                 * unavailable to a new learner Attempt.
+                 *
+                 * Lock order:
+                 * CurriculumVersion
+                 * -> ExamTemplateVersion
+                 * -> ExamGeneration
+                 */
+                $curriculumVersion = CurriculumVersion::query()
+                    ->whereKey(
+                        $generationIdentity->curriculum_version_id
+                    )
+                    ->where('status', 'published')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $templateVersion = ExamTemplateVersion::query()
+                    ->whereKey(
+                        $generationIdentity->exam_template_version_id
+                    )
+                    ->where(
+                        'curriculum_version_id',
+                        $curriculumVersion->id,
+                    )
+                    ->where('status', 'published')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $generation = ExamGeneration::query()
                     ->whereKey($examGenerationId)
+                    ->where(
+                        'curriculum_version_id',
+                        $curriculumVersion->id,
+                    )
+                    ->where(
+                        'exam_template_version_id',
+                        $templateVersion->id,
+                    )
                     ->lockForUpdate()
                     ->firstOrFail();
 

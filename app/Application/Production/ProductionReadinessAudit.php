@@ -139,15 +139,24 @@ SQL
         $implementationReady =
             $smokeResult['ok'] === true;
 
+        /*
+         * Deployment readiness is a production-runtime claim.
+         *
+         * A local/testing/staging-style execution may still
+         * inspect implementation, database, and smoke health,
+         * but it must never claim that the production
+         * environment contract was validated.
+         */
         $deploymentReady =
             $implementationReady
-            && $databaseResult['ok'] === true
-            && (
-                ! app()->environment('production')
-                || $environmentResult[
-                    'production_contract_ok'
-                ] === true
-            );
+            && app()->environment('production')
+            && $environmentResult[
+                'production_contract_checked'
+            ] === true
+            && $environmentResult[
+                'production_contract_ok'
+            ] === true
+            && $databaseResult['ok'] === true;
 
         return [
             'implementation_ready' =>

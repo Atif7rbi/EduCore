@@ -104,6 +104,36 @@ class ProductionEnvironmentContract
                 'QUEUE_CONNECTION must be database or redis in production.';
         }
 
+        if (
+            config('queue.batching.database')
+            !== 'pgsql'
+        ) {
+            $violations[] =
+                'Queue batching storage must use pgsql in production.';
+        }
+
+        if (
+            config('queue.failed.database')
+            !== 'pgsql'
+        ) {
+            $violations[] =
+                'Failed-job storage must use pgsql in production.';
+        }
+
+        $databaseQueueConnection =
+            config(
+                'queue.connections.database.connection'
+            );
+
+        if (
+            $queueConnection === 'database'
+            && $databaseQueueConnection !== null
+            && $databaseQueueConnection !== 'pgsql'
+        ) {
+            $violations[] =
+                'Database queue storage must use the default pgsql connection or explicit pgsql connection in production.';
+        }
+
         if ($violations !== []) {
             throw new RuntimeException(
                 "Unsafe EduCore production configuration:\n- "

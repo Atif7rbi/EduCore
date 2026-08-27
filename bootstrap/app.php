@@ -3,13 +3,16 @@
 use App\Application\Exceptions\ConcurrencyConflict;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Http\Responses\ApiResponse;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -117,6 +120,90 @@ return Application::configure(basePath: dirname(__DIR__))
                     'unauthenticated',
                     'Authentication is required.',
                     401,
+                );
+            }
+        );
+
+        $exceptions->render(
+            function (
+                AuthorizationException $exception,
+                Request $request,
+            ) {
+                if (! $request->is('api/*')) {
+                    return null;
+                }
+
+                return ApiResponse::error(
+                    'forbidden',
+                    'You are not authorized to perform this action.',
+                    403,
+                );
+            }
+        );
+
+        $exceptions->render(
+            function (
+                TokenMismatchException $exception,
+                Request $request,
+            ) {
+                if (! $request->is('api/*')) {
+                    return null;
+                }
+
+                return ApiResponse::error(
+                    'csrf_token_mismatch',
+                    'The session security token has expired or is invalid.',
+                    419,
+                );
+            }
+        );
+
+        $exceptions->render(
+            function (
+                HttpExceptionInterface $exception,
+                Request $request,
+            ) {
+                if (! $request->is('api/*')) {
+                    return null;
+                }
+
+                $status =
+                    $exception->getStatusCode();
+
+                [$code, $message] =
+                    match ($status) {
+                        403 => [
+                            'forbidden',
+                            'You are not authorized to perform this action.',
+                        ],
+
+                        405 => [
+                            'method_not_allowed',
+                            'The HTTP method is not allowed for this resource.',
+                        ],
+
+                        419 => [
+                            'csrf_token_mismatch',
+                            'The session security token has expired or is invalid.',
+                        ],
+
+                        429 => [
+                            'too_many_requests',
+                            'Too many requests. Please retry later.',
+                        ],
+
+                        default => [
+                            'http_error',
+                            'The request could not be completed.',
+                        ],
+                    };
+
+                return ApiResponse::error(
+                    $code,
+                    $message,
+                    $status,
+                )->withHeaders(
+                    $exception->getHeaders()
                 );
             }
         );

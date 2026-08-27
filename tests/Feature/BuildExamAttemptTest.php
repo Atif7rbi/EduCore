@@ -7,10 +7,13 @@ use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
+use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Curriculum\RetireCurriculumVersion;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -96,6 +99,51 @@ class BuildExamAttemptTest extends TestCase
             1,
             DB::table('attempt_items')
                 ->where('attempt_id', $attempt->id)
+                ->count()
+        );
+    }
+
+    public function test_unpublished_exam_curriculum_is_rejected_inside_attempt_transaction(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $generation = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->first();
+
+        $this->assertNotNull($generation);
+
+        (new RetireCurriculumVersion(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute(
+            $generation->curriculum_version_id
+        );
+
+        try {
+            $this->service()->execute(
+                $learnerId,
+                $generationId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'exam_generation_id',
+                    $generationId,
+                )
                 ->count()
         );
     }
@@ -628,6 +676,231 @@ class BuildExamAttemptTest extends TestCase
         );
     }
 
+    public function test_curriculum_retirement_serializes_against_exam_attempt_construction(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $generation = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->first();
+
+        $this->assertNotNull($generation);
+
+        $versionId =
+            $generation->curriculum_version_id;
+
+        $signalFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-exam-race-'
+        );
+
+        if ($signalFile === false) {
+            $this->fail(
+                'Unable to allocate concurrency signal file.'
+            );
+        }
+
+        @unlink($signalFile);
+
+        $process = null;
+        $pipes = [];
+
+        DB::beginTransaction();
+
+        try {
+            $lockedVersion = DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->lockForUpdate()
+                ->first();
+
+            $this->assertNotNull($lockedVersion);
+            $this->assertSame(
+                'published',
+                $lockedVersion->status
+            );
+
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->update([
+                    'status' => 'retired',
+                    'updated_at' => now(),
+                ]);
+
+            $childCode = sprintf(
+                <<<'PHP'
+try {
+    app(\App\Application\Attempt\BuildExamAttempt::class)
+        ->execute(%s, %s);
+
+    file_put_contents(
+        %s,
+        json_encode(
+            ['result' => 'unexpected_success'],
+            JSON_THROW_ON_ERROR
+        )
+    );
+} catch (\Throwable $exception) {
+    file_put_contents(
+        %s,
+        json_encode(
+            [
+                'result' => 'exception',
+                'class' => $exception::class,
+                'message' => $exception->getMessage(),
+            ],
+            JSON_THROW_ON_ERROR
+        )
+    );
+}
+PHP,
+                var_export($learnerId, true),
+                var_export($generationId, true),
+                var_export($signalFile, true),
+                var_export($signalFile, true),
+            );
+
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ];
+
+            $process = proc_open(
+                [
+                    PHP_BINARY,
+                    base_path('artisan'),
+                    'tinker',
+                    '--env=testing',
+                    '--execute='.$childCode,
+                ],
+                $descriptors,
+                $pipes,
+                base_path(),
+            );
+
+            if (! is_resource($process)) {
+                $this->fail(
+                    'Unable to start independent PostgreSQL Session B.'
+                );
+            }
+
+            fclose($pipes[0]);
+
+            /*
+             * Session B must remain blocked on the same
+             * CurriculumVersion lifecycle row.
+             */
+            usleep(700000);
+
+            $statusWhileLocked =
+                proc_get_status($process);
+
+            $this->assertTrue(
+                $statusWhileLocked['running'],
+                'Exam Attempt process exited before the lifecycle lock was released.'
+            );
+
+            $this->assertFileDoesNotExist(
+                $signalFile,
+                'Exam Attempt construction completed before the lifecycle lock was released.'
+            );
+
+            DB::commit();
+
+            $deadline = microtime(true) + 8.0;
+
+            do {
+                $statusAfterCommit =
+                    proc_get_status($process);
+
+                if (! $statusAfterCommit['running']) {
+                    break;
+                }
+
+                usleep(100000);
+            } while (microtime(true) < $deadline);
+
+            $this->assertFalse(
+                $statusAfterCommit['running'],
+                'Exam Attempt process did not finish after retirement committed.'
+            );
+
+            $stdout =
+                stream_get_contents($pipes[1]);
+
+            $stderr =
+                stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $this->assertFileExists(
+                $signalFile,
+                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
+            );
+
+            $result = json_decode(
+                (string) file_get_contents($signalFile),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null
+            );
+
+            $this->assertSame(
+                0,
+                DB::table('attempts')
+                    ->where(
+                        'exam_generation_id',
+                        $generationId,
+                    )
+                    ->count()
+            );
+
+            $this->assertSame(
+                'retired',
+                DB::table('curriculum_versions')
+                    ->where('id', $versionId)
+                    ->value('status')
+            );
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
+
+            if (is_resource($process)) {
+                $status = proc_get_status($process);
+
+                if ($status['running']) {
+                    proc_terminate($process);
+                }
+
+                proc_close($process);
+            }
+
+            @unlink($signalFile);
+        }
+    }
+
     private function regradeService(): AddRegradeCorrection
     {
         return new AddRegradeCorrection(
@@ -842,6 +1115,12 @@ class BuildExamAttemptTest extends TestCase
                 ],
             ],
         );
+
+        (new PublishCurriculumVersion(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($versionId);
 
         return [
             $learnerId,

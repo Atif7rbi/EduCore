@@ -188,6 +188,70 @@ class ProductionEnvironmentContractTest extends TestCase
         )->validate();
     }
 
+    public function test_non_postgres_queue_batching_storage_is_rejected(): void
+    {
+        $this->safeConfiguration();
+
+        config([
+            'queue.batching.database' => 'sqlite',
+        ]);
+
+        $this->expectException(
+            RuntimeException::class
+        );
+
+        $this->expectExceptionMessage(
+            'Queue batching storage must use pgsql'
+        );
+
+        app(
+            ProductionEnvironmentContract::class
+        )->validate();
+    }
+
+    public function test_non_postgres_failed_job_storage_is_rejected(): void
+    {
+        $this->safeConfiguration();
+
+        config([
+            'queue.failed.database' => 'sqlite',
+        ]);
+
+        $this->expectException(
+            RuntimeException::class
+        );
+
+        $this->expectExceptionMessage(
+            'Failed-job storage must use pgsql'
+        );
+
+        app(
+            ProductionEnvironmentContract::class
+        )->validate();
+    }
+
+    public function test_explicit_non_postgres_database_queue_connection_is_rejected(): void
+    {
+        $this->safeConfiguration();
+
+        config([
+            'queue.connections.database.connection' =>
+                'sqlite',
+        ]);
+
+        $this->expectException(
+            RuntimeException::class
+        );
+
+        $this->expectExceptionMessage(
+            'Database queue storage must use the default pgsql connection or explicit pgsql connection'
+        );
+
+        app(
+            ProductionEnvironmentContract::class
+        )->validate();
+    }
+
     public function test_multiple_violations_are_reported_together(): void
     {
         $this->safeConfiguration();
@@ -265,6 +329,15 @@ class ProductionEnvironmentContractTest extends TestCase
 
             'queue.default' =>
                 'database',
+
+            'queue.connections.database.connection' =>
+                null,
+
+            'queue.batching.database' =>
+                'pgsql',
+
+            'queue.failed.database' =>
+                'pgsql',
         ]);
     }
 }

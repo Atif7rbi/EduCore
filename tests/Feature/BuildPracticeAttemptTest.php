@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildPracticeAttempt;
+use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Curriculum\RetireCurriculumVersion;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -116,7 +119,7 @@ class BuildPracticeAttemptTest extends TestCase
         );
     }
 
-    public function test_empty_practice_activity_membership_cannot_build_attempt(): void
+    public function test_archived_practice_activity_is_rejected_inside_attempt_transaction(): void
     {
         [
             $learnerId,
@@ -130,9 +133,46 @@ class BuildPracticeAttemptTest extends TestCase
                 'updated_at' => now(),
             ]);
 
-        DB::table('practice_activity_items')
-            ->where('practice_activity_id', $activityId)
-            ->delete();
+        try {
+            $this->service()->execute(
+                $learnerId,
+                $activityId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'practice_activity_id',
+                    $activityId,
+                )
+                ->count()
+        );
+    }
+
+    public function test_unpublished_practice_curriculum_is_rejected_inside_attempt_transaction(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            ,
+            ,
+            ,
+            $versionId,
+        ] = $this->createPracticeFixture();
+
+        (new RetireCurriculumVersion(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($versionId);
 
         try {
             $this->service()->execute(
@@ -141,18 +181,242 @@ class BuildPracticeAttemptTest extends TestCase
             );
 
             $this->fail(
-                'Expected IntegrityConstraintViolation was not thrown.'
+                'Expected ModelNotFoundException was not thrown.'
             );
-        } catch (IntegrityConstraintViolation $exception) {
-            $this->assertSame('P0001', $exception->sqlState);
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
         }
 
         $this->assertSame(
             0,
             DB::table('attempts')
-                ->where('practice_activity_id', $activityId)
+                ->where(
+                    'practice_activity_id',
+                    $activityId,
+                )
                 ->count()
         );
+    }
+
+    public function test_curriculum_retirement_serializes_against_practice_attempt_construction(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            ,
+            ,
+            ,
+            $versionId,
+        ] = $this->createPracticeFixture();
+
+        $signalFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-practice-race-'
+        );
+
+        if ($signalFile === false) {
+            $this->fail(
+                'Unable to allocate concurrency signal file.'
+            );
+        }
+
+        @unlink($signalFile);
+
+        $process = null;
+        $pipes = [];
+
+        DB::beginTransaction();
+
+        try {
+            $lockedVersion = DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->lockForUpdate()
+                ->first();
+
+            $this->assertNotNull($lockedVersion);
+            $this->assertSame(
+                'published',
+                $lockedVersion->status
+            );
+
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->update([
+                    'status' => 'retired',
+                    'updated_at' => now(),
+                ]);
+
+            $childCode = sprintf(
+                <<<'PHP'
+try {
+    app(\App\Application\Attempt\BuildPracticeAttempt::class)
+        ->execute(%s, %s);
+
+    file_put_contents(
+        %s,
+        json_encode(
+            ['result' => 'unexpected_success'],
+            JSON_THROW_ON_ERROR
+        )
+    );
+} catch (\Throwable $exception) {
+    file_put_contents(
+        %s,
+        json_encode(
+            [
+                'result' => 'exception',
+                'class' => $exception::class,
+                'message' => $exception->getMessage(),
+            ],
+            JSON_THROW_ON_ERROR
+        )
+    );
+}
+PHP,
+                var_export($learnerId, true),
+                var_export($activityId, true),
+                var_export($signalFile, true),
+                var_export($signalFile, true),
+            );
+
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ];
+
+            $process = proc_open(
+                [
+                    PHP_BINARY,
+                    base_path('artisan'),
+                    'tinker',
+                    '--env=testing',
+                    '--execute='.$childCode,
+                ],
+                $descriptors,
+                $pipes,
+                base_path(),
+            );
+
+            if (! is_resource($process)) {
+                $this->fail(
+                    'Unable to start independent PostgreSQL Session B.'
+                );
+            }
+
+            fclose($pipes[0]);
+
+            /*
+             * Session B is a completely separate PHP process.
+             * It must block on CurriculumVersion FOR UPDATE
+             * while Session A owns the lifecycle row.
+             */
+            usleep(700000);
+
+            $statusWhileLocked =
+                proc_get_status($process);
+
+            $this->assertTrue(
+                $statusWhileLocked['running'],
+                'Attempt construction process exited before the lifecycle lock was released.'
+            );
+
+            $this->assertFileDoesNotExist(
+                $signalFile,
+                'Attempt construction completed before the lifecycle lock was released.'
+            );
+
+            DB::commit();
+
+            $deadline = microtime(true) + 8.0;
+
+            do {
+                $statusAfterCommit =
+                    proc_get_status($process);
+
+                if (! $statusAfterCommit['running']) {
+                    break;
+                }
+
+                usleep(100000);
+            } while (microtime(true) < $deadline);
+
+            $this->assertFalse(
+                $statusAfterCommit['running'],
+                'Attempt construction process did not finish after retirement committed.'
+            );
+
+            $stdout =
+                stream_get_contents($pipes[1]);
+
+            $stderr =
+                stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $this->assertFileExists(
+                $signalFile,
+                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
+            );
+
+            $result = json_decode(
+                (string) file_get_contents($signalFile),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null
+            );
+
+            $this->assertSame(
+                0,
+                DB::table('attempts')
+                    ->where(
+                        'practice_activity_id',
+                        $activityId,
+                    )
+                    ->count()
+            );
+
+            $this->assertSame(
+                'retired',
+                DB::table('curriculum_versions')
+                    ->where('id', $versionId)
+                    ->value('status')
+            );
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
+
+            if (is_resource($process)) {
+                $status = proc_get_status($process);
+
+                if ($status['running']) {
+                    proc_terminate($process);
+                }
+
+                proc_close($process);
+            }
+
+            @unlink($signalFile);
+        }
     }
 
     private function service(): BuildPracticeAttempt
@@ -320,6 +584,12 @@ class BuildPracticeAttemptTest extends TestCase
                 'status' => 'active',
                 'updated_at' => now(),
             ]);
+
+        (new PublishCurriculumVersion(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($versionId);
 
         return [
             $learnerId,

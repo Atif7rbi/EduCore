@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Tests\TestCase;
 
 class RuntimeObservabilityTest extends TestCase
@@ -188,6 +192,104 @@ class RuntimeObservabilityTest extends TestCase
                     ->get('X-Request-ID')
             )
         );
+    }
+
+    public function test_authorization_exception_keeps_403_contract(): void
+    {
+        Route::get(
+            '/api/test-forbidden',
+            function (): never {
+                throw new AuthorizationException(
+                    'Sensitive authorization detail.'
+                );
+            }
+        );
+
+        $this->getJson('/api/test-forbidden')
+            ->assertStatus(403)
+            ->assertExactJson([
+                'error' => [
+                    'code' => 'forbidden',
+                    'message' =>
+                        'You are not authorized to perform this action.',
+                ],
+            ]);
+    }
+
+    public function test_method_not_allowed_exception_keeps_405_contract(): void
+    {
+        Route::get(
+            '/api/test-method-only',
+            fn () => response()->json([
+                'ok' => true,
+            ])
+        );
+
+        $this->postJson(
+            '/api/test-method-only'
+        )
+            ->assertStatus(405)
+            ->assertExactJson([
+                'error' => [
+                    'code' =>
+                        'method_not_allowed',
+                    'message' =>
+                        'The HTTP method is not allowed for this resource.',
+                ],
+            ]);
+    }
+
+    public function test_csrf_exception_keeps_419_contract(): void
+    {
+        Route::get(
+            '/api/test-csrf-expired',
+            function (): never {
+                throw new TokenMismatchException(
+                    'Sensitive CSRF detail.'
+                );
+            }
+        );
+
+        $this->getJson('/api/test-csrf-expired')
+            ->assertStatus(419)
+            ->assertExactJson([
+                'error' => [
+                    'code' =>
+                        'csrf_token_mismatch',
+                    'message' =>
+                        'The session security token has expired or is invalid.',
+                ],
+            ]);
+    }
+
+    public function test_throttle_http_exception_keeps_429_contract_and_headers(): void
+    {
+        Route::get(
+            '/api/test-throttled-http',
+            function (): never {
+                throw new TooManyRequestsHttpException(
+                    7,
+                    'Sensitive throttle detail.'
+                );
+            }
+        );
+
+        $this->getJson(
+            '/api/test-throttled-http'
+        )
+            ->assertStatus(429)
+            ->assertExactJson([
+                'error' => [
+                    'code' =>
+                        'too_many_requests',
+                    'message' =>
+                        'Too many requests. Please retry later.',
+                ],
+            ])
+            ->assertHeader(
+                'Retry-After',
+                '7'
+            );
     }
 
     public function test_known_api_errors_keep_existing_contract(): void

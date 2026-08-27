@@ -6,6 +6,7 @@ use App\Application\Support\TransactionManager;
 use App\Models\Attempt;
 use App\Models\AttemptItem;
 use App\Models\AssessmentItemRevision;
+use App\Models\CurriculumVersion;
 use App\Models\PracticeActivity;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +28,36 @@ class BuildPracticeAttempt
                 $learnerProfileId,
                 $practiceActivityId,
             ): Attempt {
+                $activityIdentity = PracticeActivity::query()
+                    ->whereKey($practiceActivityId)
+                    ->firstOrFail([
+                        'id',
+                        'curriculum_version_id',
+                    ]);
+
+                /*
+                 * Learner-facing eligibility must be decided
+                 * transactionally under the same parent/source
+                 * locks used by competing lifecycle mutations.
+                 *
+                 * Lock order:
+                 * CurriculumVersion -> PracticeActivity
+                 */
+                $curriculumVersion = CurriculumVersion::query()
+                    ->whereKey(
+                        $activityIdentity->curriculum_version_id
+                    )
+                    ->where('status', 'published')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $activity = PracticeActivity::query()
                     ->whereKey($practiceActivityId)
+                    ->where(
+                        'curriculum_version_id',
+                        $curriculumVersion->id,
+                    )
+                    ->where('status', 'active')
                     ->lockForUpdate()
                     ->firstOrFail();
 

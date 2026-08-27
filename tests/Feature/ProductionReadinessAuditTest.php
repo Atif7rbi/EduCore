@@ -123,5 +123,15 @@ SQL
                 'production_contract_ok'
             ]
         );
+
+        /*
+         * Non-production execution may prove implementation
+         * health, but it can never authorize deployment.
+         */
+        $this->assertFalse(
+            $result[
+                'deployment_ready'
+            ]
+        );
     }
 }
