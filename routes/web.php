@@ -18,3 +18,11 @@ Route::prefix('auth')->group(function (): void {
         Route::get('/me', [SessionController::class, 'me']);
     });
 });
+
+Route::view('/login', 'app');
+
+Route::view('/app/{path?}', 'app')
+    ->where('path', '.*');
+
+Route::view('/admin/{path?}', 'app')
+    ->where('path', '.*');

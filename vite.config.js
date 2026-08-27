@@ -1,18 +1,33 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
+import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'resources/frontend/main.tsx',
+            ],
             refresh: true,
         }),
+        react(),
         tailwindcss(),
     ],
     server: {
         watch: {
-            ignored: ['**/storage/framework/views/**'],
+            ignored: [
+                '**/storage/framework/views/**',
+            ],
         },
+    },
+    test: {
+        environment: 'jsdom',
+        globals: true,
+        setupFiles: [
+            './resources/frontend/test/setup.ts',
+        ],
     },
 });
