@@ -8,32 +8,18 @@ import {
     Container,
     Feedback,
     Surface,
-    TextField,
 } from '../ui';
+
+import {
+    ProductShell,
+    adminNavigation,
+    learnerNavigation,
+} from './ProductShell';
 
 function FoundationShell() {
     return (
         <div className="product-shell">
-            <header className="product-shell__header">
-                <Container className="product-shell__header-inner">
-                    <Link
-                        className="product-shell__brand"
-                        to="/app"
-                    >
-                        EduCore
-                    </Link>
-
-                    <span className="product-shell__stage">
-                        Product Foundation
-                    </span>
-                </Container>
-            </header>
-
-            <main className="product-shell__main">
-                <Container>
-                    <Outlet />
-                </Container>
-            </main>
+            <Outlet />
         </div>
     );
 }
@@ -82,37 +68,25 @@ export function App() {
     return <FoundationShell />;
 }
 
-export function LoginFoundationPage() {
+export function LearnerProductShell() {
     return (
-        <FoundationPage
-            eyebrow="الوصول إلى المنصة"
-            title="تسجيل الدخول"
-            description="تم تجهيز البنية الأساسية لتجربة تسجيل الدخول، وسيتم ربط التدفق الكامل في المرحلة التالية."
+        <ProductShell
+            areaLabel="مساحة التعلم"
+            navigation={learnerNavigation}
         >
-            <Surface
-                className="foundation-card"
-                elevated
-            >
-                <div className="foundation-stack">
-                    <TextField
-                        type="email"
-                        label="البريد الإلكتروني"
-                        placeholder="name@example.com"
-                        autoComplete="email"
-                    />
+            <Outlet />
+        </ProductShell>
+    );
+}
 
-                    <TextField
-                        type="password"
-                        label="كلمة المرور"
-                        autoComplete="current-password"
-                    />
-
-                    <Button>
-                        تسجيل الدخول
-                    </Button>
-                </div>
-            </Surface>
-        </FoundationPage>
+export function AdminProductShell() {
+    return (
+        <ProductShell
+            areaLabel="الإدارة"
+            navigation={adminNavigation}
+        >
+            <Outlet />
+        </ProductShell>
     );
 }
 
@@ -121,7 +95,7 @@ export function LearnerFoundationPage() {
         <FoundationPage
             eyebrow="مساحة المتعلم"
             title="مرحبًا بك في EduCore"
-            description="تم تأسيس الهيكل العام لتجربة المتعلم باللغة العربية وباتجاه RTL."
+            description="هذه هي نقطة البداية لتجربة التعلم. سيتم تفعيل المحتوى والممارسة والاختبارات في المراحل القادمة."
         >
             <div className="foundation-grid">
                 <Surface className="foundation-card">
@@ -131,7 +105,7 @@ export function LearnerFoundationPage() {
                         </h2>
 
                         <p className="foundation-card__text">
-                            ستظهر هنا الدروس والممارسة والاختبارات ضمن المراحل القادمة.
+                            المناهج والدروس والممارسة والاختبارات ستُبنى فوق هذا الهيكل.
                         </p>
 
                         <Button>
@@ -143,11 +117,11 @@ export function LearnerFoundationPage() {
                 <Surface className="foundation-card">
                     <div className="foundation-stack">
                         <h2 className="foundation-card__title">
-                            حالة الواجهة
+                            حالة المنصة
                         </h2>
 
                         <Feedback tone="success">
-                            Design System وRTL foundation جاهزان.
+                            مساحة المستخدم والتنقل الأساسي جاهزان.
                         </Feedback>
                     </div>
                 </Surface>
@@ -161,7 +135,7 @@ export function AdminFoundationPage() {
         <FoundationPage
             eyebrow="إدارة المحتوى"
             title="إدارة EduCore"
-            description="تم تأسيس shell الإدارة فقط، بدون تفعيل أي workflow إداري في هذه المرحلة."
+            description="مساحة الإدارة جاهزة لاستقبال أدوات إدارة المناهج والمحتوى في مرحلة P4."
         >
             <Surface className="foundation-card">
                 <div className="foundation-stack">
@@ -170,12 +144,36 @@ export function AdminFoundationPage() {
                     </h2>
 
                     <p className="foundation-card__text">
-                        سيتم بناء أدوات إدارة المناهج والمحتوى في مرحلة P4.
+                        سيتم بناء workflows الإدارة الفعلية في مرحلة P4.
                     </p>
+                </div>
+            </Surface>
+        </FoundationPage>
+    );
+}
 
-                    <Button variant="secondary">
-                        معاينة الأساس
-                    </Button>
+interface ProductPlaceholderPageProps {
+    eyebrow: string;
+    title: string;
+    description: string;
+}
+
+export function ProductPlaceholderPage({
+    description,
+    eyebrow,
+    title,
+}: ProductPlaceholderPageProps) {
+    return (
+        <FoundationPage
+            eyebrow={eyebrow}
+            title={title}
+            description={description}
+        >
+            <Surface className="foundation-card">
+                <div className="foundation-stack">
+                    <Feedback>
+                        هذه المساحة جاهزة داخل هيكل المنتج، وسيتم تفعيل وظائفها في المرحلة المخصصة لها.
+                    </Feedback>
                 </div>
             </Surface>
         </FoundationPage>
@@ -184,34 +182,38 @@ export function AdminFoundationPage() {
 
 export function NotFoundFoundationPage() {
     return (
-        <FoundationPage
-            eyebrow="404"
-            title="الصفحة غير موجودة"
-            description="المسار المطلوب غير متاح داخل EduCore."
-        >
-            <Link
-                className="foundation-link"
-                to="/app"
+        <Container className="standalone-page">
+            <FoundationPage
+                eyebrow="404"
+                title="الصفحة غير موجودة"
+                description="المسار المطلوب غير متاح داخل EduCore."
             >
-                العودة إلى التطبيق
-            </Link>
-        </FoundationPage>
+                <Link
+                    className="foundation-link"
+                    to="/app"
+                >
+                    العودة إلى التطبيق
+                </Link>
+            </FoundationPage>
+        </Container>
     );
 }
 
 export function ForbiddenFoundationPage() {
     return (
-        <FoundationPage
-            eyebrow="403"
-            title="غير مصرح لك بالوصول"
-            description="لا يملك حسابك الصلاحية اللازمة للوصول إلى هذه الصفحة."
-        >
-            <Link
-                className="foundation-link"
-                to="/app"
+        <Container className="standalone-page">
+            <FoundationPage
+                eyebrow="403"
+                title="غير مصرح لك بالوصول"
+                description="لا يملك حسابك الصلاحية اللازمة للوصول إلى هذه الصفحة."
             >
-                العودة إلى التطبيق
-            </Link>
-        </FoundationPage>
+                <Link
+                    className="foundation-link"
+                    to="/app"
+                >
+                    العودة إلى التطبيق
+                </Link>
+            </FoundationPage>
+        </Container>
     );
 }

@@ -14,9 +14,12 @@ import {
 } from 'vitest';
 
 import {
+    AdminFoundationPage,
     App,
+    ForbiddenFoundationPage,
     LearnerFoundationPage,
-    LoginFoundationPage,
+    NotFoundFoundationPage,
+    ProductPlaceholderPage,
 } from './App';
 
 function renderRoute(
@@ -37,26 +40,24 @@ function renderRoute(
     );
 }
 
-describe('frontend foundation', () => {
-    it('renders the learner shell in the RTL test environment', () => {
+describe('frontend foundation pages', () => {
+    it('renders the learner foundation in the RTL environment', () => {
         renderRoute(
             '/app',
             <LearnerFoundationPage />,
         );
 
         expect(
-            screen.getByRole('banner'),
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole('main'),
-        ).toBeInTheDocument();
-
-        expect(
             screen.getByRole('heading', {
                 level: 1,
                 name: 'مرحبًا بك في EduCore',
             }),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                'مساحة المستخدم والتنقل الأساسي جاهزان.',
+            ),
         ).toBeInTheDocument();
 
         expect(
@@ -68,28 +69,86 @@ describe('frontend foundation', () => {
         ).toBe('rtl');
     });
 
-    it('renders accessible login foundation fields', () => {
+    it('renders the admin foundation page', () => {
         renderRoute(
-            '/login',
-            <LoginFoundationPage />,
+            '/admin',
+            <AdminFoundationPage />,
         );
 
         expect(
-            screen.getByRole('textbox', {
-                name: 'البريد الإلكتروني',
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'إدارة EduCore',
             }),
         ).toBeInTheDocument();
 
         expect(
-            screen.getByLabelText(
-                'كلمة المرور',
-            ),
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole('button', {
-                name: 'تسجيل الدخول',
+            screen.getByRole('heading', {
+                level: 2,
+                name: 'Admin Studio',
             }),
         ).toBeInTheDocument();
     });
+
+    it('renders the forbidden foundation page', () => {
+        renderRoute(
+            '/forbidden',
+            <ForbiddenFoundationPage />,
+        );
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'غير مصرح لك بالوصول',
+            }),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('link', {
+                name: 'العودة إلى التطبيق',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/app',
+        );
+    });
+
+    it('renders the not-found foundation page', () => {
+        renderRoute(
+            '/missing',
+            <NotFoundFoundationPage />,
+        );
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'الصفحة غير موجودة',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it('renders a route-specific product placeholder', () => {
+        renderRoute(
+            '/app/practice',
+            <ProductPlaceholderPage
+                eyebrow="التدريب"
+                title="الممارسة"
+                description="مساحة الممارسة."
+            />,
+        );
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'الممارسة',
+            }),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('status'),
+        ).toHaveTextContent(
+            'سيتم تفعيل وظائفها في المرحلة المخصصة لها.',
+        );
+    });
+
 });

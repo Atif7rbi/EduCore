@@ -523,3 +523,122 @@ a:hover {
     width: min(100%, 36rem);
     margin-inline: auto;
 }
+
+.authenticated-shell {
+    min-height: 100vh;
+    background: var(--color-neutral-50);
+}
+
+.authenticated-shell__header {
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-surface);
+}
+
+.authenticated-shell__header-inner {
+    display: flex;
+    min-height: 4.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.authenticated-shell__identity,
+.authenticated-shell__account {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.authenticated-shell__brand {
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.authenticated-shell__area {
+    color: var(--color-neutral-600);
+    font-size: 0.875rem;
+}
+
+.authenticated-shell__user {
+    display: grid;
+    gap: 0.125rem;
+    text-align: end;
+}
+
+.authenticated-shell__user span {
+    color: var(--color-neutral-600);
+    font-size: 0.8125rem;
+}
+
+.authenticated-shell__layout {
+    display: grid;
+    grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr);
+    gap: 2rem;
+    padding-block: 2rem;
+}
+
+.authenticated-shell__navigation {
+    display: grid;
+    align-content: start;
+    gap: 0.375rem;
+}
+
+.authenticated-shell__nav-link {
+    display: block;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    color: var(--color-neutral-700);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.authenticated-shell__nav-link:hover {
+    background: var(--color-neutral-100);
+}
+
+.authenticated-shell__nav-link--active {
+    background: var(--color-brand-50);
+    color: var(--color-brand-700);
+}
+
+.authenticated-shell__content {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 1rem;
+}
+
+.standalone-page {
+    padding-block: 3rem;
+}
+
+@media (max-width: 48rem) {
+    .authenticated-shell__header-inner,
+    .authenticated-shell__account {
+        align-items: flex-start;
+    }
+
+    .authenticated-shell__header-inner {
+        padding-block: 1rem;
+    }
+
+    .authenticated-shell__account {
+        flex-direction: column;
+    }
+
+    .authenticated-shell__layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.25rem;
+    }
+
+    .authenticated-shell__navigation {
+        display: flex;
+        overflow-x: auto;
+        padding-block-end: 0.25rem;
+    }
+
+    .authenticated-shell__nav-link {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+}
