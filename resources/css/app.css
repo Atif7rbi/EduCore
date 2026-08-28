@@ -485,3 +485,36 @@ a:hover {
         display: none;
     }
 }
+
+.auth-page {
+    display: grid;
+    width: min(100%, 32rem);
+    margin-inline: auto;
+    gap: 2rem;
+}
+
+.auth-page__heading {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.auth-card {
+    padding:
+        clamp(
+            1rem,
+            4vw,
+            1.75rem
+        );
+}
+
+.auth-form,
+.auth-form__stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.auth-error-reference {
+    display: inline-block;
+    margin-inline-start: 0.25rem;
+    font-size: 0.8125rem;
+}

@@ -6,9 +6,10 @@ import {
     AdminFoundationPage,
     App,
     LearnerFoundationPage,
-    LoginFoundationPage,
     NotFoundFoundationPage,
 } from './App';
+
+import { LoginPage } from '../auth/LoginPage';
 
 export const router = createBrowserRouter([
     {
@@ -16,7 +17,7 @@ export const router = createBrowserRouter([
         children: [
             {
                 path: '/login',
-                element: <LoginFoundationPage />,
+                element: <LoginPage />,
             },
             {
                 path: '/app',
