@@ -5,6 +5,7 @@ import {
     useState,
 } from 'react';
 import {
+    useLocation,
     useNavigate,
 } from 'react-router-dom';
 
@@ -42,8 +43,64 @@ function destinationForRole(
         : '/app';
 }
 
+function isWithinPath(
+    destination: string,
+    basePath: string,
+): boolean {
+    return (
+        destination === basePath ||
+        destination.startsWith(
+            `${basePath}/`,
+        ) ||
+        destination.startsWith(
+            `${basePath}?`,
+        ) ||
+        destination.startsWith(
+            `${basePath}#`,
+        )
+    );
+}
+
+function requestedDestination(
+    role: string,
+    from: unknown,
+): string {
+    if (typeof from !== 'string') {
+        return destinationForRole(role);
+    }
+
+    if (
+        isWithinPath(
+            from,
+            '/app',
+        )
+    ) {
+        return from;
+    }
+
+    if (
+        role === 'admin' &&
+        isWithinPath(
+            from,
+            '/admin',
+        )
+    ) {
+        return from;
+    }
+
+    return destinationForRole(role);
+}
+
 export function LoginPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const from =
+        (
+            location.state as
+                | { from?: unknown }
+                | null
+        )?.from;
 
     const {
         status,
@@ -78,13 +135,17 @@ export function LoginPage() {
             user
         ) {
             navigate(
-                destinationForRole(user.role),
+                requestedDestination(
+                    user.role,
+                    from,
+                ),
                 {
                     replace: true,
                 },
             );
         }
     }, [
+        from,
         navigate,
         status,
         user,
@@ -108,8 +169,9 @@ export function LoginPage() {
                 });
 
             navigate(
-                destinationForRole(
+                requestedDestination(
                     authenticatedUser.role,
+                    from,
                 ),
                 {
                     replace: true,

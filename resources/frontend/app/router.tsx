@@ -3,13 +3,20 @@ import {
 } from 'react-router-dom';
 
 import {
+    RequireAuth,
+    RequireRole,
+} from '../auth/RouteGuards';
+import {
+    LoginPage,
+} from '../auth/LoginPage';
+
+import {
     AdminFoundationPage,
     App,
+    ForbiddenFoundationPage,
     LearnerFoundationPage,
     NotFoundFoundationPage,
 } from './App';
-
-import { LoginPage } from '../auth/LoginPage';
 
 export const router = createBrowserRouter([
     {
@@ -20,20 +27,52 @@ export const router = createBrowserRouter([
                 element: <LoginPage />,
             },
             {
+                path: '/forbidden',
+                element: (
+                    <RequireAuth>
+                        <ForbiddenFoundationPage />
+                    </RequireAuth>
+                ),
+            },
+            {
                 path: '/app',
-                element: <LearnerFoundationPage />,
+                element: (
+                    <RequireAuth>
+                        <LearnerFoundationPage />
+                    </RequireAuth>
+                ),
             },
             {
                 path: '/app/*',
-                element: <LearnerFoundationPage />,
+                element: (
+                    <RequireAuth>
+                        <LearnerFoundationPage />
+                    </RequireAuth>
+                ),
             },
             {
                 path: '/admin',
-                element: <AdminFoundationPage />,
+                element: (
+                    <RequireRole
+                        allowedRoles={[
+                            'admin',
+                        ]}
+                    >
+                        <AdminFoundationPage />
+                    </RequireRole>
+                ),
             },
             {
                 path: '/admin/*',
-                element: <AdminFoundationPage />,
+                element: (
+                    <RequireRole
+                        allowedRoles={[
+                            'admin',
+                        ]}
+                    >
+                        <AdminFoundationPage />
+                    </RequireRole>
+                ),
             },
             {
                 path: '*',

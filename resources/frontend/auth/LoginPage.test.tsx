@@ -71,9 +71,21 @@ vi.mock('react-router-dom', async () => {
     };
 });
 
-function renderPage() {
+function renderPage(
+    from?: string,
+) {
     render(
-        <MemoryRouter>
+        <MemoryRouter
+            initialEntries={[
+                {
+                    pathname: '/login',
+                    state:
+                        from
+                            ? { from }
+                            : null,
+                },
+            ]}
+        >
             <LoginPage />
         </MemoryRouter>,
     );
@@ -372,6 +384,122 @@ describe('LoginPage', () => {
         });
 
         expect(loginMock).not.toHaveBeenCalled();
+    });
+
+
+    it('returns authenticated users to a requested app route', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'user-2',
+            name: 'Learner',
+            email: 'learner@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-2',
+        });
+
+        renderPage('/app/lessons/123');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/app/lessons/123',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('returns admin users to a requested admin route', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'admin-3',
+            name: 'Admin',
+            email: 'admin@example.com',
+            role: 'admin',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('/admin/curricula');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/admin/curricula',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('does not return a student user to an admin route', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'student-3',
+            name: 'Student',
+            email: 'student@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-3',
+        });
+
+        renderPage('/admin/curricula');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/app',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+
+    it('preserves query and hash on an app return route', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'user-4',
+            name: 'Learner',
+            email: 'learner@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-4',
+        });
+
+        renderPage(
+            '/app?page=2#progress',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/app?page=2#progress',
+                {
+                    replace: true,
+                },
+            );
+        });
     });
 
 });

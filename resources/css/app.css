@@ -518,3 +518,8 @@ a:hover {
     margin-inline-start: 0.25rem;
     font-size: 0.8125rem;
 }
+
+.route-gate {
+    width: min(100%, 36rem);
+    margin-inline: auto;
+}

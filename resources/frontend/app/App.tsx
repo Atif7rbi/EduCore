@@ -198,3 +198,20 @@ export function NotFoundFoundationPage() {
         </FoundationPage>
     );
 }
+
+export function ForbiddenFoundationPage() {
+    return (
+        <FoundationPage
+            eyebrow="403"
+            title="غير مصرح لك بالوصول"
+            description="لا يملك حسابك الصلاحية اللازمة للوصول إلى هذه الصفحة."
+        >
+            <Link
+                className="foundation-link"
+                to="/app"
+            >
+                العودة إلى التطبيق
+            </Link>
+        </FoundationPage>
+    );
+}
