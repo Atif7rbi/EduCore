@@ -1,4 +1,5 @@
 import {
+    act,
     render,
     screen,
     waitFor,
@@ -14,6 +15,9 @@ import {
 import {
     EduCoreApiError,
 } from '../api/errors';
+import {
+    emitSessionFailure,
+} from '../api/sessionEvents';
 
 import {
     AuthProvider,
@@ -32,6 +36,7 @@ function AuthProbe() {
         status,
         user,
         error,
+        sessionIssue,
     } = useAuth();
 
     return (
@@ -47,8 +52,29 @@ function AuthProbe() {
             <div data-testid="error">
                 {error?.message ?? 'none'}
             </div>
+
+            <div data-testid="session-kind">
+                {sessionIssue?.kind ?? 'none'}
+            </div>
+
+            <div data-testid="session-request-id">
+                {sessionIssue?.requestId ?? 'none'}
+            </div>
         </>
     );
+}
+
+function activeUserPayload() {
+    return {
+        user: {
+            id: 'user-1',
+            name: 'Learner',
+            email: 'learner@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-1',
+        },
+    };
 }
 
 describe('AuthProvider', () => {
@@ -75,7 +101,9 @@ describe('AuthProvider', () => {
         await waitFor(() => {
             expect(
                 screen.getByTestId('status'),
-            ).toHaveTextContent('unauthenticated');
+            ).toHaveTextContent(
+                'unauthenticated',
+            );
         });
 
         expect(
@@ -84,6 +112,12 @@ describe('AuthProvider', () => {
 
         expect(
             screen.getByTestId('error'),
+        ).toHaveTextContent('none');
+
+        expect(
+            screen.getByTestId(
+                'session-kind',
+            ),
         ).toHaveTextContent('none');
     });
 
@@ -113,6 +147,104 @@ describe('AuthProvider', () => {
             screen.getByTestId('error'),
         ).toHaveTextContent(
             'Service unavailable.',
+        );
+    });
+
+    it('clears an authenticated session after runtime 401', async () => {
+        apiRequestMock.mockResolvedValueOnce(
+            activeUserPayload(),
+        );
+
+        render(
+            <AuthProvider>
+                <AuthProbe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByTestId('status'),
+            ).toHaveTextContent(
+                'authenticated',
+            );
+        });
+
+        act(() => {
+            emitSessionFailure({
+                kind: 'expired',
+                requestId: 'runtime-401',
+            });
+        });
+
+        expect(
+            screen.getByTestId('status'),
+        ).toHaveTextContent(
+            'unauthenticated',
+        );
+
+        expect(
+            screen.getByTestId('user'),
+        ).toHaveTextContent('none');
+
+        expect(
+            screen.getByTestId(
+                'session-kind',
+            ),
+        ).toHaveTextContent('expired');
+
+        expect(
+            screen.getByTestId(
+                'session-request-id',
+            ),
+        ).toHaveTextContent(
+            'runtime-401',
+        );
+    });
+
+    it('clears an authenticated session after runtime 419', async () => {
+        apiRequestMock.mockResolvedValueOnce(
+            activeUserPayload(),
+        );
+
+        render(
+            <AuthProvider>
+                <AuthProbe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByTestId('status'),
+            ).toHaveTextContent(
+                'authenticated',
+            );
+        });
+
+        act(() => {
+            emitSessionFailure({
+                kind: 'csrf',
+                requestId: 'runtime-419',
+            });
+        });
+
+        expect(
+            screen.getByTestId('status'),
+        ).toHaveTextContent(
+            'unauthenticated',
+        );
+
+        expect(
+            screen.getByTestId(
+                'session-kind',
+            ),
+        ).toHaveTextContent('csrf');
+
+        expect(
+            screen.getByTestId(
+                'session-request-id',
+            ),
+        ).toHaveTextContent(
+            'runtime-419',
         );
     });
 });

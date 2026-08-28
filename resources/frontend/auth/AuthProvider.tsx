@@ -8,8 +8,16 @@ import {
     useState,
 } from 'react';
 
-import { apiRequest } from '../api/client';
-import { EduCoreApiError } from '../api/errors';
+import {
+    apiRequest,
+} from '../api/client';
+import {
+    EduCoreApiError,
+} from '../api/errors';
+import {
+    type SessionFailure,
+    subscribeToSessionFailures,
+} from '../api/sessionEvents';
 
 import type {
     AuthUser,
@@ -28,18 +36,27 @@ interface AuthContextValue {
     status: AuthStatus;
     user: AuthUser | null;
     error: Error | null;
+    sessionIssue: SessionFailure | null;
     refresh: () => Promise<void>;
-    login: (credentials: LoginCredentials) => Promise<AuthUser>;
+    login: (
+        credentials: LoginCredentials,
+    ) => Promise<AuthUser>;
     logout: () => Promise<void>;
 }
 
 const AuthContext =
-    createContext<AuthContextValue | null>(null);
+    createContext<AuthContextValue | null>(
+        null,
+    );
 
-function asError(error: unknown): Error {
+function asError(
+    error: unknown,
+): Error {
     return error instanceof Error
         ? error
-        : new Error('Unexpected authentication error.');
+        : new Error(
+            'Unexpected authentication error.',
+        );
 }
 
 export function AuthProvider({
@@ -54,51 +71,76 @@ export function AuthProvider({
     const [error, setError] =
         useState<Error | null>(null);
 
-    const refresh = useCallback(async () => {
-        setError(null);
+    const [
+        sessionIssue,
+        setSessionIssue,
+    ] = useState<SessionFailure | null>(
+        null,
+    );
 
-        try {
-            const payload =
-                await apiRequest<AuthUserPayload>({
-                    method: 'GET',
-                    url: '/auth/me',
-                });
+    const refresh = useCallback(
+        async () => {
+            setError(null);
 
-            setUser(payload.user);
-            setStatus('authenticated');
-        } catch (caughtError) {
-            if (
-                caughtError instanceof EduCoreApiError &&
-                caughtError.status === 401
-            ) {
+            try {
+                const payload =
+                    await apiRequest<
+                        AuthUserPayload
+                    >({
+                        method: 'GET',
+                        url: '/auth/me',
+                    });
+
+                setUser(payload.user);
+                setSessionIssue(null);
+                setStatus(
+                    'authenticated',
+                );
+            } catch (caughtError) {
+                if (
+                    caughtError instanceof
+                        EduCoreApiError &&
+                    caughtError.status === 401
+                ) {
+                    setUser(null);
+                    setSessionIssue(null);
+                    setStatus(
+                        'unauthenticated',
+                    );
+
+                    return;
+                }
+
                 setUser(null);
-                setStatus('unauthenticated');
+                setError(
+                    asError(caughtError),
+                );
+                setStatus('error');
 
-                return;
+                throw caughtError;
             }
-
-            setUser(null);
-            setError(asError(caughtError));
-            setStatus('error');
-
-            throw caughtError;
-        }
-    }, []);
+        },
+        [],
+    );
 
     const login = useCallback(
         async (
-            credentials: LoginCredentials,
+            credentials:
+                LoginCredentials,
         ): Promise<AuthUser> => {
             setError(null);
 
             const payload =
-                await apiRequest<AuthUserPayload>({
+                await apiRequest<
+                    AuthUserPayload
+                >({
                     method: 'POST',
                     url: '/auth/login',
                     data: credentials,
                 });
 
             setUser(payload.user);
+            setSessionIssue(null);
             setStatus('authenticated');
 
             return payload.user;
@@ -106,50 +148,114 @@ export function AuthProvider({
         [],
     );
 
-    const logout = useCallback(async () => {
-        setError(null);
+    const logout = useCallback(
+        async () => {
+            setError(null);
 
-        await apiRequest<LogoutPayload>({
-            method: 'POST',
-            url: '/auth/logout',
-        });
+            try {
+                await apiRequest<
+                    LogoutPayload
+                >({
+                    method: 'POST',
+                    url: '/auth/logout',
+                });
+            } catch (caughtError) {
+                if (
+                    caughtError instanceof
+                        EduCoreApiError &&
+                    (
+                        caughtError.status ===
+                            401 ||
+                        caughtError.status ===
+                            419
+                    )
+                ) {
+                    setUser(null);
+                    setSessionIssue({
+                        kind:
+                            caughtError.status ===
+                            419
+                                ? 'csrf'
+                                : 'expired',
+                        requestId:
+                            caughtError
+                                .requestId,
+                    });
+                    setStatus(
+                        'unauthenticated',
+                    );
 
-        setUser(null);
-        setStatus('unauthenticated');
+                    return;
+                }
+
+                throw caughtError;
+            }
+
+            setUser(null);
+            setSessionIssue(null);
+            setStatus(
+                'unauthenticated',
+            );
+        },
+        [],
+    );
+
+    useEffect(() => {
+        return subscribeToSessionFailures(
+            (failure) => {
+                setUser(null);
+                setError(null);
+                setSessionIssue(
+                    failure,
+                );
+                setStatus(
+                    'unauthenticated',
+                );
+            },
+        );
     }, []);
 
     useEffect(() => {
-        void refresh().catch(() => undefined);
+        void refresh().catch(
+            () => undefined,
+        );
     }, [refresh]);
 
-    const value = useMemo<AuthContextValue>(
-        () => ({
-            status,
-            user,
-            error,
-            refresh,
-            login,
-            logout,
-        }),
-        [
-            status,
-            user,
-            error,
-            refresh,
-            login,
-            logout,
-        ],
-    );
+    const value =
+        useMemo<AuthContextValue>(
+            () => ({
+                status,
+                user,
+                error,
+                sessionIssue,
+                refresh,
+                login,
+                logout,
+            }),
+            [
+                status,
+                user,
+                error,
+                sessionIssue,
+                refresh,
+                login,
+                logout,
+            ],
+        );
 
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider
+            value={value}
+        >
             {children}
         </AuthContext.Provider>
     );
 }
 
-export function useAuth(): AuthContextValue {
-    const context = useContext(AuthContext);
+export function useAuth():
+    AuthContextValue {
+    const context =
+        useContext(AuthContext);
 
     if (!context) {
         throw new Error(

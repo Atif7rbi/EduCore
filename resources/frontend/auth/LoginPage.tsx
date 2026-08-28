@@ -106,6 +106,7 @@ export function LoginPage() {
         status,
         user,
         error: bootstrapError,
+        sessionIssue,
         login,
         refresh,
     } = useAuth();
@@ -279,12 +280,31 @@ export function LoginPage() {
                             <Button
                                 variant="secondary"
                                 onClick={() => {
-                                    void refresh();
+                                    void refresh().catch(
+                                        () => undefined,
+                                    );
                                 }}
                             >
                                 إعادة المحاولة
                             </Button>
                         </div>
+                    ) : null}
+
+                    {sessionIssue ? (
+                        <Feedback tone="warning">
+                            {sessionIssue.kind === 'csrf'
+                                ? 'انتهت صلاحية حماية الجلسة. سجّل الدخول مرة أخرى للمتابعة.'
+                                : 'انتهت صلاحية جلستك. سجّل الدخول مرة أخرى للمتابعة.'}
+
+                            {sessionIssue.requestId ? (
+                                <span className="auth-error-reference">
+                                    {' '}
+                                    رقم المرجع:
+                                    {' '}
+                                    {sessionIssue.requestId}
+                                </span>
+                            ) : null}
+                        </Feedback>
                     ) : null}
 
                     {submitError ? (

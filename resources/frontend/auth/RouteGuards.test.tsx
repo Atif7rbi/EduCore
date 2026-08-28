@@ -1,6 +1,8 @@
 import {
+    fireEvent,
     render,
     screen,
+    waitFor,
 } from '@testing-library/react';
 import {
     MemoryRouter,
@@ -42,12 +44,14 @@ interface MockAuthState {
 
 let authState: MockAuthState;
 
+const refreshMock = vi.fn();
+
 vi.mock('./AuthProvider', () => ({
     useAuth: () => ({
         ...authState,
         login: vi.fn(),
         logout: vi.fn(),
-        refresh: vi.fn(),
+        refresh: refreshMock,
     }),
 }));
 
@@ -128,6 +132,8 @@ function renderAdminRoute() {
 
 describe('route guards', () => {
     beforeEach(() => {
+        refreshMock.mockReset();
+
         authState = {
             status: 'unauthenticated',
             user: null,
@@ -279,6 +285,40 @@ describe('route guards', () => {
                 'Login Destination',
             ),
         ).toBeInTheDocument();
+    });
+
+
+    it('allows retry after a protected-route bootstrap failure', async () => {
+        refreshMock.mockRejectedValueOnce(
+            new Error(
+                'Still unavailable.',
+            ),
+        );
+
+        authState = {
+            status: 'error',
+            user: null,
+            error: new Error(
+                'Service unavailable.',
+            ),
+        };
+
+        renderAuthRoute();
+
+        fireEvent.click(
+            screen.getByRole(
+                'button',
+                {
+                    name: 'إعادة المحاولة',
+                },
+            ),
+        );
+
+        await waitFor(() => {
+            expect(
+                refreshMock,
+            ).toHaveBeenCalledOnce();
+        });
     });
 
 });

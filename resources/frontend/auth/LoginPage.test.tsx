@@ -42,12 +42,17 @@ interface MockAuthState {
         learner_profile_id: string | null;
     } | null;
     error: Error | null;
+    sessionIssue: {
+        kind: 'expired' | 'csrf';
+        requestId: string | null;
+    } | null;
 }
 
 let authState: MockAuthState = {
     status: 'unauthenticated',
     user: null,
     error: null,
+    sessionIssue: null,
 };
 
 vi.mock('./AuthProvider', () => ({
@@ -95,12 +100,14 @@ describe('LoginPage', () => {
     beforeEach(() => {
         loginMock.mockReset();
         refreshMock.mockReset();
+        refreshMock.mockResolvedValue(undefined);
         navigateMock.mockReset();
 
         authState = {
             status: 'unauthenticated',
             user: null,
             error: null,
+            sessionIssue: null,
         };
     });
 
@@ -267,6 +274,7 @@ describe('LoginPage', () => {
             status: 'loading',
             user: null,
             error: null,
+            sessionIssue: null,
         };
 
         renderPage();
@@ -283,6 +291,7 @@ describe('LoginPage', () => {
             status: 'error',
             user: null,
             error: new Error('Service unavailable.'),
+            sessionIssue: null,
         };
 
         renderPage();
@@ -370,6 +379,7 @@ describe('LoginPage', () => {
                 learner_profile_id: null,
             },
             error: null,
+            sessionIssue: null,
         };
 
         renderPage();
@@ -499,6 +509,93 @@ describe('LoginPage', () => {
                     replace: true,
                 },
             );
+        });
+    });
+
+
+    it('explains an expired runtime session on login', () => {
+        authState = {
+            status: 'unauthenticated',
+            user: null,
+            error: null,
+            sessionIssue: {
+                kind: 'expired',
+                requestId: 'runtime-401',
+            },
+        };
+
+        renderPage('/app/practice');
+
+        expect(
+            screen.getByRole('status'),
+        ).toHaveTextContent(
+            'انتهت صلاحية جلستك.',
+        );
+
+        expect(
+            screen.getByText(
+                /runtime-401/,
+            ),
+        ).toBeInTheDocument();
+    });
+
+    it('explains a csrf session failure on login', () => {
+        authState = {
+            status: 'unauthenticated',
+            user: null,
+            error: null,
+            sessionIssue: {
+                kind: 'csrf',
+                requestId: 'runtime-419',
+            },
+        };
+
+        renderPage('/app/exams');
+
+        expect(
+            screen.getByRole('status'),
+        ).toHaveTextContent(
+            'انتهت صلاحية حماية الجلسة.',
+        );
+
+        expect(
+            screen.getByText(
+                /runtime-419/,
+            ),
+        ).toBeInTheDocument();
+    });
+
+    it('handles a rejected bootstrap retry without leaking the rejection', async () => {
+        refreshMock.mockRejectedValueOnce(
+            new Error(
+                'Still unavailable.',
+            ),
+        );
+
+        authState = {
+            status: 'error',
+            user: null,
+            error: new Error(
+                'Service unavailable.',
+            ),
+            sessionIssue: null,
+        };
+
+        renderPage();
+
+        fireEvent.click(
+            screen.getByRole(
+                'button',
+                {
+                    name: 'إعادة المحاولة',
+                },
+            ),
+        );
+
+        await waitFor(() => {
+            expect(
+                refreshMock,
+            ).toHaveBeenCalledOnce();
         });
     });
 

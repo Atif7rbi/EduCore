@@ -8,6 +8,7 @@ import {
 } from 'react-router-dom';
 
 import {
+    Button,
     Feedback,
 } from '../ui';
 
@@ -42,11 +43,39 @@ function AuthGateLoading() {
 }
 
 function AuthGateError() {
+    const {
+        error,
+        refresh,
+    } = useAuth();
+
     return (
-        <div className="route-gate">
+        <div className="route-gate auth-form__stack">
             <Feedback tone="danger">
                 تعذر التحقق من صلاحية الوصول.
+
+                {error &&
+                'requestId' in error &&
+                typeof error.requestId ===
+                    'string' ? (
+                    <span className="auth-error-reference">
+                        {' '}
+                        رقم المرجع:
+                        {' '}
+                        {error.requestId}
+                    </span>
+                ) : null}
             </Feedback>
+
+            <Button
+                variant="secondary"
+                onClick={() => {
+                    void refresh().catch(
+                        () => undefined,
+                    );
+                }}
+            >
+                إعادة المحاولة
+            </Button>
         </div>
     );
 }
@@ -59,7 +88,8 @@ export function RequireAuth({
         user,
     } = useAuth();
 
-    const location = useLocation();
+    const location =
+        useLocation();
 
     if (status === 'loading') {
         return <AuthGateLoading />;
@@ -78,11 +108,12 @@ export function RequireAuth({
                 to="/login"
                 replace
                 state={{
-                    from: requestedLocation(
-                        location.pathname,
-                        location.search,
-                        location.hash,
-                    ),
+                    from:
+                        requestedLocation(
+                            location.pathname,
+                            location.search,
+                            location.hash,
+                        ),
                 }}
             />
         );
@@ -100,7 +131,8 @@ export function RequireRole({
         user,
     } = useAuth();
 
-    const location = useLocation();
+    const location =
+        useLocation();
 
     if (status === 'loading') {
         return <AuthGateLoading />;
@@ -119,18 +151,21 @@ export function RequireRole({
                 to="/login"
                 replace
                 state={{
-                    from: requestedLocation(
-                        location.pathname,
-                        location.search,
-                        location.hash,
-                    ),
+                    from:
+                        requestedLocation(
+                            location.pathname,
+                            location.search,
+                            location.hash,
+                        ),
                 }}
             />
         );
     }
 
     if (
-        !allowedRoles.includes(user.role)
+        !allowedRoles.includes(
+            user.role,
+        )
     ) {
         return (
             <Navigate
