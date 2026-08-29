@@ -147,6 +147,16 @@ describe('LessonPage', () => {
 
         expect(
             screen.getByRole('link', {
+                name:
+                    /تدريب النسب.*فتح الممارسة/s,
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/app/practice/practice-1',
+        );
+
+        expect(
+            screen.getByRole('link', {
                 name: 'العودة إلى المنهج',
             }),
         ).toHaveAttribute(

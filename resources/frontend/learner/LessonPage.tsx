@@ -266,7 +266,7 @@ export function LessonPage() {
                         </h2>
 
                         <p className="foundation-card__text">
-                            توجد أنشطة تدريبية متاحة لهذا الدرس. سيتم تفعيل بدء الممارسة في المرحلة التالية.
+                            اختر نشاطًا تدريبيًا لبدء ممارسة مرتبطة بهذا الدرس.
                         </p>
 
                         <ul className="learner-practice-list">
@@ -274,17 +274,25 @@ export function LessonPage() {
                                 (activity) => (
                                     <li
                                         key={activity.id}
-                                        className="learner-practice-item"
                                     >
-                                        <strong>
-                                            {activity.name}
-                                        </strong>
+                                        <Link
+                                            className="learner-practice-item learner-practice-item--link"
+                                            to={`/app/practice/${activity.id}`}
+                                        >
+                                            <strong>
+                                                {activity.name}
+                                            </strong>
 
-                                        {activity.description ? (
-                                            <span>
-                                                {activity.description}
+                                            {activity.description ? (
+                                                <span>
+                                                    {activity.description}
+                                                </span>
+                                            ) : null}
+
+                                            <span className="learner-practice-item__action">
+                                                فتح الممارسة
                                             </span>
-                                        ) : null}
+                                        </Link>
                                     </li>
                                 ),
                             )}

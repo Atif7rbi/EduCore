@@ -18,6 +18,12 @@ import {
 import {
     LessonPage,
 } from '../learner/LessonPage';
+import {
+    PracticeActivityPage,
+} from '../learner/PracticeActivityPage';
+import {
+    AttemptPage,
+} from '../learner/AttemptPage';
 
 import {
     AdminFoundationPage,
@@ -84,8 +90,20 @@ export const router = createBrowserRouter([
                             <ProductPlaceholderPage
                                 eyebrow="التدريب"
                                 title="الممارسة"
-                                description="أنشطة الممارسة ومحاولاتها سيتم تفعيلها ضمن تجربة المتعلم في P3."
+                                description="ابدأ الممارسة من أحد الدروس أو المناهج المتاحة."
                             />
+                        ),
+                    },
+                    {
+                        path: 'practice/:practiceActivityId',
+                        element: (
+                            <PracticeActivityPage />
+                        ),
+                    },
+                    {
+                        path: 'attempts/:attemptId',
+                        element: (
+                            <AttemptPage />
                         ),
                     },
                     {
