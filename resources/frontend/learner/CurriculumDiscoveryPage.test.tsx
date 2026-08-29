@@ -9,6 +9,9 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
     describe,
     expect,
     it,
@@ -41,7 +44,9 @@ function renderPage() {
 
     render(
         <QueryClientProvider client={queryClient}>
-            <CurriculumDiscoveryPage />
+            <MemoryRouter>
+                <CurriculumDiscoveryPage />
+            </MemoryRouter>
         </QueryClientProvider>,
     );
 }
@@ -137,6 +142,15 @@ describe('CurriculumDiscoveryPage', () => {
                 'الإصدار الثاني',
             ),
         ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('link', {
+                name: /الإصدار الأول.*الإصدار 1/s,
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/app/curriculum/version-1',
+        );
 
         expect(
             apiRequestMock,

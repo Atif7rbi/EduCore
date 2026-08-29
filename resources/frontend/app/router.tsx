@@ -12,6 +12,12 @@ import {
 import {
     CurriculumDiscoveryPage,
 } from '../learner/CurriculumDiscoveryPage';
+import {
+    CurriculumVersionPage,
+} from '../learner/CurriculumVersionPage';
+import {
+    LessonPage,
+} from '../learner/LessonPage';
 
 import {
     AdminFoundationPage,
@@ -58,6 +64,18 @@ export const router = createBrowserRouter([
                         path: 'curriculum',
                         element: (
                             <CurriculumDiscoveryPage />
+                        ),
+                    },
+                    {
+                        path: 'curriculum/:curriculumVersionId',
+                        element: (
+                            <CurriculumVersionPage />
+                        ),
+                    },
+                    {
+                        path: 'lessons/:lessonId',
+                        element: (
+                            <LessonPage />
                         ),
                     },
                     {

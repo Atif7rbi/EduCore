@@ -1,6 +1,9 @@
 import {
     useQuery,
 } from '@tanstack/react-query';
+import {
+    Link,
+} from 'react-router-dom';
 
 import {
     apiRequest,
@@ -213,15 +216,19 @@ export function CurriculumDiscoveryPage() {
                                             (version) => (
                                                 <li
                                                     key={version.id}
-                                                    className="curriculum-card__version"
                                                 >
-                                                    <span>
-                                                        {version.label}
-                                                    </span>
+                                                    <Link
+                                                        className="curriculum-card__version"
+                                                        to={`/app/curriculum/${version.id}`}
+                                                    >
+                                                        <span>
+                                                            {version.label}
+                                                        </span>
 
-                                                    <span className="curriculum-card__version-number">
-                                                        الإصدار {version.version_number}
-                                                    </span>
+                                                        <span className="curriculum-card__version-number">
+                                                            الإصدار {version.version_number}
+                                                        </span>
+                                                    </Link>
                                                 </li>
                                             ),
                                         )}
