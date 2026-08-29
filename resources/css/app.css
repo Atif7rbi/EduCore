@@ -1080,3 +1080,20 @@ a:hover {
         flex-direction: column-reverse;
     }
 }
+
+/* P3 learner lesson progress */
+
+.learner-lesson__progress {
+    max-width: 44rem;
+    padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.learner-lesson__progress .ui-button {
+    width: fit-content;
+}
+
+@media (max-width: 40rem) {
+    .learner-lesson__progress .ui-button {
+        width: 100%;
+    }
+}

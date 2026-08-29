@@ -605,6 +605,14 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
         ]
     );
 
+    Route::get(
+        '/lessons/{lessonId}/progress',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'show',
+        ]
+    )->whereUuid('lessonId');
+
     Route::post(
         '/lessons/{lessonId}/progress',
         [

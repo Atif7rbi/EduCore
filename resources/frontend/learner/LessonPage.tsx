@@ -1,5 +1,7 @@
 import {
+    useMutation,
     useQuery,
+    useQueryClient,
 } from '@tanstack/react-query';
 import {
     Link,
@@ -54,6 +56,16 @@ interface Lesson {
     practice_activities: LessonPracticeActivity[];
 }
 
+interface LessonProgress {
+    id: string;
+    lesson_revision_id: string;
+    status:
+        | 'in_progress'
+        | 'completed';
+    started_at: string | null;
+    completed_at: string | null;
+}
+
 function lessonQueryKey(
     lessonId: string,
 ) {
@@ -64,12 +76,54 @@ function lessonQueryKey(
     ] as const;
 }
 
+function lessonProgressQueryKey(
+    lessonId: string,
+) {
+    return [
+        'learner',
+        'lesson-progress',
+        lessonId,
+    ] as const;
+}
+
 async function fetchLesson(
     lessonId: string,
 ): Promise<Lesson> {
     return apiRequest<Lesson>({
         method: 'GET',
         url: `/api/lessons/${lessonId}`,
+    });
+}
+
+async function fetchLessonProgress(
+    lessonId: string,
+): Promise<LessonProgress | null> {
+    return apiRequest<LessonProgress | null>({
+        method: 'GET',
+        url:
+            `/api/lessons/${lessonId}/progress`,
+    });
+}
+
+async function startLessonProgress(
+    lessonId: string,
+): Promise<LessonProgress> {
+    return apiRequest<LessonProgress>({
+        method: 'POST',
+        url:
+            `/api/lessons/${lessonId}/progress`,
+        data: {},
+    });
+}
+
+async function completeLessonProgress(
+    lessonId: string,
+): Promise<LessonProgress> {
+    return apiRequest<LessonProgress>({
+        method: 'POST',
+        url:
+            `/api/lessons/${lessonId}/complete`,
+        data: {},
     });
 }
 
@@ -106,7 +160,8 @@ function extractTextBlocks(
 
             if (
                 candidateBlock.type === 'text'
-                && typeof candidateBlock.value === 'string'
+                && typeof candidateBlock.value
+                    === 'string'
             ) {
                 return candidateBlock.value;
             }
@@ -119,7 +174,55 @@ function extractTextBlocks(
         );
 }
 
+function ProgressFailure({
+    error,
+    retry,
+}: {
+    error: unknown;
+    retry?: () => void;
+}) {
+    const apiError =
+        error instanceof EduCoreApiError
+            ? error
+            : null;
+
+    return (
+        <Feedback tone="danger">
+            <div className="learner-read-error">
+                <div>
+                    <strong>
+                        تعذر تحديث حالة تقدم الدرس.
+                    </strong>
+
+                    <p>
+                        يمكنك متابعة قراءة الدرس ثم إعادة المحاولة.
+                    </p>
+
+                    {apiError?.requestId ? (
+                        <p className="learner-read-request-id">
+                            رقم الطلب: {apiError.requestId}
+                        </p>
+                    ) : null}
+                </div>
+
+                {retry ? (
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={retry}
+                    >
+                        إعادة المحاولة
+                    </Button>
+                ) : null}
+            </div>
+        </Feedback>
+    );
+}
+
 export function LessonPage() {
+    const queryClient =
+        useQueryClient();
+
     const {
         lessonId,
     } = useParams<{
@@ -139,6 +242,49 @@ export function LessonPage() {
         queryFn: () =>
             fetchLesson(lessonId),
     });
+
+    const progressQuery = useQuery({
+        queryKey:
+            lessonProgressQueryKey(
+                lessonId,
+            ),
+        queryFn: () =>
+            fetchLessonProgress(
+                lessonId,
+            ),
+    });
+
+    const startMutation =
+        useMutation({
+            mutationFn: () =>
+                startLessonProgress(
+                    lessonId,
+                ),
+            onSuccess: (progress) => {
+                queryClient.setQueryData(
+                    lessonProgressQueryKey(
+                        lessonId,
+                    ),
+                    progress,
+                );
+            },
+        });
+
+    const completeMutation =
+        useMutation({
+            mutationFn: () =>
+                completeLessonProgress(
+                    lessonId,
+                ),
+            onSuccess: (progress) => {
+                queryClient.setQueryData(
+                    lessonProgressQueryKey(
+                        lessonId,
+                    ),
+                    progress,
+                );
+            },
+        });
 
     if (lessonQuery.isPending) {
         return (
@@ -204,6 +350,16 @@ export function LessonPage() {
                 .content_payload,
         );
 
+    const progress =
+        progressQuery.data ?? null;
+
+    const progressPending =
+        progressQuery.isPending;
+
+    const mutationPending =
+        startMutation.isPending
+        || completeMutation.isPending;
+
     return (
         <section
             className="foundation-page learner-lesson"
@@ -236,6 +392,99 @@ export function LessonPage() {
                     </p>
                 ) : null}
             </div>
+
+            <Surface
+                className="learner-lesson__progress"
+            >
+                <div className="foundation-stack">
+                    <div>
+                        <p className="foundation-page__eyebrow">
+                            تقدم الدرس
+                        </p>
+
+                        <h2 className="foundation-card__title">
+                            {progressPending
+                                ? 'جار تحميل الحالة…'
+                                : progress?.status
+                                    === 'completed'
+                                  ? 'مكتمل'
+                                  : progress?.status
+                                      === 'in_progress'
+                                    ? 'قيد التقدم'
+                                    : 'لم يبدأ'}
+                        </h2>
+                    </div>
+
+                    {progressQuery.isError ? (
+                        <ProgressFailure
+                            error={
+                                progressQuery.error
+                            }
+                            retry={() => {
+                                void progressQuery.refetch();
+                            }}
+                        />
+                    ) : null}
+
+                    {startMutation.isError ? (
+                        <ProgressFailure
+                            error={
+                                startMutation.error
+                            }
+                        />
+                    ) : null}
+
+                    {completeMutation.isError ? (
+                        <ProgressFailure
+                            error={
+                                completeMutation.error
+                            }
+                        />
+                    ) : null}
+
+                    {!progressPending
+                    && !progressQuery.isError
+                    && progress === null ? (
+                        <Button
+                            disabled={
+                                mutationPending
+                            }
+                            onClick={() => {
+                                startMutation.mutate();
+                            }}
+                        >
+                            {startMutation.isPending
+                                ? 'جار بدء الدرس…'
+                                : 'ابدأ الدرس'}
+                        </Button>
+                    ) : null}
+
+                    {!progressPending
+                    && !progressQuery.isError
+                    && progress?.status
+                        === 'in_progress' ? (
+                        <Button
+                            disabled={
+                                mutationPending
+                            }
+                            onClick={() => {
+                                completeMutation.mutate();
+                            }}
+                        >
+                            {completeMutation.isPending
+                                ? 'جار إكمال الدرس…'
+                                : 'إكمال الدرس'}
+                        </Button>
+                    ) : null}
+
+                    {progress?.status
+                        === 'completed' ? (
+                        <Feedback tone="success">
+                            تم تسجيل إكمال النسخة المنشورة الحالية من الدرس.
+                        </Feedback>
+                    ) : null}
+                </div>
+            </Surface>
 
             <Surface
                 className="learner-lesson__content"

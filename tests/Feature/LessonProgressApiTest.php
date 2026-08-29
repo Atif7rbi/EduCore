@@ -14,6 +14,113 @@ use Tests\TestCase;
 
 class LessonProgressApiTest extends TestCase
 {
+    public function test_authenticated_learner_can_read_current_lesson_progress(): void
+    {
+        [$user, $learner] = $this->createLearner();
+        [$lessonId, $revisionId] = $this->createPublishedLesson();
+
+        DB::table('lesson_progresses')->insert([
+            'id' => (string) Str::uuid(),
+            'learner_profile_id' => $learner->id,
+            'lesson_revision_id' => $revisionId,
+            'status' => 'in_progress',
+            'started_at' => now(),
+            'completed_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.lesson_revision_id',
+                $revisionId
+            )
+            ->assertJsonPath(
+                'data.status',
+                'in_progress'
+            );
+    }
+
+    public function test_lesson_progress_read_returns_null_when_current_revision_has_no_progress(): void
+    {
+        [$user] = $this->createLearner();
+        [$lessonId] = $this->createPublishedLesson();
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertOk()
+            ->assertExactJson([
+                'data' => null,
+            ]);
+    }
+
+    public function test_lesson_progress_read_is_scoped_to_authenticated_learner(): void
+    {
+        [$user] = $this->createLearner();
+        [, $otherLearner] = $this->createLearner();
+        [$lessonId, $revisionId] = $this->createPublishedLesson();
+
+        DB::table('lesson_progresses')->insert([
+            'id' => (string) Str::uuid(),
+            'learner_profile_id' => $otherLearner->id,
+            'lesson_revision_id' => $revisionId,
+            'status' => 'in_progress',
+            'started_at' => now(),
+            'completed_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertOk()
+            ->assertExactJson([
+                'data' => null,
+            ]);
+    }
+
+    public function test_lesson_progress_read_ignores_progress_for_historical_revision(): void
+    {
+        [$user, $learner] = $this->createLearner();
+
+        [
+            $lessonId,
+            $historicalRevisionId,
+        ] = $this->createPublishedLessonWithHistoricalRevision();
+
+        DB::table('lesson_progresses')->insert([
+            'id' => (string) Str::uuid(),
+            'learner_profile_id' => $learner->id,
+            'lesson_revision_id' => $historicalRevisionId,
+            'status' => 'in_progress',
+            'started_at' => now(),
+            'completed_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertOk()
+            ->assertExactJson([
+                'data' => null,
+            ]);
+    }
+
     public function test_authenticated_learner_can_start_published_lesson(): void
     {
         [$user, $learner] = $this->createLearner();
@@ -151,6 +258,10 @@ class LessonProgressApiTest extends TestCase
     {
         $lessonId = (string) Str::uuid();
 
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )->assertStatus(401);
+
         $this->postJson(
             "/api/lessons/{$lessonId}/progress"
         )->assertStatus(401);
@@ -171,6 +282,15 @@ class LessonProgressApiTest extends TestCase
 
         $lessonId = (string) Str::uuid();
 
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+
         $this->postJson(
             "/api/lessons/{$lessonId}/progress"
         )
@@ -188,6 +308,15 @@ class LessonProgressApiTest extends TestCase
         $lessonId = $this->createDraftLesson();
 
         $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
 
         $this->postJson(
             "/api/lessons/{$lessonId}/progress"
@@ -250,6 +379,88 @@ class LessonProgressApiTest extends TestCase
         return [
             $lessonId,
             $revisionId,
+        ];
+    }
+
+    /**
+     * @return array{string, string, string}
+     */
+    private function createPublishedLessonWithHistoricalRevision(): array
+    {
+        [
+            $lessonId,
+            $historicalRevisionId,
+            $versionId,
+        ] = $this->createLessonFixture();
+
+        $historicalRevision = DB::table(
+            'lesson_revisions'
+        )
+            ->where(
+                'id',
+                $historicalRevisionId
+            )
+            ->first();
+
+        $currentRevisionId =
+            (string) Str::uuid();
+
+        DB::table('lesson_revisions')->insert([
+            'id' => $currentRevisionId,
+            'lesson_id' => $lessonId,
+            'curriculum_version_id' => $versionId,
+            'revision_number' => 2,
+            'primary_topic_id' =>
+                $historicalRevision->primary_topic_id,
+            'content_payload' =>
+                json_encode([
+                    'blocks' => [
+                        [
+                            'type' => 'text',
+                            'value' =>
+                                'Current progress API content',
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            'content_schema_version' => 1,
+            'released_at' => null,
+            'created_at' => now(),
+        ]);
+
+        $transactions =
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            );
+
+        (new ReleaseLessonRevision(
+            $transactions
+        ))->execute(
+            $historicalRevisionId
+        );
+
+        (new ReleaseLessonRevision(
+            $transactions
+        ))->execute(
+            $currentRevisionId
+        );
+
+        DB::table('lessons')
+            ->where('id', $lessonId)
+            ->update([
+                'status' => 'published',
+                'published_revision_id' =>
+                    $currentRevisionId,
+                'updated_at' => now(),
+            ]);
+
+        (new PublishCurriculumVersion(
+            $transactions
+        ))->execute($versionId);
+
+        return [
+            $lessonId,
+            $historicalRevisionId,
+            $currentRevisionId,
         ];
     }
 

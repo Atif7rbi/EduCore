@@ -7,11 +7,49 @@ use App\Application\Learning\RecordLessonProgress;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Models\Lesson;
+use App\Models\LessonProgress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class LessonProgressController extends Controller
 {
+    public function show(
+        string $lessonId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+    ): JsonResponse {
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
+        $lesson = Lesson::query()
+            ->where('status', 'published')
+            ->whereNotNull('published_revision_id')
+            ->whereHas(
+                'curriculumVersion',
+                fn ($query) => $query
+                    ->where('status', 'published')
+            )
+            ->findOrFail($lessonId);
+
+        $progress = LessonProgress::query()
+            ->where(
+                'learner_profile_id',
+                $learner->id
+            )
+            ->where(
+                'lesson_revision_id',
+                $lesson->published_revision_id
+            )
+            ->first();
+
+        return ApiResponse::success(
+            $progress === null
+                ? null
+                : $this->payload($progress)
+        );
+    }
+
     public function start(
         string $lessonId,
         Request $request,
