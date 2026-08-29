@@ -9,6 +9,9 @@ import {
     RequireAuth,
     RequireRole,
 } from '../auth/RouteGuards';
+import {
+    CurriculumDiscoveryPage,
+} from '../learner/CurriculumDiscoveryPage';
 
 import {
     AdminFoundationPage,
@@ -54,11 +57,7 @@ export const router = createBrowserRouter([
                     {
                         path: 'curriculum',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="التعلم"
-                                title="المناهج"
-                                description="استعراض المناهج والمحتوى التعليمي سيكون متاحًا ضمن تجربة المتعلم في P3."
-                            />
+                            <CurriculumDiscoveryPage />
                         ),
                     },
                     {

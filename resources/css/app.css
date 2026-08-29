@@ -642,3 +642,136 @@ a:hover {
         white-space: nowrap;
     }
 }
+
+/* P3 learner curriculum discovery */
+
+.curriculum-discovery__grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 1rem;
+}
+
+.curriculum-card {
+    min-height: 12rem;
+}
+
+.curriculum-card__content {
+    display: grid;
+    gap: 1rem;
+}
+
+.curriculum-card__subject {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.curriculum-card__title {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.5;
+}
+
+.curriculum-card__versions {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.curriculum-card__versions-label {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+.curriculum-card__version-list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.curriculum-card__version {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.curriculum-card__version-number {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.curriculum-discovery__empty {
+    padding: 1.5rem;
+}
+
+.curriculum-discovery__feedback {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.curriculum-discovery__feedback p {
+    margin: 0.35rem 0 0;
+}
+
+.curriculum-discovery__request-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+}
+
+.curriculum-card--loading {
+    display: grid;
+    align-content: start;
+    gap: 0.8rem;
+}
+
+.curriculum-skeleton {
+    width: 100%;
+    height: 0.8rem;
+    border-radius: 999px;
+    background: var(--color-surface-muted);
+    animation: curriculum-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.curriculum-skeleton--short {
+    width: 42%;
+}
+
+.curriculum-skeleton--title {
+    width: 72%;
+    height: 1.25rem;
+}
+
+@keyframes curriculum-skeleton-pulse {
+    0%,
+    100% {
+        opacity: 0.45;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 40rem) {
+    .curriculum-discovery__feedback {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .curriculum-card__version {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}

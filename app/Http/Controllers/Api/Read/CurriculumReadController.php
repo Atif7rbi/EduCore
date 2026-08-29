@@ -4,12 +4,65 @@ namespace App\Http\Controllers\Api\Read;
 
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
+use App\Models\Curriculum;
 use App\Models\CurriculumVersion;
 use App\Models\Lesson;
 use Illuminate\Http\JsonResponse;
 
 class CurriculumReadController extends Controller
 {
+    public function index(): JsonResponse
+    {
+        $curricula = Curriculum::query()
+            ->join(
+                'subjects',
+                'subjects.id',
+                '=',
+                'curricula.subject_id'
+            )
+            ->whereHas(
+                'versions',
+                fn ($query) => $query
+                    ->where('status', 'published')
+            )
+            ->with([
+                'subject',
+                'versions' => fn ($query) => $query
+                    ->where('status', 'published')
+                    ->orderBy('version_number')
+                    ->orderBy('id'),
+            ])
+            ->orderBy('subjects.name')
+            ->orderBy('curricula.name')
+            ->orderBy('curricula.id')
+            ->select('curricula.*')
+            ->get();
+
+        return ApiResponse::success(
+            $curricula
+                ->map(fn (Curriculum $curriculum): array => [
+                    'subject' => [
+                        'id' => $curriculum->subject->id,
+                        'name' => $curriculum->subject->name,
+                    ],
+                    'curriculum' => [
+                        'id' => $curriculum->id,
+                        'name' => $curriculum->name,
+                    ],
+                    'published_versions' => $curriculum->versions
+                        ->map(fn (CurriculumVersion $version): array => [
+                            'id' => $version->id,
+                            'version_number' => $version->version_number,
+                            'label' => $version->label,
+                        ])
+                        ->values()
+                        ->all(),
+                ])
+                ->values()
+                ->all()
+        );
+    }
+
     public function showVersion(
         string $curriculumVersionId,
     ): JsonResponse {

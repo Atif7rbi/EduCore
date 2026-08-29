@@ -597,6 +597,14 @@ Route::middleware(['web', 'management'])->group(function (): void {
 });
 
 Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+    Route::get(
+        '/curricula',
+        [
+            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            'index',
+        ]
+    );
+
     Route::post(
         '/lessons/{lessonId}/progress',
         [
