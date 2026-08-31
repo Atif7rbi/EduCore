@@ -70,6 +70,311 @@ class AttemptApiTest extends TestCase
         ]);
     }
 
+    public function test_learner_can_discover_eligible_exam_generation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $generation = DB::table(
+            'exam_generations'
+        )
+            ->where('id', $generationId)
+            ->first();
+
+        $this->assertNotNull($generation);
+
+        $version = DB::table(
+            'exam_template_versions'
+        )
+            ->where(
+                'id',
+                $generation->exam_template_version_id
+            )
+            ->first();
+
+        $this->assertNotNull($version);
+
+        $template = DB::table(
+            'exam_templates'
+        )
+            ->where(
+                'id',
+                $version->exam_template_id
+            )
+            ->first();
+
+        $this->assertNotNull($template);
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.0.id',
+                $generationId
+            )
+            ->assertJsonPath(
+                'data.0.template.id',
+                $template->id
+            )
+            ->assertJsonPath(
+                'data.0.template.name',
+                $template->name
+            )
+            ->assertJsonPath(
+                'data.0.template_version.id',
+                $version->id
+            )
+            ->assertJsonPath(
+                'data.0.current_attempt',
+                null
+            );
+
+        $generationPayload =
+            $response->json('data.0');
+
+        $this->assertArrayNotHasKey(
+            'rules_snapshot',
+            $generationPayload
+        );
+
+        $this->assertArrayNotHasKey(
+            'seed',
+            $generationPayload
+        );
+
+        $this->assertArrayNotHasKey(
+            'generator_version',
+            $generationPayload
+        );
+    }
+
+    public function test_exam_discovery_does_not_expose_another_learners_attempt(): void
+    {
+        [
+            $firstLearnerId,
+            $firstGenerationId,
+        ] = $this->createExamFixture();
+
+        [
+            $otherLearnerId,
+            $otherGenerationId,
+        ] = $this->createExamFixture();
+
+        $otherAttempt = $this->postJson(
+            "/api/exam-generations/{$otherGenerationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $otherAttemptId =
+            $otherAttempt->json('data.id');
+
+        $firstUserId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $firstLearnerId
+            )
+            ->value('user_id');
+
+        $this->actingAs(
+            User::query()->findOrFail(
+                $firstUserId
+            )
+        );
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response->assertOk();
+
+        $generations = collect(
+            $response->json('data')
+        );
+
+        $firstGeneration =
+            $generations->firstWhere(
+                'id',
+                $firstGenerationId
+            );
+
+        $otherGeneration =
+            $generations->firstWhere(
+                'id',
+                $otherGenerationId
+            );
+
+        $this->assertNotNull(
+            $firstGeneration
+        );
+
+        $this->assertNotNull(
+            $otherGeneration
+        );
+
+        $this->assertNull(
+            $firstGeneration[
+                'current_attempt'
+            ]
+        );
+
+        $this->assertNull(
+            $otherGeneration[
+                'current_attempt'
+            ]
+        );
+
+        $this->assertNotSame(
+            $firstLearnerId,
+            $otherLearnerId
+        );
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $otherAttemptId,
+                'learner_profile_id' =>
+                    $otherLearnerId,
+                'exam_generation_id' =>
+                    $otherGenerationId,
+            ]
+        );
+    }
+
+    public function test_exam_discovery_hides_generations_that_lose_lifecycle_eligibility(): void
+    {
+        [
+            $learnerId,
+            $curriculumGenerationId,
+        ] = $this->createExamFixture();
+
+        $curriculumVersionId =
+            DB::table(
+                'exam_generations'
+            )
+                ->where(
+                    'id',
+                    $curriculumGenerationId
+                )
+                ->value(
+                    'curriculum_version_id'
+                );
+
+        DB::table(
+            'curriculum_versions'
+        )
+            ->where(
+                'id',
+                $curriculumVersionId
+            )
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        [
+            ,
+            $templateGenerationId,
+        ] = $this->createExamFixture();
+
+        $templateVersionId =
+            DB::table(
+                'exam_generations'
+            )
+                ->where(
+                    'id',
+                    $templateGenerationId
+                )
+                ->value(
+                    'exam_template_version_id'
+                );
+
+        DB::table(
+            'exam_template_versions'
+        )
+            ->where(
+                'id',
+                $templateVersionId
+            )
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $firstUserId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $learnerId
+            )
+            ->value('user_id');
+
+        $this->actingAs(
+            User::query()->findOrFail(
+                $firstUserId
+            )
+        );
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response->assertOk();
+
+        $ids = collect(
+            $response->json('data')
+        )->pluck('id');
+
+        $this->assertFalse(
+            $ids->contains(
+                $curriculumGenerationId
+            )
+        );
+
+        $this->assertFalse(
+            $ids->contains(
+                $templateGenerationId
+            )
+        );
+    }
+
+    public function test_exam_discovery_requires_authentication(): void
+    {
+        $this->app['auth']
+            ->guard('web')
+            ->logout();
+
+        $this->getJson(
+            '/api/exam-generations'
+        )->assertStatus(401);
+    }
+
+    public function test_exam_discovery_requires_learner_profile(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            '/api/exam-generations'
+        )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+    }
+
     public function test_exam_attempt_can_be_built_via_api(): void
     {
         [

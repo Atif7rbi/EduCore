@@ -235,6 +235,10 @@ function AttemptResultView({
 }) {
     const summary = attempt.summary;
 
+    const isExam =
+        attempt.exam_generation_id
+        !== null;
+
     return (
         <section className="learner-attempt-result">
             <Surface
@@ -247,7 +251,13 @@ function AttemptResultView({
                     </p>
 
                     <h1 className="foundation-page__title">
-                        اكتملت الممارسة
+                        {isExam
+                            ? attempt.status === 'submitted'
+                                ? 'اكتمل الاختبار'
+                                : 'تم إنهاء الاختبار'
+                            : attempt.status === 'submitted'
+                                ? 'اكتملت الممارسة'
+                                : 'تم إنهاء الممارسة'}
                     </h1>
 
                     {summary ? (
@@ -292,9 +302,15 @@ function AttemptResultView({
 
                     <Link
                         className="foundation-link"
-                        to="/app/curriculum"
+                        to={
+                            isExam
+                                ? '/app/exams'
+                                : '/app/curriculum'
+                        }
                     >
-                        العودة إلى المناهج
+                        {isExam
+                            ? 'العودة إلى الاختبارات'
+                            : 'العودة إلى المناهج'}
                     </Link>
                 </div>
             </Surface>
@@ -538,6 +554,10 @@ export function AttemptPage() {
         currentIndex
         === attempt.items.length - 1;
 
+    const isExam =
+        attempt.exam_generation_id
+        !== null;
+
     const saveCurrentResponse =
         async (): Promise<boolean> => {
             if (
@@ -621,7 +641,9 @@ export function AttemptPage() {
             <div className="learner-attempt__header">
                 <div>
                     <p className="foundation-page__eyebrow">
-                        ممارسة
+                        {isExam
+                            ? 'اختبار'
+                            : 'ممارسة'}
                     </p>
 
                     <p className="learner-attempt__progress">
@@ -758,7 +780,9 @@ export function AttemptPage() {
                     || finalizeMutation.isPending
                         ? 'جار الحفظ…'
                         : isLast
-                          ? 'إنهاء الممارسة'
+                          ? isExam
+                                    ? 'إنهاء الاختبار'
+                                    : 'إنهاء الممارسة'
                           : 'حفظ والتالي'}
                 </Button>
             </div>

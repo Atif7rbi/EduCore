@@ -606,6 +606,15 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     );
 
     Route::get(
+        '/exam-generations',
+        [
+            \App\Http\Controllers\Api\Read\ExamReadController::class,
+            'index',
+        ]
+    );
+
+
+    Route::get(
         '/lessons/{lessonId}/progress',
         [
             \App\Http\Controllers\Api\Learning\LessonProgressController::class,

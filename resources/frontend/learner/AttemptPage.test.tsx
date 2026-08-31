@@ -487,6 +487,77 @@ describe('AttemptPage', () => {
         ).toBeInTheDocument();
     });
 
+    it('labels an in-progress exam attempt as an exam', async () => {
+        const attempt = {
+            ...inProgressAttempt(),
+            exam_generation_id:
+                'generation-1',
+            practice_activity_id:
+                null,
+        };
+
+        apiRequestMock.mockResolvedValueOnce(
+            attempt,
+        );
+
+        renderPage();
+
+        expect(
+            await screen.findByText(
+                'اختبار',
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole(
+                'button',
+                {
+                    name:
+                        'إنهاء الاختبار',
+                },
+            ),
+        ).toBeInTheDocument();
+    });
+
+    it('renders submitted exam result with exam navigation', async () => {
+        const attempt = {
+            ...submittedAttempt(),
+            exam_generation_id:
+                'generation-1',
+            practice_activity_id:
+                null,
+        };
+
+        apiRequestMock.mockResolvedValueOnce(
+            attempt,
+        );
+
+        renderPage();
+
+        expect(
+            await screen.findByRole(
+                'heading',
+                {
+                    name:
+                        'اكتمل الاختبار',
+                },
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole(
+                'link',
+                {
+                    name:
+                        'العودة إلى الاختبارات',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/app/exams',
+        );
+    });
+
     it('renders submitted result summary', async () => {
         apiRequestMock.mockResolvedValueOnce(
             submittedAttempt(),

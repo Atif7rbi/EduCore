@@ -19,6 +19,9 @@ import {
     LessonPage,
 } from '../learner/LessonPage';
 import {
+    ExamsPage,
+} from '../learner/ExamsPage';
+import {
     PracticeActivityPage,
 } from '../learner/PracticeActivityPage';
 import {
@@ -109,11 +112,7 @@ export const router = createBrowserRouter([
                     {
                         path: 'exams',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="التقييم"
-                                title="الاختبارات"
-                                description="تجربة الاختبارات والمحاولات والنتائج سيتم تفعيلها ضمن P3."
-                            />
+                            <ExamsPage />
                         ),
                     },
                     {

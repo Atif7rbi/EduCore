@@ -1097,3 +1097,31 @@ a:hover {
         width: 100%;
     }
 }
+
+/* P3 learner exams */
+
+.learner-exams__grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(min(100%, 18rem), 1fr)
+        );
+}
+
+.learner-exam-card {
+    padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.learner-exam-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+.learner-exam-card__action {
+    width: fit-content;
+}
