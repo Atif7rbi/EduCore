@@ -28,6 +28,9 @@ import {
     AdminCurriculaPage,
 } from '../admin/AdminCurriculaPage';
 import {
+    AdminContentPage,
+} from '../admin/AdminContentPage';
+import {
     PracticeActivityPage,
 } from '../learner/PracticeActivityPage';
 import {
@@ -166,11 +169,7 @@ export const router = createBrowserRouter([
                     {
                         path: 'content',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="Admin Studio"
-                                title="المحتوى"
-                                description="إدارة Topics وSkills وLessons سيتم تفعيلها في P4."
-                            />
+                            <AdminContentPage />
                         ),
                     },
                     {
