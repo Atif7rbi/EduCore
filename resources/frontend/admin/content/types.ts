@@ -168,3 +168,36 @@ export interface AssessmentRevisionSkill {
     } | null;
     created_at: string | null;
 }
+
+export type PracticeActivityStatus =
+    | 'archived'
+    | 'active';
+
+export interface PracticeActivity {
+    id: string;
+    curriculum_version_id: string;
+    lesson_id: string | null;
+    name: string;
+    description: string | null;
+    status: PracticeActivityStatus;
+    items_count: number | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export interface PracticeActivityItem {
+    id: string;
+    practice_activity_id: string;
+    assessment_item_revision_id: string;
+    assessment_item_id: string;
+    curriculum_version_id: string;
+    display_order: number;
+    revision: {
+        id: string;
+        assessment_item_id: string;
+        revision_number: number;
+        difficulty: AssessmentDifficulty;
+        released_at: string | null;
+    } | null;
+    created_at: string | null;
+}

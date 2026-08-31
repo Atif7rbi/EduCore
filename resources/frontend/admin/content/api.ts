@@ -603,3 +603,140 @@ export function deleteAssessmentRevisionSkill(
             `/api/admin/assessment-item-revisions/${revisionId}/skills/${classificationId}`,
     });
 }
+
+import type {
+    PracticeActivity,
+} from './types';
+
+export function adminPracticeActivitiesKey(
+    curriculumVersionId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'curriculum-versions',
+        curriculumVersionId,
+        'practice-activities',
+    ] as const;
+}
+
+export function fetchPracticeActivities(
+    curriculumVersionId: string,
+): Promise<PracticeActivity[]> {
+    return apiRequest<PracticeActivity[]>({
+        method: 'GET',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/practice-activities`,
+    });
+}
+
+export interface PracticeActivityPayload {
+    lesson_id: string | null;
+    name: string;
+    description: string | null;
+}
+
+export function createPracticeActivity(
+    curriculumVersionId: string,
+    payload: PracticeActivityPayload,
+): Promise<PracticeActivity> {
+    return apiRequest<PracticeActivity>({
+        method: 'POST',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/practice-activities`,
+        data: payload,
+    });
+}
+
+export function updatePracticeActivity(
+    practiceActivityId: string,
+    payload: PracticeActivityPayload,
+): Promise<PracticeActivity> {
+    return apiRequest<PracticeActivity>({
+        method: 'PUT',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}`,
+        data: payload,
+    });
+}
+
+import type {
+    PracticeActivityItem,
+} from './types';
+
+export function adminPracticeActivityItemsKey(
+    practiceActivityId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'practice-activities',
+        practiceActivityId,
+        'items',
+    ] as const;
+}
+
+export function fetchPracticeActivityItems(
+    practiceActivityId: string,
+): Promise<PracticeActivityItem[]> {
+    return apiRequest<PracticeActivityItem[]>({
+        method: 'GET',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}/items`,
+    });
+}
+
+export function createPracticeActivityItem(
+    practiceActivityId: string,
+    assessmentItemRevisionId: string,
+    displayOrder: number,
+): Promise<PracticeActivityItem> {
+    return apiRequest<PracticeActivityItem>({
+        method: 'POST',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}/items`,
+        data: {
+            assessment_item_revision_id:
+                assessmentItemRevisionId,
+            display_order:
+                displayOrder,
+        },
+    });
+}
+
+export function deletePracticeActivityItem(
+    practiceActivityId: string,
+    practiceActivityItemId: string,
+): Promise<{
+    id: string;
+    deleted: boolean;
+}> {
+    return apiRequest<{
+        id: string;
+        deleted: boolean;
+    }>({
+        method: 'DELETE',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}/items/${practiceActivityItemId}`,
+    });
+}
+
+export function activatePracticeActivity(
+    practiceActivityId: string,
+): Promise<PracticeActivity> {
+    return apiRequest<PracticeActivity>({
+        method: 'POST',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}/activate`,
+    });
+}
+
+export function archivePracticeActivity(
+    practiceActivityId: string,
+): Promise<PracticeActivity> {
+    return apiRequest<PracticeActivity>({
+        method: 'POST',
+        url:
+            `/api/admin/practice-activities/${practiceActivityId}/archive`,
+    });
+}

@@ -28,6 +28,10 @@ import {
     AssessmentItemsPanel,
 } from './content/AssessmentItemsPanel';
 
+import {
+    PracticeActivitiesPanel,
+} from './content/PracticeActivitiesPanel';
+
 import type {
     CurriculumVersion,
 } from './content/types';
@@ -148,6 +152,12 @@ export function AdminContentPage() {
                             />
 
                             <AssessmentItemsPanel
+                                version={
+                                    selectedVersion
+                                }
+                            />
+
+                            <PracticeActivitiesPanel
                                 version={
                                     selectedVersion
                                 }
