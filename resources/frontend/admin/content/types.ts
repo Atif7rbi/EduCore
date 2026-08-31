@@ -111,3 +111,60 @@ export interface LessonRevisionSkill {
     } | null;
     created_at: string | null;
 }
+
+export type AssessmentItemStatus =
+    | 'draft'
+    | 'published'
+    | 'retired';
+
+export interface AssessmentItem {
+    id: string;
+    curriculum_version_id: string;
+    item_type: string;
+    internal_label: string | null;
+    status: AssessmentItemStatus;
+    published_revision_id: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export type AssessmentDifficulty =
+    | 'easy'
+    | 'medium'
+    | 'hard';
+
+export interface AssessmentItemRevision {
+    id: string;
+    assessment_item_id: string;
+    curriculum_version_id: string;
+    revision_number: number;
+    primary_topic_id: string | null;
+    difficulty: AssessmentDifficulty;
+    content_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    content_schema_version: number;
+    scoring_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    scoring_schema_version: number;
+    released_at: string | null;
+    created_at: string | null;
+}
+
+export type AssessmentRevisionSkillRole =
+    | 'primary'
+    | 'supporting';
+
+export interface AssessmentRevisionSkill {
+    id: string;
+    assessment_item_revision_id: string;
+    skill_version_placement_id: string;
+    curriculum_version_id: string;
+    role: AssessmentRevisionSkillRole;
+    skill: {
+        id: string;
+        name: string;
+    } | null;
+    created_at: string | null;
+}

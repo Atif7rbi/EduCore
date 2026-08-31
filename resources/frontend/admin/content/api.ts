@@ -434,3 +434,172 @@ export function deleteRevisionSkill(
             `/api/admin/lesson-revisions/${lessonRevisionId}/skills/${lessonRevisionSkillId}`,
     });
 }
+
+import type {
+    AssessmentItem,
+} from './types';
+
+export function adminAssessmentItemsKey(
+    curriculumVersionId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'curriculum-versions',
+        curriculumVersionId,
+        'assessment-items',
+    ] as const;
+}
+
+export function fetchAssessmentItems(
+    curriculumVersionId: string,
+): Promise<AssessmentItem[]> {
+    return apiRequest<AssessmentItem[]>({
+        method: 'GET',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/assessment-items`,
+    });
+}
+
+export interface AssessmentItemPayload {
+    item_type: string;
+    internal_label: string | null;
+}
+
+export function createAssessmentItem(
+    curriculumVersionId: string,
+    payload: AssessmentItemPayload,
+): Promise<AssessmentItem> {
+    return apiRequest<AssessmentItem>({
+        method: 'POST',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/assessment-items`,
+        data: payload,
+    });
+}
+
+export function updateAssessmentItem(
+    assessmentItemId: string,
+    payload: AssessmentItemPayload,
+): Promise<AssessmentItem> {
+    return apiRequest<AssessmentItem>({
+        method: 'PUT',
+        url:
+            `/api/admin/assessment-items/${assessmentItemId}`,
+        data: payload,
+    });
+}
+
+import type {
+    AssessmentDifficulty,
+    AssessmentItemRevision,
+} from './types';
+
+export function adminAssessmentItemRevisionsKey(
+    assessmentItemId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'assessment-items',
+        assessmentItemId,
+        'revisions',
+    ] as const;
+}
+
+export function fetchAssessmentItemRevisions(
+    assessmentItemId: string,
+): Promise<AssessmentItemRevision[]> {
+    return apiRequest<AssessmentItemRevision[]>({
+        method: 'GET',
+        url:
+            `/api/admin/assessment-items/${assessmentItemId}/revisions`,
+    });
+}
+
+export interface AssessmentItemRevisionPayload {
+    revision_number: number;
+    primary_topic_id: string | null;
+    difficulty: AssessmentDifficulty;
+    content_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    content_schema_version: number;
+    scoring_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    scoring_schema_version: number;
+}
+
+export function createAssessmentItemRevision(
+    assessmentItemId: string,
+    payload: AssessmentItemRevisionPayload,
+): Promise<AssessmentItemRevision> {
+    return apiRequest<AssessmentItemRevision>({
+        method: 'POST',
+        url:
+            `/api/admin/assessment-items/${assessmentItemId}/revisions`,
+        data: payload,
+    });
+}
+
+import type {
+    AssessmentRevisionSkill,
+    AssessmentRevisionSkillRole,
+} from './types';
+
+export function adminAssessmentRevisionSkillsKey(
+    revisionId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'assessment-item-revisions',
+        revisionId,
+        'skills',
+    ] as const;
+}
+
+export function fetchAssessmentRevisionSkills(
+    revisionId: string,
+): Promise<AssessmentRevisionSkill[]> {
+    return apiRequest<AssessmentRevisionSkill[]>({
+        method: 'GET',
+        url:
+            `/api/admin/assessment-item-revisions/${revisionId}/skills`,
+    });
+}
+
+export function createAssessmentRevisionSkill(
+    revisionId: string,
+    placementId: string,
+    role: AssessmentRevisionSkillRole,
+): Promise<AssessmentRevisionSkill> {
+    return apiRequest<AssessmentRevisionSkill>({
+        method: 'POST',
+        url:
+            `/api/admin/assessment-item-revisions/${revisionId}/skills`,
+        data: {
+            skill_version_placement_id:
+                placementId,
+            role,
+        },
+    });
+}
+
+export function deleteAssessmentRevisionSkill(
+    revisionId: string,
+    classificationId: string,
+): Promise<{
+    id: string;
+    deleted: boolean;
+}> {
+    return apiRequest<{
+        id: string;
+        deleted: boolean;
+    }>({
+        method: 'DELETE',
+        url:
+            `/api/admin/assessment-item-revisions/${revisionId}/skills/${classificationId}`,
+    });
+}
