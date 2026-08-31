@@ -113,6 +113,18 @@ describe('ProductShell', () => {
             screen.getByRole(
                 'link',
                 {
+                    name: 'النتائج',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/app/results',
+        );
+
+        expect(
+            screen.getByRole(
+                'link',
+                {
                     name: 'التقدم',
                 },
             ),

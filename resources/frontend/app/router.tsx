@@ -22,6 +22,9 @@ import {
     ExamsPage,
 } from '../learner/ExamsPage';
 import {
+    ResultsPage,
+} from '../learner/ResultsPage';
+import {
     PracticeActivityPage,
 } from '../learner/PracticeActivityPage';
 import {
@@ -113,6 +116,12 @@ export const router = createBrowserRouter([
                         path: 'exams',
                         element: (
                             <ExamsPage />
+                        ),
+                    },
+                    {
+                        path: 'results',
+                        element: (
+                            <ResultsPage />
                         ),
                     },
                     {

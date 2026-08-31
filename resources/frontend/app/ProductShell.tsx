@@ -185,6 +185,10 @@ export const learnerNavigation:
             to: '/app/exams',
         },
         {
+            label: 'النتائج',
+            to: '/app/results',
+        },
+        {
             label: 'التقدم',
             to: '/app/progress',
         },
