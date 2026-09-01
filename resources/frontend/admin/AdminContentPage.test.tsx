@@ -96,6 +96,14 @@ vi.mock('./content/PracticeActivitiesPanel', () => ({
     ),
 }));
 
+vi.mock('./content/ExamTemplatesPanel', () => ({
+    ExamTemplatesPanel: () => (
+        <div data-testid="exam-templates-panel">
+            Exam templates panel
+        </div>
+    ),
+}));
+
 function renderPage() {
     const client =
         new QueryClient({

@@ -32,6 +32,10 @@ import {
     PracticeActivitiesPanel,
 } from './content/PracticeActivitiesPanel';
 
+import {
+    ExamTemplatesPanel,
+} from './content/ExamTemplatesPanel';
+
 import type {
     CurriculumVersion,
 } from './content/types';
@@ -158,6 +162,12 @@ export function AdminContentPage() {
                             />
 
                             <PracticeActivitiesPanel
+                                version={
+                                    selectedVersion
+                                }
+                            />
+
+                            <ExamTemplatesPanel
                                 version={
                                     selectedVersion
                                 }

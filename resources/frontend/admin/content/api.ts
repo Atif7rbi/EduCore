@@ -740,3 +740,170 @@ export function archivePracticeActivity(
             `/api/admin/practice-activities/${practiceActivityId}/archive`,
     });
 }
+
+import type {
+    ExamTemplate,
+} from './types';
+
+export function adminExamTemplatesKey(
+    curriculumVersionId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'curriculum-versions',
+        curriculumVersionId,
+        'exam-templates',
+    ] as const;
+}
+
+export function fetchExamTemplates(
+    curriculumVersionId: string,
+): Promise<ExamTemplate[]> {
+    return apiRequest<ExamTemplate[]>({
+        method: 'GET',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/exam-templates`,
+    });
+}
+
+export interface ExamTemplatePayload {
+    name: string;
+    description: string | null;
+}
+
+export function createExamTemplate(
+    curriculumVersionId: string,
+    payload: ExamTemplatePayload,
+): Promise<ExamTemplate> {
+    return apiRequest<ExamTemplate>({
+        method: 'POST',
+        url:
+            `/api/admin/curriculum-versions/${curriculumVersionId}/exam-templates`,
+        data: payload,
+    });
+}
+
+export function updateExamTemplate(
+    examTemplateId: string,
+    payload: ExamTemplatePayload,
+): Promise<ExamTemplate> {
+    return apiRequest<ExamTemplate>({
+        method: 'PUT',
+        url:
+            `/api/admin/exam-templates/${examTemplateId}`,
+        data: payload,
+    });
+}
+
+export function activateExamTemplate(
+    examTemplateId: string,
+): Promise<ExamTemplate> {
+    return apiRequest<ExamTemplate>({
+        method: 'POST',
+        url:
+            `/api/admin/exam-templates/${examTemplateId}/activate`,
+    });
+}
+
+export function archiveExamTemplate(
+    examTemplateId: string,
+): Promise<ExamTemplate> {
+    return apiRequest<ExamTemplate>({
+        method: 'POST',
+        url:
+            `/api/admin/exam-templates/${examTemplateId}/archive`,
+    });
+}
+
+import type {
+    ExamTemplateVersion,
+} from './types';
+
+export function adminExamTemplateVersionsKey(
+    examTemplateId: string,
+) {
+    return [
+        'admin',
+        'content',
+        'exam-templates',
+        examTemplateId,
+        'versions',
+    ] as const;
+}
+
+export function fetchExamTemplateVersions(
+    examTemplateId: string,
+): Promise<ExamTemplateVersion[]> {
+    return apiRequest<ExamTemplateVersion[]>({
+        method: 'GET',
+        url:
+            `/api/admin/exam-templates/${examTemplateId}/versions`,
+    });
+}
+
+export interface CreateExamTemplateVersionPayload {
+    version_number: number;
+    label: string | null;
+    rules_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    rules_schema_version: number;
+}
+
+export interface UpdateExamTemplateVersionPayload {
+    label: string | null;
+    rules_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    rules_schema_version: number;
+}
+
+export function createExamTemplateVersion(
+    examTemplateId: string,
+    payload: CreateExamTemplateVersionPayload,
+): Promise<ExamTemplateVersion> {
+    return apiRequest<ExamTemplateVersion>({
+        method: 'POST',
+        url:
+            `/api/admin/exam-templates/${examTemplateId}/versions`,
+        data: payload,
+    });
+}
+
+export function updateExamTemplateVersion(
+    examTemplateVersionId: string,
+    payload: UpdateExamTemplateVersionPayload,
+): Promise<ExamTemplateVersion> {
+    return apiRequest<ExamTemplateVersion>({
+        method: 'PUT',
+        url:
+            `/api/admin/exam-template-versions/${examTemplateVersionId}`,
+        data: payload,
+    });
+}
+
+export interface PublishExamTemplateVersionResult {
+    version: ExamTemplateVersion;
+    template: ExamTemplate;
+}
+
+export function publishExamTemplateVersion(
+    examTemplateVersionId: string,
+): Promise<PublishExamTemplateVersionResult> {
+    return apiRequest<PublishExamTemplateVersionResult>({
+        method: 'POST',
+        url:
+            `/api/admin/exam-template-versions/${examTemplateVersionId}/publish`,
+    });
+}
+
+export function retireExamTemplateVersion(
+    examTemplateVersionId: string,
+): Promise<ExamTemplateVersion> {
+    return apiRequest<ExamTemplateVersion>({
+        method: 'POST',
+        url:
+            `/api/admin/exam-template-versions/${examTemplateVersionId}/retire`,
+    });
+}

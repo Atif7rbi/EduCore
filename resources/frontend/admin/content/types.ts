@@ -201,3 +201,39 @@ export interface PracticeActivityItem {
     } | null;
     created_at: string | null;
 }
+
+export type ExamTemplateStatus =
+    | 'active'
+    | 'archived';
+
+export interface ExamTemplate {
+    id: string;
+    curriculum_version_id: string;
+    name: string;
+    description: string | null;
+    status: ExamTemplateStatus;
+    published_version_id: string | null;
+    versions_count: number | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export type ExamTemplateVersionStatus =
+    | 'draft'
+    | 'published'
+    | 'retired';
+
+export interface ExamTemplateVersion {
+    id: string;
+    exam_template_id: string;
+    curriculum_version_id: string;
+    version_number: number;
+    label: string | null;
+    status: ExamTemplateVersionStatus;
+    rules_payload:
+        | unknown[]
+        | Record<string, unknown>;
+    rules_schema_version: number;
+    created_at: string | null;
+    updated_at: string | null;
+}
