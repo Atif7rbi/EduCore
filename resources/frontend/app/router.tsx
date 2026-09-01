@@ -25,6 +25,9 @@ import {
     ResultsPage,
 } from '../learner/ResultsPage';
 import {
+    ProgressPage,
+} from '../learner/ProgressPage';
+import {
     AdminCurriculaPage,
 } from '../admin/AdminCurriculaPage';
 import {
@@ -133,11 +136,7 @@ export const router = createBrowserRouter([
                     {
                         path: 'progress',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="التقدم"
-                                title="التقدم والتحليلات"
-                                description="عرض التقدم والأدلة والتحليلات سيتم تفعيله في P5."
-                            />
+                            <ProgressPage />
                         ),
                     },
                 ],
