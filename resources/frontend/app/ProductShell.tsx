@@ -177,10 +177,6 @@ export const learnerNavigation:
             to: '/app/curriculum',
         },
         {
-            label: 'الممارسة',
-            to: '/app/practice',
-        },
-        {
             label: 'الاختبارات',
             to: '/app/exams',
         },
@@ -208,13 +204,5 @@ export const adminNavigation:
         {
             label: 'المحتوى',
             to: '/admin/content',
-        },
-        {
-            label: 'بنك الأسئلة',
-            to: '/admin/assessment-items',
-        },
-        {
-            label: 'قوالب الاختبارات',
-            to: '/admin/exam-templates',
         },
     ];

@@ -19,7 +19,6 @@ import {
     ForbiddenFoundationPage,
     LearnerFoundationPage,
     NotFoundFoundationPage,
-    ProductPlaceholderPage,
 } from './App';
 
 function renderRoute(
@@ -55,10 +54,22 @@ describe('frontend foundation pages', () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText(
-                'مساحة المستخدم والتنقل الأساسي جاهزان.',
-            ),
-        ).toBeInTheDocument();
+            screen.getByRole('link', {
+                name: 'استكشاف المناهج',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/app/curriculum',
+        );
+
+        expect(
+            screen.getByRole('link', {
+                name: 'عرض التقدم والتحليلات',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/app/progress',
+        );
 
         expect(
             document.documentElement.lang,
@@ -83,11 +94,22 @@ describe('frontend foundation pages', () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole('heading', {
-                level: 2,
-                name: 'Admin Studio',
+            screen.getByRole('link', {
+                name: 'إدارة المناهج',
             }),
-        ).toBeInTheDocument();
+        ).toHaveAttribute(
+            'href',
+            '/admin/curricula',
+        );
+
+        expect(
+            screen.getByRole('link', {
+                name: 'فتح استوديو المحتوى',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/admin/content',
+        );
     });
 
     it('renders the forbidden foundation page', () => {
@@ -125,30 +147,6 @@ describe('frontend foundation pages', () => {
                 name: 'الصفحة غير موجودة',
             }),
         ).toBeInTheDocument();
-    });
-
-    it('renders a route-specific product placeholder', () => {
-        renderRoute(
-            '/app/practice',
-            <ProductPlaceholderPage
-                eyebrow="التدريب"
-                title="الممارسة"
-                description="مساحة الممارسة."
-            />,
-        );
-
-        expect(
-            screen.getByRole('heading', {
-                level: 1,
-                name: 'الممارسة',
-            }),
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole('status'),
-        ).toHaveTextContent(
-            'سيتم تفعيل وظائفها في المرحلة المخصصة لها.',
-        );
     });
 
 });

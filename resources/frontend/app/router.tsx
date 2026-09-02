@@ -1,4 +1,5 @@
 import {
+    Navigate,
     createBrowserRouter,
 } from 'react-router-dom';
 
@@ -48,7 +49,6 @@ import {
     LearnerFoundationPage,
     LearnerProductShell,
     NotFoundFoundationPage,
-    ProductPlaceholderPage,
 } from './App';
 
 export const router = createBrowserRouter([
@@ -102,10 +102,9 @@ export const router = createBrowserRouter([
                     {
                         path: 'practice',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="التدريب"
-                                title="الممارسة"
-                                description="ابدأ الممارسة من أحد الدروس أو المناهج المتاحة."
+                            <Navigate
+                                replace
+                                to="/app/curriculum"
                             />
                         ),
                     },
@@ -174,20 +173,18 @@ export const router = createBrowserRouter([
                     {
                         path: 'assessment-items',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="Admin Studio"
-                                title="بنك الأسئلة"
-                                description="إدارة Assessment Items ومراجعاتها وتصنيفها سيتم تفعيلها في P4."
+                            <Navigate
+                                replace
+                                to="/admin/content"
                             />
                         ),
                     },
                     {
                         path: 'exam-templates',
                         element: (
-                            <ProductPlaceholderPage
-                                eyebrow="Admin Studio"
-                                title="قوالب الاختبارات"
-                                description="إدارة Exam Templates ودورة إصدارها سيتم تفعيلها في P4."
+                            <Navigate
+                                replace
+                                to="/admin/content"
                             />
                         ),
                     },

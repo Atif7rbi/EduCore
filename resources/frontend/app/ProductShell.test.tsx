@@ -137,14 +137,14 @@ describe('ProductShell', () => {
     it('marks the current navigation item as active', () => {
         renderShell(
             learnerNavigation,
-            '/app/practice',
+            '/app/progress',
         );
 
         expect(
             screen.getByRole(
                 'link',
                 {
-                    name: 'الممارسة',
+                    name: 'التقدم',
                 },
             ),
         ).toHaveClass(
@@ -162,13 +162,31 @@ describe('ProductShell', () => {
             screen.getByRole(
                 'link',
                 {
-                    name: 'بنك الأسئلة',
+                    name: 'المحتوى',
                 },
             ),
         ).toHaveAttribute(
             'href',
-            '/admin/assessment-items',
+            '/admin/content',
         );
+
+        expect(
+            screen.queryByRole(
+                'link',
+                {
+                    name: 'بنك الأسئلة',
+                },
+            ),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByRole(
+                'link',
+                {
+                    name: 'قوالب الاختبارات',
+                },
+            ),
+        ).not.toBeInTheDocument();
     });
 
     it('logs out and returns to login', async () => {

@@ -4,7 +4,6 @@ import {
 } from 'react-router-dom';
 
 import {
-    Button,
     Container,
     Feedback,
     Surface,
@@ -95,34 +94,44 @@ export function LearnerFoundationPage() {
         <FoundationPage
             eyebrow="مساحة المتعلم"
             title="مرحبًا بك في EduCore"
-            description="هذه هي نقطة البداية لتجربة التعلم. سيتم تفعيل المحتوى والممارسة والاختبارات في المراحل القادمة."
+            description="ابدأ من المناهج المتاحة، ثم انتقل بين الدروس والممارسة والاختبارات وتابع نتائجك وتقدمك."
         >
             <div className="foundation-grid">
                 <Surface className="foundation-card">
                     <div className="foundation-stack">
                         <h2 className="foundation-card__title">
-                            تجربة التعلم
+                            ابدأ التعلم
                         </h2>
 
                         <p className="foundation-card__text">
-                            المناهج والدروس والممارسة والاختبارات ستُبنى فوق هذا الهيكل.
+                            استكشف المناهج والدروس المتاحة وابدأ رحلة التعلم من المحتوى المنشور.
                         </p>
 
-                        <Button>
-                            استكشاف المنصة
-                        </Button>
+                        <Link
+                            className="foundation-link"
+                            to="/app/curriculum"
+                        >
+                            استكشاف المناهج
+                        </Link>
                     </div>
                 </Surface>
 
                 <Surface className="foundation-card">
                     <div className="foundation-stack">
                         <h2 className="foundation-card__title">
-                            حالة المنصة
+                            متابعتك
                         </h2>
 
-                        <Feedback tone="success">
-                            مساحة المستخدم والتنقل الأساسي جاهزان.
-                        </Feedback>
+                        <p className="foundation-card__text">
+                            راجع نتائج محاولاتك وتقدم الدروس وتحليل المهارات من مساحة المتعلم.
+                        </p>
+
+                        <Link
+                            className="foundation-link"
+                            to="/app/progress"
+                        >
+                            عرض التقدم والتحليلات
+                        </Link>
                     </div>
                 </Surface>
             </div>
@@ -135,47 +144,47 @@ export function AdminFoundationPage() {
         <FoundationPage
             eyebrow="إدارة المحتوى"
             title="إدارة EduCore"
-            description="مساحة الإدارة جاهزة لاستقبال أدوات إدارة المناهج والمحتوى في مرحلة P4."
+            description="أدر بنية المناهج والمحتوى التعليمي وأدوات التأليف من مساحة الإدارة."
         >
-            <Surface className="foundation-card">
-                <div className="foundation-stack">
-                    <h2 className="foundation-card__title">
-                        Admin Studio
-                    </h2>
+            <div className="foundation-grid">
+                <Surface className="foundation-card">
+                    <div className="foundation-stack">
+                        <h2 className="foundation-card__title">
+                            المناهج والإصدارات
+                        </h2>
 
-                    <p className="foundation-card__text">
-                        سيتم بناء workflows الإدارة الفعلية في مرحلة P4.
-                    </p>
-                </div>
-            </Surface>
-        </FoundationPage>
-    );
-}
+                        <p className="foundation-card__text">
+                            أنشئ المواد والمناهج والإصدارات وأدر دورة نشرها.
+                        </p>
 
-interface ProductPlaceholderPageProps {
-    eyebrow: string;
-    title: string;
-    description: string;
-}
+                        <Link
+                            className="foundation-link"
+                            to="/admin/curricula"
+                        >
+                            إدارة المناهج
+                        </Link>
+                    </div>
+                </Surface>
 
-export function ProductPlaceholderPage({
-    description,
-    eyebrow,
-    title,
-}: ProductPlaceholderPageProps) {
-    return (
-        <FoundationPage
-            eyebrow={eyebrow}
-            title={title}
-            description={description}
-        >
-            <Surface className="foundation-card">
-                <div className="foundation-stack">
-                    <Feedback>
-                        هذه المساحة جاهزة داخل هيكل المنتج، وسيتم تفعيل وظائفها في المرحلة المخصصة لها.
-                    </Feedback>
-                </div>
-            </Surface>
+                <Surface className="foundation-card">
+                    <div className="foundation-stack">
+                        <h2 className="foundation-card__title">
+                            استوديو المحتوى
+                        </h2>
+
+                        <p className="foundation-card__text">
+                            أدر الموضوعات والمهارات والدروس والأسئلة وأنشطة الممارسة وقوالب الاختبارات.
+                        </p>
+
+                        <Link
+                            className="foundation-link"
+                            to="/admin/content"
+                        >
+                            فتح استوديو المحتوى
+                        </Link>
+                    </div>
+                </Surface>
+            </div>
         </FoundationPage>
     );
 }

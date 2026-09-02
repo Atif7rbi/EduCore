@@ -284,14 +284,24 @@ describe('P2 authentication and product-shell integration', () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole(
+            screen.queryByRole(
                 'link',
                 {
                     name: 'الممارسة',
                 },
             ),
-        ).toHaveClass(
-            'authenticated-shell__nav-link--active',
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.getByRole(
+                'link',
+                {
+                    name: 'المناهج',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/app/curriculum',
         );
     });
 
@@ -392,10 +402,22 @@ describe('P2 authentication and product-shell integration', () => {
             screen.getByRole(
                 'link',
                 {
+                    name: 'المحتوى',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/admin/content',
+        );
+
+        expect(
+            screen.queryByRole(
+                'link',
+                {
                     name: 'بنك الأسئلة',
                 },
             ),
-        ).toBeInTheDocument();
+        ).not.toBeInTheDocument();
 
         act(() => {
             emitSessionFailure({
