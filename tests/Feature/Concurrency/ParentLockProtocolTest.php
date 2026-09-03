@@ -2,8 +2,14 @@
 
 namespace Tests\Feature\Concurrency;
 
+use App\Application\Analytics\CreateEvidenceScope;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
+use App\Application\Attempt\AddRegradeCorrection;
+use App\Application\Attempt\BuildExamAttempt;
+use App\Application\Attempt\FinalizeAttempt;
+use App\Application\Attempt\SaveAttemptResponse;
 use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Exam\BuildExamGeneration;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -114,12 +120,9 @@ PHP_CODE,
         try {
             DB::table('lesson_revision_skills')->insert([
                 'id' => $classificationId,
-                'lesson_revision_id' =>
-                    $fixture['revision_id'],
-                'skill_version_placement_id' =>
-                    $fixture['placement_id'],
-                'curriculum_version_id' =>
-                    $fixture['version_id'],
+                'lesson_revision_id' => $fixture['revision_id'],
+                'skill_version_placement_id' => $fixture['placement_id'],
+                'curriculum_version_id' => $fixture['version_id'],
                 'created_at' => now(),
             ]);
 
@@ -203,12 +206,9 @@ PHP_CODE,
             'assessment_item_revision_skills'
         )->insert([
             'id' => (string) Str::uuid(),
-            'assessment_item_revision_id' =>
-                $fixture['revision_id'],
-            'skill_version_placement_id' =>
-                $fixture['primary_placement_id'],
-            'curriculum_version_id' =>
-                $fixture['version_id'],
+            'assessment_item_revision_id' => $fixture['revision_id'],
+            'skill_version_placement_id' => $fixture['primary_placement_id'],
+            'curriculum_version_id' => $fixture['version_id'],
             'role' => 'primary',
             'created_at' => now(),
         ]);
@@ -223,12 +223,9 @@ PHP_CODE,
                 'assessment_item_revision_skills'
             )->insert([
                 'id' => $classificationId,
-                'assessment_item_revision_id' =>
-                    $fixture['revision_id'],
-                'skill_version_placement_id' =>
-                    $fixture['supporting_placement_id'],
-                'curriculum_version_id' =>
-                    $fixture['version_id'],
+                'assessment_item_revision_id' => $fixture['revision_id'],
+                'skill_version_placement_id' => $fixture['supporting_placement_id'],
+                'curriculum_version_id' => $fixture['version_id'],
                 'role' => 'supporting',
                 'created_at' => now(),
             ]);
@@ -439,12 +436,9 @@ PHP_CODE,
         DB::table('practice_activity_items')->insert([
             'id' => (string) Str::uuid(),
             'practice_activity_id' => $activityId,
-            'assessment_item_revision_id' =>
-                $first['revision_id'],
-            'assessment_item_id' =>
-                $first['item_id'],
-            'curriculum_version_id' =>
-                $versionId,
+            'assessment_item_revision_id' => $first['revision_id'],
+            'assessment_item_id' => $first['item_id'],
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -474,12 +468,9 @@ PHP_CODE,
             DB::table('practice_activity_items')->insert([
                 'id' => (string) Str::uuid(),
                 'practice_activity_id' => $activityId,
-                'assessment_item_revision_id' =>
-                    $second['revision_id'],
-                'assessment_item_id' =>
-                    $second['item_id'],
-                'curriculum_version_id' =>
-                    $versionId,
+                'assessment_item_revision_id' => $second['revision_id'],
+                'assessment_item_id' => $second['item_id'],
+                'curriculum_version_id' => $versionId,
                 'display_order' => 1,
                 'created_at' => now(),
             ]);
@@ -734,7 +725,7 @@ PHP_CODE,
              * COMMIT below.
              */
             app(
-                \App\Application\Attempt\FinalizeAttempt::class
+                FinalizeAttempt::class
             )->execute(
                 $fixture['attempt_id']
             );
@@ -854,7 +845,7 @@ PHP_CODE,
              * its Response lock uncommitted while Session B starts.
              */
             $first = app(
-                \App\Application\Attempt\AddRegradeCorrection::class
+                AddRegradeCorrection::class
             )->execute(
                 $fixture['response_id'],
                 false,
@@ -939,8 +930,7 @@ PHP_CODE,
                     'correction_number'
                 )
                 ->map(
-                    fn ($number): int =>
-                        (int) $number
+                    fn ($number): int => (int) $number
                 )
                 ->all();
 
@@ -965,8 +955,7 @@ PHP_CODE,
 
         DB::table('skills')->insert([
             'id' => $skillId,
-            'name' =>
-                "Concurrency Analytics Skill {$skillId}",
+            'name' => "Concurrency Analytics Skill {$skillId}",
             'description' => null,
             'created_at' => now(),
             'updated_at' => now(),
@@ -978,13 +967,12 @@ PHP_CODE,
          * it does not define repetition/eligibility policy.
          */
         $scope = app(
-            \App\Application\Analytics\CreateEvidenceScope::class
+            CreateEvidenceScope::class
         )->execute(
             'C9 concurrency scope',
             null,
             [
-                'purpose' =>
-                    'parent-lock-concurrency-proof',
+                'purpose' => 'parent-lock-concurrency-proof',
             ],
             1,
         );
@@ -1101,6 +1089,10 @@ PHP_CODE,
         } finally {
             $this->rollbackIfNeeded();
             $this->cleanupChild();
+
+            DB::table('evidence_scopes')
+                ->where('id', $scope->id)
+                ->delete();
         }
     }
 
@@ -1137,7 +1129,7 @@ PHP_CODE,
          * by those generated snippets.
          */
         $childCode = str_replace(
-            "NULL_SIGNAL_FILE",
+            'NULL_SIGNAL_FILE',
             var_export(
                 $this->signalFile,
                 true
@@ -1179,7 +1171,7 @@ PHP_CODE,
     }
 
     /**
-     * @param resource $process
+     * @param  resource  $process
      */
     private function assertBlocked(
         $process,
@@ -1202,7 +1194,7 @@ PHP_CODE,
     }
 
     /**
-     * @param resource $process
+     * @param  resource  $process
      * @return array<string, mixed>
      */
     private function finishChild(
@@ -1265,8 +1257,7 @@ PHP_CODE,
     private function cleanupChild(): void
     {
         foreach (
-            $this->childPipes
-            as $pipe
+            $this->childPipes as $pipe
         ) {
             if (is_resource($pipe)) {
                 fclose($pipe);
@@ -1455,8 +1446,7 @@ PHP_CODE,
         $placements = [];
 
         foreach (
-            ['primary', 'supporting']
-            as $kind
+            ['primary', 'supporting'] as $kind
         ) {
             $skillId = (string) Str::uuid();
             $placementId =
@@ -1464,8 +1454,7 @@ PHP_CODE,
 
             DB::table('skills')->insert([
                 'id' => $skillId,
-                'name' =>
-                    "Concurrency {$kind} Skill {$skillId}",
+                'name' => "Concurrency {$kind} Skill {$skillId}",
                 'description' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -1476,8 +1465,7 @@ PHP_CODE,
             )->insert([
                 'id' => $placementId,
                 'skill_id' => $skillId,
-                'curriculum_version_id' =>
-                    $versionId,
+                'curriculum_version_id' => $versionId,
                 'created_at' => now(),
             ]);
 
@@ -1489,8 +1477,7 @@ PHP_CODE,
             'id' => $itemId,
             'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                "Concurrency Item {$itemId}",
+            'internal_label' => "Concurrency Item {$itemId}",
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -1523,10 +1510,8 @@ PHP_CODE,
             'version_id' => $versionId,
             'item_id' => $itemId,
             'revision_id' => $revisionId,
-            'primary_placement_id' =>
-                $placements['primary'],
-            'supporting_placement_id' =>
-                $placements['supporting'],
+            'primary_placement_id' => $placements['primary'],
+            'supporting_placement_id' => $placements['supporting'],
         ];
     }
 
@@ -1537,12 +1522,9 @@ PHP_CODE,
             'assessment_item_revision_skills'
         )->insert([
             'id' => (string) Str::uuid(),
-            'assessment_item_revision_id' =>
-                $fixture['revision_id'],
-            'skill_version_placement_id' =>
-                $fixture['primary_placement_id'],
-            'curriculum_version_id' =>
-                $fixture['version_id'],
+            'assessment_item_revision_id' => $fixture['revision_id'],
+            'skill_version_placement_id' => $fixture['primary_placement_id'],
+            'curriculum_version_id' => $fixture['version_id'],
             'role' => 'primary',
             'created_at' => now(),
         ]);
@@ -1578,10 +1560,8 @@ PHP_CODE,
 
         DB::table('exam_templates')->insert([
             'id' => $templateId,
-            'curriculum_version_id' =>
-                $versionId,
-            'name' =>
-                "Concurrency Template {$templateId}",
+            'curriculum_version_id' => $versionId,
+            'name' => "Concurrency Template {$templateId}",
             'description' => null,
             'status' => 'active',
             'published_version_id' => null,
@@ -1593,20 +1573,17 @@ PHP_CODE,
             'exam_template_versions'
         )->insert([
             'id' => $templateVersionId,
-            'exam_template_id' =>
-                $templateId,
-            'curriculum_version_id' =>
-                $versionId,
+            'exam_template_id' => $templateId,
+            'curriculum_version_id' => $versionId,
             'version_number' => 1,
             'label' => 'v1',
             'status' => 'draft',
-            'rules_payload' =>
-                json_encode(
-                    [
-                        'question_count' => 1,
-                    ],
-                    JSON_THROW_ON_ERROR
-                ),
+            'rules_payload' => json_encode(
+                [
+                    'question_count' => 1,
+                ],
+                JSON_THROW_ON_ERROR
+            ),
             'rules_schema_version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -1625,7 +1602,7 @@ PHP_CODE,
             ]);
 
         $generation = app(
-            \App\Application\Exam\BuildExamGeneration::class
+            BuildExamGeneration::class
         )->execute(
             $templateVersionId,
             'concurrency-generator-v1',
@@ -1633,12 +1610,10 @@ PHP_CODE,
                 .Str::uuid(),
             [
                 [
-                    'assessment_item_revision_id' =>
-                        $assessment[
+                    'assessment_item_revision_id' => $assessment[
                             'revision_id'
                         ],
-                    'assessment_item_id' =>
-                        $assessment[
+                    'assessment_item_id' => $assessment[
                             'item_id'
                         ],
                 ],
@@ -1646,16 +1621,11 @@ PHP_CODE,
         );
 
         return [
-            'version_id' =>
-                $versionId,
-            'template_version_id' =>
-                $templateVersionId,
-            'generation_id' =>
-                $generation->id,
-            'revision_id' =>
-                $assessment['revision_id'],
-            'item_id' =>
-                $assessment['item_id'],
+            'version_id' => $versionId,
+            'template_version_id' => $templateVersionId,
+            'generation_id' => $generation->id,
+            'revision_id' => $assessment['revision_id'],
+            'item_id' => $assessment['item_id'],
         ];
     }
 
@@ -1678,7 +1648,7 @@ PHP_CODE,
         ] = $this->createLearner();
 
         $attempt = app(
-            \App\Application\Attempt\BuildExamAttempt::class
+            BuildExamAttempt::class
         )->execute(
             $learnerId,
             $generation['generation_id'],
@@ -1700,7 +1670,7 @@ PHP_CODE,
 
         if ($answer) {
             app(
-                \App\Application\Attempt\SaveAttemptResponse::class
+                SaveAttemptResponse::class
             )->execute(
                 $attemptItemId,
                 [
@@ -1712,7 +1682,7 @@ PHP_CODE,
 
         if ($finalize) {
             app(
-                \App\Application\Attempt\FinalizeAttempt::class
+                FinalizeAttempt::class
             )->execute(
                 $attempt->id
             );
@@ -1733,18 +1703,12 @@ PHP_CODE,
         }
 
         return [
-            'learner_id' =>
-                $learnerId,
-            'attempt_id' =>
-                $attempt->id,
-            'attempt_item_id' =>
-                $attemptItemId,
-            'response_id' =>
-                $responseId,
-            'generation_id' =>
-                $generation['generation_id'],
-            'version_id' =>
-                $generation['version_id'],
+            'learner_id' => $learnerId,
+            'attempt_id' => $attempt->id,
+            'attempt_item_id' => $attemptItemId,
+            'response_id' => $responseId,
+            'generation_id' => $generation['generation_id'],
+            'version_id' => $generation['version_id'],
         ];
     }
 
@@ -1759,8 +1723,7 @@ PHP_CODE,
         DB::table('users')->insert([
             'id' => $userId,
             'name' => "Concurrency Learner {$userId}",
-            'email' =>
-                "concurrency-{$userId}@example.test",
+            'email' => "concurrency-{$userId}@example.test",
             'password' => 'not-used',
             'status' => 'active',
             'role' => 'student',
@@ -1785,7 +1748,7 @@ PHP_CODE,
     ): void {
         (new PublishCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($versionId);
     }
@@ -1795,7 +1758,7 @@ PHP_CODE,
     ): void {
         (new ReleaseLessonRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
     }
@@ -1805,7 +1768,7 @@ PHP_CODE,
     ): void {
         (new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
     }

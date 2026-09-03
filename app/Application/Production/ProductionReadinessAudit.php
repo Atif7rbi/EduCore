@@ -11,8 +11,7 @@ class ProductionReadinessAudit
         private readonly ProductionEnvironmentContract $environment,
         private readonly DatabaseReadinessCheck $database,
         private readonly ProductionSmokeCheck $smoke,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{
@@ -29,12 +28,9 @@ class ProductionReadinessAudit
         $blockers = [];
 
         $environmentResult = [
-            'app_environment' =>
-                app()->environment(),
-            'production_contract_checked' =>
-                false,
-            'production_contract_ok' =>
-                null,
+            'app_environment' => app()->environment(),
+            'production_contract_checked' => false,
+            'production_contract_ok' => null,
         ];
 
         if (app()->environment('production')) {
@@ -65,8 +61,8 @@ class ProductionReadinessAudit
         $databaseResult = [
             'ok' => false,
             'server_version' => null,
-            'minimum_supported_major' =>
-                DatabaseReadinessCheck::MINIMUM_POSTGRES_MAJOR,
+            'minimum_supported_version' => DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION,
+            'minimum_supported_version_num' => DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION_NUM,
         ];
 
         try {
@@ -95,18 +91,15 @@ SQL
 
             $databaseResult = [
                 'ok' => false,
-                'server_version' =>
-                    $versionRow !== null
+                'server_version' => $versionRow !== null
                         ? (string) $versionRow->server_version
                         : null,
-                'server_version_num' =>
-                    $versionRow !== null
+                'server_version_num' => $versionRow !== null
                         ? (int) $versionRow->server_version_num
                         : null,
-                'minimum_supported_major' =>
-                    DatabaseReadinessCheck::MINIMUM_POSTGRES_MAJOR,
-                'message' =>
-                    $exception->getMessage(),
+                'minimum_supported_version' => DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION,
+                'minimum_supported_version_num' => DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION_NUM,
+                'message' => $exception->getMessage(),
             ];
 
             $blockers[] =
@@ -128,8 +121,7 @@ SQL
         } catch (RuntimeException $exception) {
             $smokeResult = [
                 'ok' => false,
-                'message' =>
-                    $exception->getMessage(),
+                'message' => $exception->getMessage(),
             ];
 
             $blockers[] =
@@ -159,25 +151,19 @@ SQL
             && $databaseResult['ok'] === true;
 
         return [
-            'implementation_ready' =>
-                $implementationReady,
+            'implementation_ready' => $implementationReady,
 
-            'deployment_ready' =>
-                $deploymentReady,
+            'deployment_ready' => $deploymentReady,
 
-            'environment' =>
-                $environmentResult,
+            'environment' => $environmentResult,
 
-            'database' =>
-                $databaseResult,
+            'database' => $databaseResult,
 
-            'smoke' =>
-                $smokeResult,
+            'smoke' => $smokeResult,
 
-            'blockers' =>
-                array_values(
-                    array_unique($blockers)
-                ),
+            'blockers' => array_values(
+                array_unique($blockers)
+            ),
         ];
     }
 }

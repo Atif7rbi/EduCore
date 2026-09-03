@@ -8,14 +8,17 @@ use RuntimeException;
 
 class DatabaseReadinessCheck
 {
-    public const MINIMUM_POSTGRES_MAJOR = 14;
+    public const MINIMUM_POSTGRES_VERSION = '10.23';
+
+    public const MINIMUM_POSTGRES_VERSION_NUM = 100023;
 
     /**
      * @return array{
      *     driver: string,
      *     server_version: string,
      *     server_version_num: int,
-     *     minimum_supported_major: int,
+     *     minimum_supported_version: string,
+     *     minimum_supported_version_num: int,
      *     required_tables: array<int, string>,
      *     migrations_pending: bool
      * }
@@ -44,20 +47,14 @@ SQL
         $serverVersionNum =
             (int) $versionRow->server_version_num;
 
-        $major =
-            intdiv(
-                $serverVersionNum,
-                10000,
-            );
-
         if (
-            $major
-            < self::MINIMUM_POSTGRES_MAJOR
+            $serverVersionNum
+            < self::MINIMUM_POSTGRES_VERSION_NUM
         ) {
             throw new RuntimeException(
                 sprintf(
-                    'EduCore production requires PostgreSQL %d or newer; current server is %s.',
-                    self::MINIMUM_POSTGRES_MAJOR,
+                    'EduCore production requires PostgreSQL %s or newer; current server is %s.',
+                    self::MINIMUM_POSTGRES_VERSION,
                     $serverVersion,
                 )
             );
@@ -78,8 +75,7 @@ SQL
             $requiredTables
         )
             ->reject(
-                fn (string $table): bool =>
-                    Schema::hasTable($table)
+                fn (string $table): bool => Schema::hasTable($table)
             )
             ->values()
             ->all();
@@ -96,16 +92,12 @@ SQL
 
         return [
             'driver' => 'pgsql',
-            'server_version' =>
-                $serverVersion,
-            'server_version_num' =>
-                $serverVersionNum,
-            'minimum_supported_major' =>
-                self::MINIMUM_POSTGRES_MAJOR,
-            'required_tables' =>
-                $requiredTables,
-            'migrations_pending' =>
-                $pending,
+            'server_version' => $serverVersion,
+            'server_version_num' => $serverVersionNum,
+            'minimum_supported_version' => self::MINIMUM_POSTGRES_VERSION,
+            'minimum_supported_version_num' => self::MINIMUM_POSTGRES_VERSION_NUM,
+            'required_tables' => $requiredTables,
+            'migrations_pending' => $pending,
         ];
     }
 

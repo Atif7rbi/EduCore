@@ -85,11 +85,11 @@ class ProductionReadinessAuditCommand extends Command
         }
 
         $this->line(
-            'Minimum PostgreSQL major: '
+            'Minimum supported PostgreSQL: '
             .$result[
                 'database'
             ][
-                'minimum_supported_major'
+                'minimum_supported_version'
             ]
         );
 
@@ -115,8 +115,7 @@ class ProductionReadinessAuditCommand extends Command
             );
 
             foreach (
-                $result['blockers']
-                as $blocker
+                $result['blockers'] as $blocker
             ) {
                 $this->line(
                     '- '.$blocker

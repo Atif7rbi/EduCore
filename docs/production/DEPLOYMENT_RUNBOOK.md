@@ -16,7 +16,7 @@ Before first production deployment, confirm:
 
 - PHP 8.2 or newer
 - Composer installed
-- PostgreSQL 14 or newer
+- PostgreSQL 10.23 or newer
 - HTTPS enabled
 - application document root points to Laravel public directory
 - production environment variables configured

@@ -42,9 +42,9 @@ class ProductionDatabaseCheckCommand extends Command
         );
 
         $this->line(
-            'Minimum supported major: '
+            'Minimum supported PostgreSQL: '
             .$result[
-                'minimum_supported_major'
+                'minimum_supported_version'
             ]
         );
 

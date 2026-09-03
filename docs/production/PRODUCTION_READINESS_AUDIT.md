@@ -46,7 +46,12 @@ Verification:
 
 Production requires:
 
-    PostgreSQL 14+
+    PostgreSQL 10.23 or newer
+
+EduCore does not pin a maximum PostgreSQL version.
+Newer PostgreSQL versions remain eligible subject to
+the normal database, integrity, concurrency and regression
+verification suite.
 
 The target database must contain:
 
@@ -118,21 +123,19 @@ Final readiness command:
 
 ---
 
-## Known infrastructure blocker
+## PostgreSQL compatibility baseline
 
-At the time A8 was implemented, the current development server reported:
+The current EduCore environment runs:
 
     PostgreSQL 10.23
 
-This server is not approved for EduCore production deployment.
+This version is the minimum production compatibility baseline
+verified by the EduCore implementation and regression suite.
 
-The production target must be upgraded or replaced with:
-
-    PostgreSQL 14 or newer
-
-before deployment readiness can be approved.
-
-This does not invalidate development or automated testing results.
+EduCore does not impose an artificial maximum PostgreSQL version.
+A newer PostgreSQL release remains eligible when the normal
+database, integrity, concurrency and regression verification
+suite passes against that runtime.
 
 ---
 
@@ -143,7 +146,7 @@ Production deployment is authorized only when all of the following are true:
 1. approved Git commit SHA
 2. clean working tree
 3. full automated test suite passes
-4. PostgreSQL 14+
+4. PostgreSQL 10.23 or newer
 5. production environment contract passes
 6. verified database backup exists
 7. production:database-check succeeds

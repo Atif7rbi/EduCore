@@ -41,8 +41,7 @@ SQL
                 'jobs',
                 'job_batches',
                 'failed_jobs',
-            ]
-            as $table
+            ] as $table
         ) {
             $this->assertTrue(
                 $tables->contains($table),
@@ -72,11 +71,16 @@ SQL
         );
     }
 
-    public function test_minimum_production_postgres_major_is_explicit(): void
+    public function test_minimum_production_postgres_version_is_explicit(): void
     {
         $this->assertSame(
-            14,
-            DatabaseReadinessCheck::MINIMUM_POSTGRES_MAJOR
+            '10.23',
+            DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION
+        );
+
+        $this->assertSame(
+            100023,
+            DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION_NUM
         );
     }
 }

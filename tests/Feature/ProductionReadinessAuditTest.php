@@ -54,15 +54,9 @@ SELECT
 SQL
             )->server_version_num;
 
-        $major =
-            intdiv(
-                $versionNum,
-                10000
-            );
-
         if (
-            $major
-            < DatabaseReadinessCheck::MINIMUM_POSTGRES_MAJOR
+            $versionNum
+            < DatabaseReadinessCheck::MINIMUM_POSTGRES_VERSION_NUM
         ) {
             $this->assertFalse(
                 $result[

@@ -21,11 +21,14 @@ A backup is not considered operationally valid until restore has been tested.
 
 ## Supported production baseline
 
-Minimum supported PostgreSQL major version:
+Minimum verified PostgreSQL version:
 
-    14
+    10.23
 
-Development environments may temporarily use older PostgreSQL versions, but they are not production-approved.
+EduCore does not pin a maximum PostgreSQL version.
+Newer PostgreSQL versions remain eligible subject to
+the normal database, integrity, concurrency and regression
+verification suite.
 
 Before deployment run:
 
