@@ -1,5 +1,6 @@
 import {
     FormEvent,
+    useMemo,
     useState,
 } from 'react';
 import {
@@ -23,7 +24,6 @@ import {
     fetchLessons,
     updateLesson,
 } from './api';
-
 import {
     LessonRevisionsPanel,
 } from './LessonRevisionsPanel';
@@ -37,9 +37,7 @@ interface LessonsPanelProps {
     version: CurriculumVersion;
 }
 
-function requestId(
-    error: unknown,
-): string | null {
+function requestId(error: unknown) {
     return error instanceof EduCoreApiError
         ? error.requestId ?? null
         : null;
@@ -57,10 +55,7 @@ function LessonFailure({
     return (
         <Feedback tone="danger">
             <div>
-                <strong>
-                    {children}
-                </strong>
-
+                <strong>{children}</strong>
                 {id ? (
                     <p className="learner-read-request-id">
                         رقم الطلب: {id}
@@ -71,183 +66,105 @@ function LessonFailure({
     );
 }
 
-function lessonStatusLabel(
-    status: Lesson['status'],
-) {
+function lessonStatusLabel(status: Lesson['status']) {
     switch (status) {
         case 'draft':
             return 'مسودة';
         case 'published':
             return 'منشور';
         case 'retired':
-            return 'متقاعد';
+            return 'موقوف';
     }
 }
 
-export function LessonsPanel({
-    version,
-}: LessonsPanelProps) {
-    const queryClient =
-        useQueryClient();
+export function LessonsPanel({ version }: LessonsPanelProps) {
+    const queryClient = useQueryClient();
+    const editable = version.status === 'draft';
 
-    const editable =
-        version.status === 'draft';
+    const [showCreate, setShowCreate] = useState(false);
+    const [newTitle, setNewTitle] = useState('');
+    const [newDescription, setNewDescription] = useState('');
+    const [newDisplayOrder, setNewDisplayOrder] = useState('0');
+    const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+    const [authoringLessonId, setAuthoringLessonId] = useState<string | null>(null);
+    const [editTitle, setEditTitle] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editDisplayOrder, setEditDisplayOrder] = useState('0');
 
-    const [
-        newTitle,
-        setNewTitle,
-    ] = useState('');
+    const lessonsQuery = useQuery({
+        queryKey: adminLessonsKey(version.id),
+        queryFn: () => fetchLessons(version.id),
+    });
 
-    const [
-        newDescription,
-        setNewDescription,
-    ] = useState('');
-
-    const [
-        newDisplayOrder,
-        setNewDisplayOrder,
-    ] = useState('0');
-
-    const [
-        editingLesson,
-        setEditingLesson,
-    ] = useState<Lesson | null>(
-        null,
+    const authoringLesson = useMemo(
+        () =>
+            lessonsQuery.data?.find(
+                (lesson) => lesson.id === authoringLessonId,
+            ) ?? null,
+        [authoringLessonId, lessonsQuery.data],
     );
-
-    const [
-        authoringLesson,
-        setAuthoringLesson,
-    ] = useState<Lesson | null>(
-        null,
-    );
-
-    const [
-        editTitle,
-        setEditTitle,
-    ] = useState('');
-
-    const [
-        editDescription,
-        setEditDescription,
-    ] = useState('');
-
-    const [
-        editDisplayOrder,
-        setEditDisplayOrder,
-    ] = useState('0');
-
-    const lessonsQuery =
-        useQuery({
-            queryKey:
-                adminLessonsKey(
-                    version.id,
-                ),
-            queryFn: () =>
-                fetchLessons(
-                    version.id,
-                ),
-        });
 
     async function invalidate() {
-        await queryClient
-            .invalidateQueries({
-                queryKey:
-                    adminLessonsKey(
-                        version.id,
-                    ),
-            });
+        await queryClient.invalidateQueries({
+            queryKey: adminLessonsKey(version.id),
+        });
     }
 
-    const createMutation =
-        useMutation({
-            mutationFn: () =>
-                createLesson(
-                    version.id,
-                    {
-                        title:
-                            newTitle.trim(),
-                        description:
-                            newDescription
-                                .trim()
-                            || null,
-                        display_order:
-                            Number(
-                                newDisplayOrder,
-                            ),
-                    },
-                ),
-            onSuccess: async () => {
-                setNewTitle('');
-                setNewDescription('');
-                setNewDisplayOrder(
-                    '0',
-                );
+    const createMutation = useMutation({
+        mutationFn: () =>
+            createLesson(version.id, {
+                title: newTitle.trim(),
+                description: newDescription.trim() || null,
+                display_order: Number(newDisplayOrder),
+            }),
+        onSuccess: async () => {
+            setNewTitle('');
+            setNewDescription('');
+            setNewDisplayOrder('0');
+            setShowCreate(false);
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
-
-    const updateMutation =
-        useMutation({
-            mutationFn: ({
-                lessonId,
+    const updateMutation = useMutation({
+        mutationFn: ({
+            lessonId,
+            title,
+            description,
+            displayOrder,
+        }: {
+            lessonId: string;
+            title: string;
+            description: string | null;
+            displayOrder: number;
+        }) =>
+            updateLesson(lessonId, {
                 title,
                 description,
-                displayOrder,
-            }: {
-                lessonId: string;
-                title: string;
-                description:
-                    string | null;
-                displayOrder: number;
-            }) =>
-                updateLesson(
-                    lessonId,
-                    {
-                        title,
-                        description,
-                        display_order:
-                            displayOrder,
-                    },
-                ),
-            onSuccess: async () => {
-                setEditingLesson(
-                    null,
-                );
-                setEditTitle('');
-                setEditDescription('');
-                setEditDisplayOrder(
-                    '0',
-                );
+                display_order: displayOrder,
+            }),
+        onSuccess: async () => {
+            setEditingLesson(null);
+            setEditTitle('');
+            setEditDescription('');
+            setEditDisplayOrder('0');
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
-
-    function validOrder(
-        value: string,
-    ) {
-        const number =
-            Number(value);
-
-        return Number.isInteger(
-            number,
-        ) && number >= 0;
+    function validOrder(value: string) {
+        const number = Number(value);
+        return Number.isInteger(number) && number >= 0;
     }
 
-    function submitCreate(
-        event: FormEvent,
-    ) {
+    function submitCreate(event: FormEvent) {
         event.preventDefault();
 
         if (
             !editable
             || createMutation.isPending
             || newTitle.trim() === ''
-            || !validOrder(
-                newDisplayOrder,
-            )
+            || !validOrder(newDisplayOrder)
         ) {
             return;
         }
@@ -255,304 +172,185 @@ export function LessonsPanel({
         createMutation.mutate();
     }
 
-    function beginEdit(
-        lesson: Lesson,
-    ) {
-        if (
-            !editable
-            || lesson.status
-                !== 'draft'
-        ) {
+    function beginEdit(lesson: Lesson) {
+        if (!editable || lesson.status !== 'draft') {
             return;
         }
 
-        setEditingLesson(
-            lesson,
-        );
-        setEditTitle(
-            lesson.title,
-        );
-        setEditDescription(
-            lesson.description
-            ?? '',
-        );
-        setEditDisplayOrder(
-            String(
-                lesson.display_order,
-            ),
-        );
+        setEditingLesson(lesson);
+        setEditTitle(lesson.title);
+        setEditDescription(lesson.description ?? '');
+        setEditDisplayOrder(String(lesson.display_order));
     }
 
-    function submitEdit(
-        event: FormEvent,
-    ) {
+    function submitEdit(event: FormEvent) {
         event.preventDefault();
 
         if (
             !editable
             || !editingLesson
-            || editingLesson.status
-                !== 'draft'
+            || editingLesson.status !== 'draft'
             || updateMutation.isPending
             || editTitle.trim() === ''
-            || !validOrder(
-                editDisplayOrder,
-            )
+            || !validOrder(editDisplayOrder)
         ) {
             return;
         }
 
         updateMutation.mutate({
-            lessonId:
-                editingLesson.id,
-            title:
-                editTitle.trim(),
-            description:
-                editDescription
-                    .trim()
-                || null,
-            displayOrder:
-                Number(
-                    editDisplayOrder,
-                ),
+            lessonId: editingLesson.id,
+            title: editTitle.trim(),
+            description: editDescription.trim() || null,
+            displayOrder: Number(editDisplayOrder),
         });
     }
 
     return (
-        <Surface>
-            <div className="foundation-stack admin-content-panel">
-                <div>
-                    <h2 className="foundation-card__title">
-                        Lessons
-                    </h2>
+        <div className="grid gap-4">
+            <Surface>
+                <div className="foundation-stack admin-content-panel">
+                    <div className="admin-content-revisions__heading">
+                        <div>
+                            <h2 className="foundation-card__title">
+                                الدروس
+                            </h2>
+                            <p className="foundation-page__description">
+                                أنشئ الدروس ورتبها ثم افتح الدرس لإدارة محتواه ومهاراته ونشره.
+                            </p>
+                        </div>
 
-                    <p className="foundation-page__description">
-                        إنشاء الدروس وترتيبها
-                        داخل إصدار المنهج.
-                    </p>
-                </div>
+                        {editable ? (
+                            <Button
+                                type="button"
+                                onClick={() => setShowCreate((value) => !value)}
+                            >
+                                {showCreate ? 'إغلاق' : 'إضافة درس'}
+                            </Button>
+                        ) : null}
+                    </div>
 
-                {!editable ? (
-                    <Feedback>
-                        هذه النسخة للقراءة
-                        فقط؛ لا يمكن إنشاء
-                        أو تعديل الدروس.
-                    </Feedback>
-                ) : (
-                    <form
-                        className="admin-content-form"
-                        onSubmit={
-                            submitCreate
-                        }
-                    >
-                        <label>
-                            عنوان الدرس
+                    {!editable ? (
+                        <Feedback>
+                            هذا الإصدار للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.
+                        </Feedback>
+                    ) : null}
 
-                            <input
-                                aria-label="عنوان الدرس الجديد"
-                                value={
-                                    newTitle
-                                }
-                                maxLength={
-                                    255
-                                }
-                                required
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setNewTitle(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
+                    {showCreate && editable ? (
+                        <form className="admin-content-form" onSubmit={submitCreate}>
+                            <label>
+                                عنوان الدرس
+                                <input
+                                    aria-label="عنوان الدرس الجديد"
+                                    value={newTitle}
+                                    maxLength={255}
+                                    required
+                                    onChange={(event) => setNewTitle(event.target.value)}
+                                />
+                            </label>
 
-                        <label>
-                            الوصف
+                            <label>
+                                الوصف المختصر
+                                <textarea
+                                    aria-label="وصف الدرس الجديد"
+                                    rows={3}
+                                    value={newDescription}
+                                    onChange={(event) => setNewDescription(event.target.value)}
+                                />
+                            </label>
 
-                            <textarea
-                                aria-label="وصف الدرس الجديد"
-                                rows={3}
-                                value={
-                                    newDescription
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setNewDescription(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
+                            <label>
+                                ترتيب الظهور
+                                <input
+                                    aria-label="ترتيب الدرس الجديد"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    required
+                                    value={newDisplayOrder}
+                                    onChange={(event) => setNewDisplayOrder(event.target.value)}
+                                />
+                            </label>
 
-                        <label>
-                            ترتيب الظهور
+                            <div className="admin-content-actions">
+                                <Button type="submit" disabled={createMutation.isPending}>
+                                    حفظ الدرس
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => setShowCreate(false)}
+                                >
+                                    إلغاء
+                                </Button>
+                            </div>
+                        </form>
+                    ) : null}
 
-                            <input
-                                aria-label="ترتيب الدرس الجديد"
-                                type="number"
-                                min="0"
-                                step="1"
-                                required
-                                value={
-                                    newDisplayOrder
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setNewDisplayOrder(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
+                    {createMutation.isError ? (
+                        <LessonFailure error={createMutation.error}>
+                            تعذر إنشاء الدرس.
+                        </LessonFailure>
+                    ) : null}
 
-                        <Button
-                            type="submit"
-                            disabled={
-                                createMutation
-                                    .isPending
-                            }
-                        >
-                            إضافة Lesson
-                        </Button>
-                    </form>
-                )}
+                    {updateMutation.isError ? (
+                        <LessonFailure error={updateMutation.error}>
+                            تعذر تعديل الدرس.
+                        </LessonFailure>
+                    ) : null}
 
-                {createMutation.isError ? (
-                    <LessonFailure
-                        error={
-                            createMutation
-                                .error
-                        }
-                    >
-                        تعذر إنشاء الدرس.
-                    </LessonFailure>
-                ) : null}
-
-                {updateMutation.isError ? (
-                    <LessonFailure
-                        error={
-                            updateMutation
-                                .error
-                        }
-                    >
-                        تعذر تعديل الدرس.
-                    </LessonFailure>
-                ) : null}
-
-                {lessonsQuery.isPending ? (
-                    <p>
-                        جار تحميل الدروس…
-                    </p>
-                ) : lessonsQuery.isError ? (
-                    <LessonFailure
-                        error={
-                            lessonsQuery.error
-                        }
-                    >
-                        تعذر تحميل الدروس.
-                    </LessonFailure>
-                ) : lessonsQuery.data
-                    .length === 0 ? (
-                    <Feedback>
-                        لا توجد دروس في هذا
-                        الإصدار.
-                    </Feedback>
-                ) : (
-                    <div className="admin-content-list">
-                        {lessonsQuery.data.map(
-                            (lesson) => (
+                    {lessonsQuery.isPending ? (
+                        <p>جار تحميل الدروس…</p>
+                    ) : lessonsQuery.isError ? (
+                        <LessonFailure error={lessonsQuery.error}>
+                            تعذر تحميل الدروس.
+                        </LessonFailure>
+                    ) : lessonsQuery.data.length === 0 ? (
+                        <Feedback>
+                            لا توجد دروس في هذا الإصدار حتى الآن.
+                        </Feedback>
+                    ) : (
+                        <div className="admin-content-list">
+                            {lessonsQuery.data.map((lesson) => (
                                 <article
-                                    key={
-                                        lesson.id
-                                    }
+                                    key={lesson.id}
                                     className="admin-content-list__item"
                                 >
-                                    {editingLesson
-                                        ?.id
-                                    === lesson.id ? (
+                                    {editingLesson?.id === lesson.id ? (
                                         <form
                                             className="admin-content-form admin-content-list__editor"
-                                            onSubmit={
-                                                submitEdit
-                                            }
+                                            onSubmit={submitEdit}
                                         >
                                             <label>
                                                 عنوان الدرس
-
                                                 <input
                                                     aria-label="تعديل عنوان الدرس"
-                                                    value={
-                                                        editTitle
-                                                    }
-                                                    maxLength={
-                                                        255
-                                                    }
+                                                    value={editTitle}
+                                                    maxLength={255}
                                                     required
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        setEditTitle(
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
+                                                    onChange={(event) => setEditTitle(event.target.value)}
                                                 />
                                             </label>
 
                                             <label>
-                                                الوصف
-
+                                                الوصف المختصر
                                                 <textarea
                                                     aria-label="تعديل وصف الدرس"
-                                                    rows={
-                                                        3
-                                                    }
-                                                    value={
-                                                        editDescription
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        setEditDescription(
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
+                                                    rows={3}
+                                                    value={editDescription}
+                                                    onChange={(event) => setEditDescription(event.target.value)}
                                                 />
                                             </label>
 
                                             <label>
                                                 ترتيب الظهور
-
                                                 <input
                                                     aria-label="تعديل ترتيب الدرس"
                                                     type="number"
                                                     min="0"
                                                     step="1"
                                                     required
-                                                    value={
-                                                        editDisplayOrder
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        setEditDisplayOrder(
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
+                                                    value={editDisplayOrder}
+                                                    onChange={(event) => setEditDisplayOrder(event.target.value)}
                                                 />
                                             </label>
 
@@ -560,27 +358,15 @@ export function LessonsPanel({
                                                 <Button
                                                     size="sm"
                                                     type="submit"
-                                                    disabled={
-                                                        updateMutation
-                                                            .isPending
-                                                    }
+                                                    disabled={updateMutation.isPending}
                                                 >
                                                     حفظ
                                                 </Button>
-
                                                 <Button
                                                     size="sm"
                                                     type="button"
                                                     variant="secondary"
-                                                    disabled={
-                                                        updateMutation
-                                                            .isPending
-                                                    }
-                                                    onClick={() =>
-                                                        setEditingLesson(
-                                                            null,
-                                                        )
-                                                    }
+                                                    onClick={() => setEditingLesson(null)}
                                                 >
                                                     إلغاء
                                                 </Button>
@@ -589,31 +375,13 @@ export function LessonsPanel({
                                     ) : (
                                         <>
                                             <div>
-                                                <strong>
-                                                    {
-                                                        lesson.title
-                                                    }
-                                                </strong>
-
+                                                <strong>{lesson.title}</strong>
                                                 <p className="admin-content-list__meta">
-                                                    الحالة:{' '}
-                                                    {
-                                                        lessonStatusLabel(
-                                                            lesson.status,
-                                                        )
-                                                    }
-                                                    {' · '}
-                                                    الترتيب:{' '}
-                                                    {
-                                                        lesson.display_order
-                                                    }
+                                                    {lessonStatusLabel(lesson.status)} · ترتيب الظهور: {lesson.display_order}
                                                 </p>
-
                                                 {lesson.description ? (
                                                     <p className="admin-content-list__meta">
-                                                        {
-                                                            lesson.description
-                                                        }
+                                                        {lesson.description}
                                                     </p>
                                                 ) : null}
                                             </div>
@@ -621,59 +389,40 @@ export function LessonsPanel({
                                             <div className="admin-content-actions">
                                                 <Button
                                                     size="sm"
-                                                    variant="secondary"
                                                     type="button"
-                                                    onClick={() =>
-                                                        setAuthoringLesson(
-                                                            lesson,
-                                                        )
-                                                    }
+                                                    onClick={() => setAuthoringLessonId(lesson.id)}
                                                 >
-                                                    المراجعات
+                                                    إدارة الدرس
                                                 </Button>
 
-                                                {editable
-                                                && lesson.status
-                                                    === 'draft' ? (
+                                                {editable && lesson.status === 'draft' ? (
                                                     <Button
                                                         size="sm"
+                                                        type="button"
                                                         variant="secondary"
-                                                        disabled={
-                                                            updateMutation
-                                                                .isPending
-                                                        }
-                                                        onClick={() =>
-                                                            beginEdit(
-                                                                lesson,
-                                                            )
-                                                        }
+                                                        disabled={updateMutation.isPending}
+                                                        onClick={() => beginEdit(lesson)}
                                                     >
-                                                        تعديل
+                                                        تعديل البيانات
                                                     </Button>
                                                 ) : null}
                                             </div>
                                         </>
                                     )}
                                 </article>
-                            ),
-                        )}
-                    </div>
-                )}
-            </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </Surface>
 
             {authoringLesson ? (
                 <LessonRevisionsPanel
                     version={version}
-                    lesson={
-                        authoringLesson
-                    }
-                    onClose={() =>
-                        setAuthoringLesson(
-                            null,
-                        )
-                    }
+                    lesson={authoringLesson}
+                    onClose={() => setAuthoringLessonId(null)}
                 />
             ) : null}
-        </Surface>
+        </div>
     );
 }
