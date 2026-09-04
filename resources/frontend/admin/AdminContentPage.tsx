@@ -23,15 +23,12 @@ import {
 import {
     LessonsPanel,
 } from './content/LessonsPanel';
-
 import {
     AssessmentItemsPanel,
 } from './content/AssessmentItemsPanel';
-
 import {
     PracticeActivitiesPanel,
 } from './content/PracticeActivitiesPanel';
-
 import {
     ExamTemplatesPanel,
 } from './content/ExamTemplatesPanel';
@@ -39,6 +36,44 @@ import {
 import type {
     CurriculumVersion,
 } from './content/types';
+
+type WorkspaceSection =
+    | 'topics'
+    | 'skills'
+    | 'lessons'
+    | 'assessment-items'
+    | 'practice-activities'
+    | 'exam-templates';
+
+const workspaceSections: Array<{
+    id: WorkspaceSection;
+    label: string;
+}> = [
+    {
+        id: 'topics',
+        label: 'الموضوعات',
+    },
+    {
+        id: 'skills',
+        label: 'المهارات',
+    },
+    {
+        id: 'lessons',
+        label: 'الدروس',
+    },
+    {
+        id: 'assessment-items',
+        label: 'بنك الأسئلة',
+    },
+    {
+        id: 'practice-activities',
+        label: 'التدريبات',
+    },
+    {
+        id: 'exam-templates',
+        label: 'الاختبارات',
+    },
+];
 
 export function AdminContentPage() {
     const [
@@ -66,6 +101,13 @@ export function AdminContentPage() {
             null,
         );
 
+    const [
+        activeSection,
+        setActiveSection,
+    ] = useState<WorkspaceSection>(
+        'topics',
+    );
+
     const resolveVersion =
         useCallback(
             (
@@ -79,6 +121,53 @@ export function AdminContentPage() {
             [],
         );
 
+    function renderWorkspace(
+        version: CurriculumVersion,
+    ) {
+        switch (activeSection) {
+            case 'topics':
+                return (
+                    <TopicsPanel
+                        version={version}
+                    />
+                );
+            case 'skills':
+                return (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                        <SkillsPanel />
+
+                        <SkillPlacementsPanel
+                            version={version}
+                        />
+                    </div>
+                );
+            case 'lessons':
+                return (
+                    <LessonsPanel
+                        version={version}
+                    />
+                );
+            case 'assessment-items':
+                return (
+                    <AssessmentItemsPanel
+                        version={version}
+                    />
+                );
+            case 'practice-activities':
+                return (
+                    <PracticeActivitiesPanel
+                        version={version}
+                    />
+                );
+            case 'exam-templates':
+                return (
+                    <ExamTemplatesPanel
+                        version={version}
+                    />
+                );
+        }
+    }
+
     return (
         <section
             className="foundation-page admin-content"
@@ -86,19 +175,19 @@ export function AdminContentPage() {
         >
             <div className="foundation-page__heading">
                 <p className="foundation-page__eyebrow">
-                    Admin Studio
+                    مساحة التأليف
                 </p>
 
                 <h1
                     id="admin-content-title"
                     className="foundation-page__title"
                 >
-                    المحتوى والتصنيف
+                    إدارة المحتوى
                 </h1>
 
                 <p className="foundation-page__description">
-                    إدارة Topics وSkills والدروس
-                    ضمن إصدار المنهج المحدد.
+                    أنشئ ونظّم محتوى المنهج من
+                    مساحة عمل واحدة وواضحة.
                 </p>
             </div>
 
@@ -130,49 +219,68 @@ export function AdminContentPage() {
                     في إدارة المحتوى.
                 </Feedback>
             ) : (
-                <div className="admin-content__workspace">
+                <div className="grid gap-4">
+                    <Surface>
+                        <div
+                            className="flex gap-2 overflow-x-auto p-2"
+                            role="tablist"
+                            aria-label="أقسام إدارة المحتوى"
+                        >
+                            {workspaceSections.map(
+                                (section) => {
+                                    const active =
+                                        section.id
+                                        === activeSection;
+
+                                    return (
+                                        <button
+                                            key={
+                                                section.id
+                                            }
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={
+                                                active
+                                            }
+                                            className={[
+                                                'min-h-11 shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition-colors',
+                                                active
+                                                    ? 'bg-sky-700 text-white shadow-sm'
+                                                    : 'text-slate-700 hover:bg-slate-100',
+                                            ].join(' ')}
+                                            onClick={() =>
+                                                setActiveSection(
+                                                    section.id,
+                                                )
+                                            }
+                                        >
+                                            {
+                                                section.label
+                                            }
+                                        </button>
+                                    );
+                                },
+                            )}
+                        </div>
+                    </Surface>
+
                     {selectedVersion ? (
-                        <TopicsPanel
-                            version={
-                                selectedVersion
+                        <div
+                            role="tabpanel"
+                            aria-label={
+                                workspaceSections.find(
+                                    (
+                                        section,
+                                    ) =>
+                                        section.id
+                                        === activeSection,
+                                )?.label
                             }
-                        />
-                    ) : null}
-
-                    <SkillsPanel />
-
-                    {selectedVersion ? (
-                        <>
-                            <SkillPlacementsPanel
-                                version={
-                                    selectedVersion
-                                }
-                            />
-
-                            <LessonsPanel
-                                version={
-                                    selectedVersion
-                                }
-                            />
-
-                            <AssessmentItemsPanel
-                                version={
-                                    selectedVersion
-                                }
-                            />
-
-                            <PracticeActivitiesPanel
-                                version={
-                                    selectedVersion
-                                }
-                            />
-
-                            <ExamTemplatesPanel
-                                version={
-                                    selectedVersion
-                                }
-                            />
-                        </>
+                        >
+                            {renderWorkspace(
+                                selectedVersion,
+                            )}
+                        </div>
                     ) : (
                         <Surface>
                             <div className="foundation-stack">

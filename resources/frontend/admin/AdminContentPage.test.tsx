@@ -37,7 +37,7 @@ vi.mock('../api/client', () => ({
 vi.mock('./content/TopicsPanel', () => ({
     TopicsPanel: () => (
         <div data-testid="topics-panel">
-            Topics panel
+            لوحة الموضوعات
         </div>
     ),
 }));
@@ -45,7 +45,7 @@ vi.mock('./content/TopicsPanel', () => ({
 vi.mock('./content/SkillsPanel', () => ({
     SkillsPanel: () => (
         <div data-testid="skills-panel">
-            Skills panel
+            لوحة المهارات
         </div>
     ),
 }));
@@ -67,7 +67,7 @@ vi.mock('./content/SkillPlacementsPanel', () => ({
                 version.status
             }
         >
-            Skill placements panel
+            ربط المهارات
         </div>
     ),
 }));
@@ -75,7 +75,7 @@ vi.mock('./content/SkillPlacementsPanel', () => ({
 vi.mock('./content/LessonsPanel', () => ({
     LessonsPanel: () => (
         <div data-testid="lessons-panel">
-            Lessons panel
+            لوحة الدروس
         </div>
     ),
 }));
@@ -83,7 +83,7 @@ vi.mock('./content/LessonsPanel', () => ({
 vi.mock('./content/AssessmentItemsPanel', () => ({
     AssessmentItemsPanel: () => (
         <div data-testid="assessment-items-panel">
-            Assessment items panel
+            بنك الأسئلة
         </div>
     ),
 }));
@@ -91,7 +91,7 @@ vi.mock('./content/AssessmentItemsPanel', () => ({
 vi.mock('./content/PracticeActivitiesPanel', () => ({
     PracticeActivitiesPanel: () => (
         <div data-testid="practice-activities-panel">
-            Practice activities panel
+            لوحة التدريبات
         </div>
     ),
 }));
@@ -99,7 +99,7 @@ vi.mock('./content/PracticeActivitiesPanel', () => ({
 vi.mock('./content/ExamTemplatesPanel', () => ({
     ExamTemplatesPanel: () => (
         <div data-testid="exam-templates-panel">
-            Exam templates panel
+            لوحة الاختبارات
         </div>
     ),
 }));
@@ -205,7 +205,7 @@ describe(
                         'heading',
                         {
                             name:
-                                'المحتوى والتصنيف',
+                                'إدارة المحتوى',
                         },
                     ),
                 ).toBeInTheDocument();
@@ -238,12 +238,79 @@ describe(
 
                 expect(
                     await screen.findByTestId(
+                        'topics-panel',
+                    ),
+                ).toBeInTheDocument();
+
+                expect(
+                    screen.queryByTestId(
+                        'lessons-panel',
+                    ),
+                ).not.toBeInTheDocument();
+            },
+        );
+
+        it(
+            'shows one authoring section at a time and keeps skill placement inside skills',
+            async () => {
+                installDraftContext();
+
+                renderPage();
+
+                await screen.findByTestId(
+                    'topics-panel',
+                );
+
+                fireEvent.click(
+                    screen.getByRole(
+                        'tab',
+                        {
+                            name: 'المهارات',
+                        },
+                    ),
+                );
+
+                expect(
+                    await screen.findByTestId(
+                        'skills-panel',
+                    ),
+                ).toBeInTheDocument();
+
+                expect(
+                    screen.getByTestId(
                         'placements-panel',
                     ),
                 ).toHaveAttribute(
                     'data-version-status',
                     'draft',
                 );
+
+                expect(
+                    screen.queryByTestId(
+                        'topics-panel',
+                    ),
+                ).not.toBeInTheDocument();
+
+                fireEvent.click(
+                    screen.getByRole(
+                        'tab',
+                        {
+                            name: 'الدروس',
+                        },
+                    ),
+                );
+
+                expect(
+                    await screen.findByTestId(
+                        'lessons-panel',
+                    ),
+                ).toBeInTheDocument();
+
+                expect(
+                    screen.queryByTestId(
+                        'skills-panel',
+                    ),
+                ).not.toBeInTheDocument();
             },
         );
 
@@ -320,8 +387,7 @@ describe(
                                         1,
                                     label:
                                         'الإصدار الأول',
-                                    status:
-                                        'draft',
+                                    status: 'draft',
                                 },
                             ]);
                         }
@@ -362,8 +428,7 @@ describe(
                                         1,
                                     label:
                                         'الإصدار اللفظي',
-                                    status:
-                                        'draft',
+                                    status: 'draft',
                                 },
                             ]);
                         }
@@ -435,14 +500,10 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'subject-1',
-                                    name:
-                                        'القدرات الكمية',
-                                    created_at:
-                                        null,
-                                    updated_at:
-                                        null,
+                                    id: 'subject-1',
+                                    name: 'القدرات الكمية',
+                                    created_at: null,
+                                    updated_at: null,
                                 },
                             ]);
                         }
@@ -454,16 +515,11 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'curriculum-1',
-                                    subject_id:
-                                        'subject-1',
-                                    name:
-                                        'المنهج الكمي',
-                                    created_at:
-                                        null,
-                                    updated_at:
-                                        null,
+                                    id: 'curriculum-1',
+                                    subject_id: 'subject-1',
+                                    name: 'المنهج الكمي',
+                                    created_at: null,
+                                    updated_at: null,
                                 },
                             ]);
                         }
@@ -475,16 +531,11 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'version-1',
-                                    curriculum_id:
-                                        'curriculum-1',
-                                    version_number:
-                                        1,
-                                    label:
-                                        'الإصدار الأول',
-                                    status:
-                                        'published',
+                                    id: 'version-1',
+                                    curriculum_id: 'curriculum-1',
+                                    version_number: 1,
+                                    label: 'الإصدار الأول',
+                                    status: 'published',
                                 },
                             ]);
                         }
@@ -502,6 +553,15 @@ describe(
                         'هذه النسخة للقراءة فقط؛ عمليات التأليف مجمدة.',
                     ),
                 ).toBeInTheDocument();
+
+                fireEvent.click(
+                    screen.getByRole(
+                        'tab',
+                        {
+                            name: 'المهارات',
+                        },
+                    ),
+                );
 
                 expect(
                     await screen.findByTestId(
@@ -529,14 +589,10 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'subject-1',
-                                    name:
-                                        'القدرات الكمية',
-                                    created_at:
-                                        null,
-                                    updated_at:
-                                        null,
+                                    id: 'subject-1',
+                                    name: 'القدرات الكمية',
+                                    created_at: null,
+                                    updated_at: null,
                                 },
                             ]);
                         }
@@ -548,16 +604,11 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'curriculum-1',
-                                    subject_id:
-                                        'subject-1',
-                                    name:
-                                        'المنهج الكمي',
-                                    created_at:
-                                        null,
-                                    updated_at:
-                                        null,
+                                    id: 'curriculum-1',
+                                    subject_id: 'subject-1',
+                                    name: 'المنهج الكمي',
+                                    created_at: null,
+                                    updated_at: null,
                                 },
                             ]);
                         }
@@ -569,16 +620,11 @@ describe(
                         ) {
                             return Promise.resolve([
                                 {
-                                    id:
-                                        'version-1',
-                                    curriculum_id:
-                                        'curriculum-1',
-                                    version_number:
-                                        1,
-                                    label:
-                                        'إصدار قديم',
-                                    status:
-                                        'retired',
+                                    id: 'version-1',
+                                    curriculum_id: 'curriculum-1',
+                                    version_number: 1,
+                                    label: 'إصدار قديم',
+                                    status: 'retired',
                                 },
                             ]);
                         }
