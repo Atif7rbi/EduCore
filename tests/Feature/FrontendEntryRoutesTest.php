@@ -20,6 +20,13 @@ class FrontendEntryRoutesTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_guest_auth_me_redirects_to_login(): void
+    {
+        $response = $this->get('/auth/me');
+
+        $response->assertRedirect('/login');
+    }
+
     public function test_app_entry_serves_frontend_application(): void
     {
         $response = $this->get('/app');

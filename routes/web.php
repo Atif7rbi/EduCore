@@ -17,7 +17,8 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
-Route::view('/login', 'app');
+Route::view('/login', 'app')
+    ->name('login');
 
 Route::view('/app/{path?}', 'app')
     ->where('path', '.*');
