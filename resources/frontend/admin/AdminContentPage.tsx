@@ -1,4 +1,5 @@
 import '../../css/admin-authoring.css';
+import '../../css/admin-authoring-r2.css';
 
 import {
     useCallback,
