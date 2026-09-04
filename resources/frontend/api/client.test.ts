@@ -44,6 +44,54 @@ function rejectingAdapter(
 }
 
 describe('api client session handling', () => {
+    it('uses the rotating XSRF cookie instead of the static csrf meta token', async () => {
+        const meta =
+            document.createElement('meta');
+
+        meta.name = 'csrf-token';
+        meta.content = 'stale-meta-token';
+
+        document.head.append(meta);
+
+        try {
+            expect(
+                apiClient.defaults.xsrfCookieName,
+            ).toBe('XSRF-TOKEN');
+
+            expect(
+                apiClient.defaults.xsrfHeaderName,
+            ).toBe('X-XSRF-TOKEN');
+
+            expect(
+                apiClient.defaults.withXSRFToken,
+            ).toBe(true);
+
+            await apiClient.request({
+                method: 'POST',
+                url: '/auth/login',
+                adapter: async (config) => {
+                    expect(
+                        config.headers.has(
+                            'X-CSRF-TOKEN',
+                        ),
+                    ).toBe(false);
+
+                    return {
+                        data: {
+                            data: {},
+                        },
+                        status: 200,
+                        statusText: 'OK',
+                        headers: {},
+                        config,
+                    };
+                },
+            });
+        } finally {
+            meta.remove();
+        }
+    });
+
     it('emits session expiry for a runtime 401 response', async () => {
         const failures: string[] = [];
 

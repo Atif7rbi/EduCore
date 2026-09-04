@@ -17,27 +17,13 @@ export interface ApiSuccessEnvelope<T> {
 export const apiClient = axios.create({
     baseURL: '/',
     withCredentials: true,
+    withXSRFToken: true,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
     headers: {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
     },
-});
-
-apiClient.interceptors.request.use((config) => {
-    const csrfToken = document
-        .querySelector<HTMLMetaElement>(
-            'meta[name="csrf-token"]',
-        )
-        ?.content;
-
-    if (csrfToken) {
-        config.headers.set(
-            'X-CSRF-TOKEN',
-            csrfToken,
-        );
-    }
-
-    return config;
 });
 
 apiClient.interceptors.response.use(
