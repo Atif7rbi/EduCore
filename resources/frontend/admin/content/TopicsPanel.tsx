@@ -1,5 +1,6 @@
 import {
     FormEvent,
+    useMemo,
     useState,
 } from 'react';
 import {
@@ -62,15 +63,18 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
     const editable = version.status === 'draft';
     const [showCreate, setShowCreate] = useState(false);
     const [newName, setNewName] = useState('');
-    const [newDisplayOrder, setNewDisplayOrder] = useState('0');
     const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
     const [editName, setEditName] = useState('');
-    const [editDisplayOrder, setEditDisplayOrder] = useState('0');
 
     const topicsQuery = useQuery({
         queryKey: adminTopicsKey(version.id),
         queryFn: () => fetchTopics(version.id),
     });
+
+    const nextDisplayOrder = useMemo(() => {
+        const orders = topicsQuery.data?.map((topic) => topic.display_order) ?? [];
+        return orders.length === 0 ? 1 : Math.max(...orders) + 1;
+    }, [topicsQuery.data]);
 
     async function invalidate() {
         await queryClient.invalidateQueries({
@@ -81,11 +85,10 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
     const createMutation = useMutation({
         mutationFn: () => createTopic(version.id, {
             name: newName.trim(),
-            display_order: Number(newDisplayOrder),
+            display_order: nextDisplayOrder,
         }),
         onSuccess: async () => {
             setNewName('');
-            setNewDisplayOrder('0');
             setShowCreate(false);
             await invalidate();
         },
@@ -106,18 +109,12 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
         },
     });
 
-    function validOrder(value: string) {
-        const number = Number(value);
-        return Number.isInteger(number) && number >= 0;
-    }
-
     function submitCreate(event: FormEvent) {
         event.preventDefault();
         if (
             !editable
             || createMutation.isPending
             || newName.trim() === ''
-            || !validOrder(newDisplayOrder)
         ) return;
         createMutation.mutate();
     }
@@ -126,7 +123,6 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
         if (!editable) return;
         setEditingTopic(topic);
         setEditName(topic.name);
-        setEditDisplayOrder(String(topic.display_order));
     }
 
     function submitEdit(event: FormEvent) {
@@ -136,13 +132,12 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
             || !editingTopic
             || updateMutation.isPending
             || editName.trim() === ''
-            || !validOrder(editDisplayOrder)
         ) return;
 
         updateMutation.mutate({
             topicId: editingTopic.id,
             name: editName.trim(),
-            displayOrder: Number(editDisplayOrder),
+            displayOrder: editingTopic.display_order,
         });
     }
 
@@ -151,51 +146,40 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
             <div className="foundation-stack admin-content-panel">
                 <div className="admin-content-revisions__heading">
                     <div>
-                        <h2 className="foundation-card__title">الموضوعات</h2>
+                        <h2 className="foundation-card__title">الوحدات</h2>
                         <p className="foundation-page__description">
-                            نظّم موضوعات هذا الإصدار وحدد ترتيب ظهورها.
+                            اسم الوحدة أو العنوان العام الذي تندرج تحته مجموعة من الدروس.
                         </p>
                     </div>
                     {editable ? (
                         <Button type="button" onClick={() => setShowCreate((value) => !value)}>
-                            {showCreate ? 'إغلاق' : 'إضافة موضوع'}
+                            {showCreate ? 'إغلاق' : 'إضافة وحدة'}
                         </Button>
                     ) : null}
                 </div>
 
                 {!editable ? (
                     <Feedback>
-                        هذا الإصدار للقراءة فقط؛ لا يمكن إضافة الموضوعات أو تعديلها.
+                        هذا المنهج للقراءة فقط؛ لا يمكن إضافة الوحدات أو تعديلها.
                     </Feedback>
                 ) : null}
 
                 {showCreate && editable ? (
                     <form className="admin-content-form" onSubmit={submitCreate}>
                         <label>
-                            اسم الموضوع
+                            اسم الوحدة
                             <input
-                                aria-label="اسم الموضوع الجديد"
+                                aria-label="اسم الوحدة الجديدة"
                                 value={newName}
                                 maxLength={255}
                                 required
+                                placeholder="مثال: النسب والتناسب"
                                 onChange={(event) => setNewName(event.target.value)}
-                            />
-                        </label>
-                        <label>
-                            ترتيب الظهور
-                            <input
-                                aria-label="ترتيب الموضوع الجديد"
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={newDisplayOrder}
-                                required
-                                onChange={(event) => setNewDisplayOrder(event.target.value)}
                             />
                         </label>
                         <div className="admin-content-actions">
                             <Button type="submit" disabled={createMutation.isPending}>
-                                حفظ الموضوع
+                                حفظ الوحدة
                             </Button>
                             <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
                                 إلغاء
@@ -204,65 +188,55 @@ export function TopicsPanel({ version }: TopicsPanelProps) {
                     </form>
                 ) : null}
 
-                {createMutation.isError ? <TopicFailure error={createMutation.error}>تعذر إضافة الموضوع.</TopicFailure> : null}
-                {updateMutation.isError ? <TopicFailure error={updateMutation.error}>تعذر تعديل الموضوع.</TopicFailure> : null}
+                {createMutation.isError ? <TopicFailure error={createMutation.error}>تعذر إضافة الوحدة.</TopicFailure> : null}
+                {updateMutation.isError ? <TopicFailure error={updateMutation.error}>تعذر تعديل الوحدة.</TopicFailure> : null}
 
                 {topicsQuery.isPending ? (
-                    <p>جار تحميل الموضوعات…</p>
+                    <p>جار تحميل الوحدات…</p>
                 ) : topicsQuery.isError ? (
-                    <TopicFailure error={topicsQuery.error}>تعذر تحميل الموضوعات.</TopicFailure>
+                    <TopicFailure error={topicsQuery.error}>تعذر تحميل الوحدات.</TopicFailure>
                 ) : topicsQuery.data.length === 0 ? (
-                    <Feedback>لا توجد موضوعات في هذا الإصدار حتى الآن.</Feedback>
+                    <Feedback>لا توجد وحدات في هذا المنهج حتى الآن.</Feedback>
                 ) : (
                     <div className="admin-content-list">
-                        {topicsQuery.data.map((topic) => (
-                            <article key={topic.id} className="admin-content-list__item">
-                                {editingTopic?.id === topic.id ? (
-                                    <form className="admin-content-form" onSubmit={submitEdit}>
-                                        <label>
-                                            اسم الموضوع
-                                            <input
-                                                aria-label="تعديل اسم الموضوع"
-                                                value={editName}
-                                                maxLength={255}
-                                                required
-                                                onChange={(event) => setEditName(event.target.value)}
-                                            />
-                                        </label>
-                                        <label>
-                                            ترتيب الظهور
-                                            <input
-                                                aria-label="تعديل ترتيب الموضوع"
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                value={editDisplayOrder}
-                                                required
-                                                onChange={(event) => setEditDisplayOrder(event.target.value)}
-                                            />
-                                        </label>
-                                        <div className="admin-content-actions">
-                                            <Button size="sm" type="submit" disabled={updateMutation.isPending}>حفظ</Button>
-                                            <Button size="sm" type="button" variant="secondary" onClick={() => setEditingTopic(null)}>إلغاء</Button>
-                                        </div>
-                                    </form>
-                                ) : (
-                                    <>
-                                        <div>
-                                            <strong>{topic.name}</strong>
-                                            <p className="admin-content-list__meta">
-                                                ترتيب الظهور: {topic.display_order}
-                                            </p>
-                                        </div>
-                                        {editable ? (
-                                            <Button size="sm" variant="secondary" onClick={() => beginEdit(topic)}>
-                                                تعديل
-                                            </Button>
-                                        ) : null}
-                                    </>
-                                )}
-                            </article>
-                        ))}
+                        {[...topicsQuery.data]
+                            .sort((a, b) => a.display_order - b.display_order)
+                            .map((topic, index) => (
+                                <article key={topic.id} className="admin-content-list__item">
+                                    {editingTopic?.id === topic.id ? (
+                                        <form className="admin-content-form" onSubmit={submitEdit}>
+                                            <label>
+                                                اسم الوحدة
+                                                <input
+                                                    aria-label="تعديل اسم الوحدة"
+                                                    value={editName}
+                                                    maxLength={255}
+                                                    required
+                                                    onChange={(event) => setEditName(event.target.value)}
+                                                />
+                                            </label>
+                                            <div className="admin-content-actions">
+                                                <Button size="sm" type="submit" disabled={updateMutation.isPending}>حفظ</Button>
+                                                <Button size="sm" type="button" variant="secondary" onClick={() => setEditingTopic(null)}>إلغاء</Button>
+                                            </div>
+                                        </form>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <strong>{topic.name}</strong>
+                                                <p className="admin-content-list__meta">
+                                                    الوحدة {index + 1}
+                                                </p>
+                                            </div>
+                                            {editable ? (
+                                                <Button size="sm" variant="secondary" onClick={() => beginEdit(topic)}>
+                                                    تعديل
+                                                </Button>
+                                            ) : null}
+                                        </>
+                                    )}
+                                </article>
+                            ))}
                     </div>
                 )}
             </div>
