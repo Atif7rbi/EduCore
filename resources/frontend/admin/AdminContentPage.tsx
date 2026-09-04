@@ -5,7 +5,6 @@ import {
 
 import {
     Feedback,
-    Surface,
 } from '../ui';
 
 import {
@@ -75,224 +74,194 @@ const workspaceSections: Array<{
     },
 ];
 
+function WorkspaceIcon({
+    section,
+}: {
+    section: WorkspaceSection;
+}) {
+    const common = {
+        width: 22,
+        height: 22,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.8,
+        strokeLinecap: 'round' as const,
+        strokeLinejoin: 'round' as const,
+        'aria-hidden': true,
+    };
+
+    switch (section) {
+        case 'topics':
+            return (
+                <svg {...common}>
+                    <path d="M3.5 6.5h6l2 2h9v9.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+                </svg>
+            );
+        case 'skills':
+            return (
+                <svg {...common}>
+                    <circle cx="12" cy="12" r="8" />
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 4V2M20 12h2" />
+                </svg>
+            );
+        case 'lessons':
+            return (
+                <svg {...common}>
+                    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21z" />
+                    <path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21z" />
+                </svg>
+            );
+        case 'assessment-items':
+            return (
+                <svg {...common}>
+                    <rect x="4" y="4" width="6" height="6" rx="1" />
+                    <rect x="14" y="4" width="6" height="6" rx="1" />
+                    <rect x="4" y="14" width="6" height="6" rx="1" />
+                    <rect x="14" y="14" width="6" height="6" rx="1" />
+                </svg>
+            );
+        case 'practice-activities':
+            return (
+                <svg {...common}>
+                    <path d="M9 6h11M9 12h11M9 18h11" />
+                    <path d="m4 6 1 1 2-2M4 12h3M4 18h3" />
+                </svg>
+            );
+        case 'exam-templates':
+            return (
+                <svg {...common}>
+                    <path d="M7 3h8l4 4v14H7z" />
+                    <path d="M15 3v5h5M10 12h6M10 16h6" />
+                </svg>
+            );
+    }
+}
+
 export function AdminContentPage() {
-    const [
-        subjectId,
-        setSubjectId,
-    ] = useState<string | null>(null);
+    const [subjectId, setSubjectId] =
+        useState<string | null>(null);
+    const [curriculumId, setCurriculumId] =
+        useState<string | null>(null);
+    const [curriculumVersionId, setCurriculumVersionId] =
+        useState<string | null>(null);
+    const [selectedVersion, setSelectedVersion] =
+        useState<CurriculumVersion | null>(null);
+    const [activeSection, setActiveSection] =
+        useState<WorkspaceSection>('lessons');
 
-    const [
-        curriculumId,
-        setCurriculumId,
-    ] = useState<string | null>(null);
-
-    const [
-        curriculumVersionId,
-        setCurriculumVersionId,
-    ] = useState<string | null>(
-        null,
+    const resolveVersion = useCallback(
+        (version: CurriculumVersion | null) => {
+            setSelectedVersion(version);
+        },
+        [],
     );
-
-    const [
-        selectedVersion,
-        setSelectedVersion,
-    ] =
-        useState<CurriculumVersion | null>(
-            null,
-        );
-
-    const [
-        activeSection,
-        setActiveSection,
-    ] = useState<WorkspaceSection>(
-        'topics',
-    );
-
-    const resolveVersion =
-        useCallback(
-            (
-                version:
-                    CurriculumVersion | null,
-            ) => {
-                setSelectedVersion(
-                    version,
-                );
-            },
-            [],
-        );
 
     function renderWorkspace(
         version: CurriculumVersion,
     ) {
         switch (activeSection) {
             case 'topics':
-                return (
-                    <TopicsPanel
-                        version={version}
-                    />
-                );
+                return <TopicsPanel version={version} />;
             case 'skills':
                 return (
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="admin-skills-workspace">
                         <SkillsPanel />
-
-                        <SkillPlacementsPanel
-                            version={version}
-                        />
+                        <SkillPlacementsPanel version={version} />
                     </div>
                 );
             case 'lessons':
-                return (
-                    <LessonsPanel
-                        version={version}
-                    />
-                );
+                return <LessonsPanel version={version} />;
             case 'assessment-items':
-                return (
-                    <AssessmentItemsPanel
-                        version={version}
-                    />
-                );
+                return <AssessmentItemsPanel version={version} />;
             case 'practice-activities':
-                return (
-                    <PracticeActivitiesPanel
-                        version={version}
-                    />
-                );
+                return <PracticeActivitiesPanel version={version} />;
             case 'exam-templates':
-                return (
-                    <ExamTemplatesPanel
-                        version={version}
-                    />
-                );
+                return <ExamTemplatesPanel version={version} />;
         }
     }
 
     return (
         <section
-            className="foundation-page admin-content"
+            className="admin-authoring"
             aria-labelledby="admin-content-title"
         >
-            <div className="foundation-page__heading">
-                <p className="foundation-page__eyebrow">
-                    مساحة التأليف
-                </p>
-
-                <h1
-                    id="admin-content-title"
-                    className="foundation-page__title"
-                >
-                    إدارة المحتوى
-                </h1>
-
-                <p className="foundation-page__description">
-                    أنشئ ونظّم محتوى المنهج من
-                    مساحة عمل واحدة وواضحة.
-                </p>
-            </div>
+            <header className="admin-authoring__header">
+                <div>
+                    <h1 id="admin-content-title">
+                        إدارة المحتوى
+                    </h1>
+                    <p>
+                        إنشاء وإدارة محتوى المناهج والدروس والأنشطة التعليمية.
+                    </p>
+                </div>
+            </header>
 
             <ContentContextSelector
                 subjectId={subjectId}
-                curriculumId={
-                    curriculumId
-                }
-                curriculumVersionId={
-                    curriculumVersionId
-                }
-                onSubjectChange={
-                    setSubjectId
-                }
-                onCurriculumChange={
-                    setCurriculumId
-                }
-                onCurriculumVersionChange={
-                    setCurriculumVersionId
-                }
-                onVersionResolved={
-                    resolveVersion
-                }
+                curriculumId={curriculumId}
+                curriculumVersionId={curriculumVersionId}
+                onSubjectChange={setSubjectId}
+                onCurriculumChange={setCurriculumId}
+                onCurriculumVersionChange={setCurriculumVersionId}
+                onVersionResolved={resolveVersion}
             />
 
             {!curriculumVersionId ? (
                 <Feedback>
-                    اختر إصدار منهج للبدء
-                    في إدارة المحتوى.
+                    اختر منهجًا للبدء في إدارة المحتوى.
                 </Feedback>
             ) : (
-                <div className="grid gap-4">
-                    <Surface>
-                        <div
-                            className="flex gap-2 overflow-x-auto p-2"
-                            role="tablist"
-                            aria-label="أقسام إدارة المحتوى"
-                        >
-                            {workspaceSections.map(
-                                (section) => {
-                                    const active =
-                                        section.id
-                                        === activeSection;
+                <div className="admin-authoring__workspace">
+                    <nav
+                        className="admin-authoring-tabs"
+                        role="tablist"
+                        aria-label="أقسام إدارة المحتوى"
+                    >
+                        {workspaceSections.map((section) => {
+                            const active =
+                                section.id === activeSection;
 
-                                    return (
-                                        <button
-                                            key={
-                                                section.id
-                                            }
-                                            type="button"
-                                            role="tab"
-                                            aria-selected={
-                                                active
-                                            }
-                                            className={[
-                                                'min-h-11 shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition-colors',
-                                                active
-                                                    ? 'bg-sky-700 text-white shadow-sm'
-                                                    : 'text-slate-700 hover:bg-slate-100',
-                                            ].join(' ')}
-                                            onClick={() =>
-                                                setActiveSection(
-                                                    section.id,
-                                                )
-                                            }
-                                        >
-                                            {
-                                                section.label
-                                            }
-                                        </button>
-                                    );
-                                },
-                            )}
-                        </div>
-                    </Surface>
+                            return (
+                                <button
+                                    key={section.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={active}
+                                    className={
+                                        active
+                                            ? 'admin-authoring-tabs__item admin-authoring-tabs__item--active'
+                                            : 'admin-authoring-tabs__item'
+                                    }
+                                    onClick={() =>
+                                        setActiveSection(section.id)
+                                    }
+                                >
+                                    <WorkspaceIcon section={section.id} />
+                                    <span>{section.label}</span>
+                                </button>
+                            );
+                        })}
+                    </nav>
 
                     {selectedVersion ? (
                         <div
+                            className="admin-authoring__panel"
                             role="tabpanel"
                             aria-label={
                                 workspaceSections.find(
-                                    (
-                                        section,
-                                    ) =>
-                                        section.id
-                                        === activeSection,
+                                    (section) =>
+                                        section.id === activeSection,
                                 )?.label
                             }
                         >
-                            {renderWorkspace(
-                                selectedVersion,
-                            )}
+                            {renderWorkspace(selectedVersion)}
                         </div>
                     ) : (
-                        <Surface>
-                            <div className="foundation-stack">
-                                <h2 className="foundation-card__title">
-                                    حالة التأليف
-                                </h2>
-
-                                <p>
-                                    جار تحديد حالة التأليف…
-                                </p>
-                            </div>
-                        </Surface>
+                        <div className="admin-authoring__loading">
+                            جار تجهيز مساحة العمل…
+                        </div>
                     )}
                 </div>
             )}
