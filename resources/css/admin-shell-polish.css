@@ -53,6 +53,17 @@
     font-weight: 800;
 }
 
+.authenticated-shell__sidebar {
+    display: grid;
+    align-content: start;
+    gap: 0.75rem;
+}
+
+.authenticated-shell__nav-heading,
+.authenticated-shell__sidebar-footer {
+    display: none;
+}
+
 .authenticated-shell__nav-link {
     display: flex !important;
     align-items: center;
@@ -71,5 +82,9 @@
 @media (max-width: 48rem) {
     .authenticated-shell__avatar {
         display: none;
+    }
+
+    .authenticated-shell__sidebar {
+        min-width: 0;
     }
 }
