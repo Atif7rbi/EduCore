@@ -89,7 +89,7 @@ describe('LessonsPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('renders a searchable lesson table without opening create by default', async () => {
+    it('renders a searchable lesson table without exposing technical order fields', async () => {
         apiRequestMock.mockResolvedValue([lesson()]);
         renderPanel();
 
@@ -97,10 +97,12 @@ describe('LessonsPanel', () => {
         expect(screen.getByRole('button', { name: 'إضافة درس' })).toBeInTheDocument();
         expect(screen.getByLabelText('البحث في الدروس')).toBeInTheDocument();
         expect(screen.getByLabelText('تصفية حالة الدروس')).toBeInTheDocument();
+        expect(screen.getByText('ترتيب الدروس')).toBeInTheDocument();
+        expect(screen.queryByText('ترتيب الظهور')).not.toBeInTheDocument();
         expect(screen.queryByLabelText('عنوان الدرس الجديد')).not.toBeInTheDocument();
     });
 
-    it('creates a lesson from the side inspector', async () => {
+    it('creates a lesson with automatic next order from the side inspector', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
             if (method === 'GET') return Promise.resolve([]);
             if (method === 'POST' && url === '/api/admin/curriculum-versions/version-1/lessons') {
@@ -115,9 +117,7 @@ describe('LessonsPanel', () => {
         fireEvent.change(screen.getByLabelText('عنوان الدرس الجديد'), {
             target: { value: 'النسب' },
         });
-        fireEvent.change(screen.getByLabelText('ترتيب الدرس الجديد'), {
-            target: { value: '3' },
-        });
+        expect(screen.queryByLabelText('ترتيب الدرس الجديد')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'حفظ الدرس' }));
 
         await waitFor(() => {
@@ -127,7 +127,7 @@ describe('LessonsPanel', () => {
                 data: {
                     title: 'النسب',
                     description: null,
-                    display_order: 3,
+                    display_order: 1,
                 },
             });
         });
