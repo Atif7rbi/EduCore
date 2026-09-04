@@ -33,382 +33,139 @@ interface RequestConfig {
 const apiRequestMock = vi.fn();
 
 vi.mock('../../api/client', () => ({
-    apiRequest: (
-        config: RequestConfig,
-    ) => apiRequestMock(config),
+    apiRequest: (config: RequestConfig) => apiRequestMock(config),
 }));
 
-const draftVersion:
-CurriculumVersion = {
+vi.mock('./LessonRevisionsPanel', () => ({
+    LessonRevisionsPanel: ({
+        lesson,
+    }: {
+        lesson: {
+            title: string;
+            status: string;
+        };
+    }) => (
+        <div data-testid="lesson-authoring">
+            {lesson.title} · {lesson.status}
+        </div>
+    ),
+}));
+
+const draftVersion: CurriculumVersion = {
     id: 'version-1',
-    curriculum_id:
-        'curriculum-1',
+    curriculum_id: 'curriculum-1',
     version_number: 1,
     label: 'الإصدار الأول',
     status: 'draft',
 };
 
-function renderPanel(
-    version:
-        CurriculumVersion =
-            draftVersion,
-) {
-    const client =
-        new QueryClient({
-            defaultOptions: {
-                queries: {
-                    retry: false,
-                },
-                mutations: {
-                    retry: false,
-                },
-            },
-        });
+function lesson(status: 'draft' | 'published' = 'draft') {
+    return {
+        id: 'lesson-1',
+        curriculum_version_id: 'version-1',
+        title: 'النسب والتناسب',
+        description: 'مقدمة في النسب.',
+        status,
+        display_order: 1,
+        published_revision_id:
+            status === 'published' ? 'revision-1' : null,
+        created_at: null,
+        updated_at: null,
+    };
+}
+
+function renderPanel(version: CurriculumVersion = draftVersion) {
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
 
     render(
         <QueryClientProvider client={client}>
-            <LessonsPanel
-                version={version}
-            />
+            <LessonsPanel version={version} />
         </QueryClientProvider>,
     );
 }
 
-describe(
-    'LessonsPanel',
-    () => {
-        beforeEach(() => {
-            apiRequestMock.mockReset();
+describe('LessonsPanel', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it('shows the lesson workspace without exposing the create form by default', async () => {
+        apiRequestMock.mockResolvedValue([lesson()]);
+        renderPanel();
+
+        expect(await screen.findByText('النسب والتناسب')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'إضافة درس' })).toBeInTheDocument();
+        expect(screen.queryByLabelText('عنوان الدرس الجديد')).not.toBeInTheDocument();
+    });
+
+    it('creates a lesson from the focused create form', async () => {
+        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
+            if (method === 'GET') return Promise.resolve([]);
+            if (method === 'POST' && url === '/api/admin/curriculum-versions/version-1/lessons') {
+                return Promise.resolve({ id: 'lesson-1' });
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
         });
 
-        it(
-            'lists lessons for the selected curriculum version',
-            async () => {
-                apiRequestMock.mockResolvedValueOnce([
-                    {
-                        id: 'lesson-1',
-                        curriculum_version_id:
-                            'version-1',
-                        title:
-                            'النسب والتناسب',
-                        description:
-                            'مقدمة في النسب.',
-                        status:
-                            'draft',
-                        display_order:
-                            2,
-                        published_revision_id:
-                            null,
-                        created_at:
-                            null,
-                        updated_at:
-                            null,
-                    },
-                ]);
+        renderPanel();
+        await screen.findByText('لا توجد دروس في هذا الإصدار حتى الآن.');
+        fireEvent.click(screen.getByRole('button', { name: 'إضافة درس' }));
+        fireEvent.change(screen.getByLabelText('عنوان الدرس الجديد'), {
+            target: { value: 'النسب' },
+        });
+        fireEvent.change(screen.getByLabelText('ترتيب الدرس الجديد'), {
+            target: { value: '3' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ الدرس' }));
 
-                renderPanel();
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/curriculum-versions/version-1/lessons',
+                data: {
+                    title: 'النسب',
+                    description: null,
+                    display_order: 3,
+                },
+            });
+        });
+    });
 
-                expect(
-                    await screen.findByText(
-                        'النسب والتناسب',
-                    ),
-                ).toBeInTheDocument();
+    it('keeps the opened lesson synchronized with the refreshed lessons query', async () => {
+        let current = lesson('draft');
+        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
+            if (method === 'GET') return Promise.resolve([current]);
+            if (method === 'PUT' && url === '/api/admin/lessons/lesson-1') {
+                current = lesson('published');
+                return Promise.resolve(current);
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
+        });
 
-                expect(
-                    apiRequestMock,
-                ).toHaveBeenCalledWith({
-                    method: 'GET',
-                    url:
-                        '/api/admin/curriculum-versions/version-1/lessons',
-                });
-            },
-        );
+        renderPanel();
+        await screen.findByText('النسب والتناسب');
+        fireEvent.click(screen.getByRole('button', { name: 'إدارة الدرس' }));
+        expect(screen.getByTestId('lesson-authoring')).toHaveTextContent('draft');
 
-        it(
-            'creates a draft lesson',
-            async () => {
-                apiRequestMock
-                    .mockResolvedValueOnce([])
-                    .mockResolvedValueOnce({
-                        id: 'lesson-1',
-                    })
-                    .mockResolvedValueOnce([
-                        {
-                            id:
-                                'lesson-1',
-                            curriculum_version_id:
-                                'version-1',
-                            title:
-                                'النسب',
-                            description:
-                                null,
-                            status:
-                                'draft',
-                            display_order:
-                                3,
-                            published_revision_id:
-                                null,
-                            created_at:
-                                null,
-                            updated_at:
-                                null,
-                        },
-                    ]);
+        fireEvent.click(screen.getByRole('button', { name: 'تعديل البيانات' }));
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
 
-                renderPanel();
+        await waitFor(() => {
+            expect(screen.getByTestId('lesson-authoring')).toHaveTextContent('published');
+        });
+    });
 
-                await screen.findByText(
-                    'لا توجد دروس في هذا الإصدار.',
-                );
+    it('keeps lessons read only when the curriculum version is not draft', async () => {
+        apiRequestMock.mockResolvedValue([lesson('published')]);
+        renderPanel({ ...draftVersion, status: 'published' });
 
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'عنوان الدرس الجديد',
-                    ),
-                    {
-                        target: {
-                            value: 'النسب',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'ترتيب الدرس الجديد',
-                    ),
-                    {
-                        target: {
-                            value: '3',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'إضافة Lesson',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'POST',
-                        url:
-                            '/api/admin/curriculum-versions/version-1/lessons',
-                        data: {
-                            title:
-                                'النسب',
-                            description:
-                                null,
-                            display_order:
-                                3,
-                        },
-                    });
-                });
-            },
-        );
-
-        it(
-            'updates a draft lesson',
-            async () => {
-                apiRequestMock
-                    .mockResolvedValueOnce([
-                        {
-                            id:
-                                'lesson-1',
-                            curriculum_version_id:
-                                'version-1',
-                            title:
-                                'النسب',
-                            description:
-                                null,
-                            status:
-                                'draft',
-                            display_order:
-                                1,
-                            published_revision_id:
-                                null,
-                            created_at:
-                                null,
-                            updated_at:
-                                null,
-                        },
-                    ])
-                    .mockResolvedValueOnce({
-                        id: 'lesson-1',
-                    })
-                    .mockResolvedValueOnce([
-                        {
-                            id:
-                                'lesson-1',
-                            curriculum_version_id:
-                                'version-1',
-                            title:
-                                'النسب والتناسب',
-                            description:
-                                'شرح محدث.',
-                            status:
-                                'draft',
-                            display_order:
-                                4,
-                            published_revision_id:
-                                null,
-                            created_at:
-                                null,
-                            updated_at:
-                                null,
-                        },
-                    ]);
-
-                renderPanel();
-
-                await screen.findByText(
-                    'النسب',
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name: 'تعديل',
-                        },
-                    ),
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تعديل عنوان الدرس',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'النسب والتناسب',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تعديل وصف الدرس',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'شرح محدث.',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تعديل ترتيب الدرس',
-                    ),
-                    {
-                        target: {
-                            value: '4',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name: 'حفظ',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'PUT',
-                        url:
-                            '/api/admin/lessons/lesson-1',
-                        data: {
-                            title:
-                                'النسب والتناسب',
-                            description:
-                                'شرح محدث.',
-                            display_order:
-                                4,
-                        },
-                    });
-                });
-            },
-        );
-
-        it(
-            'keeps published curriculum lessons read only',
-            async () => {
-                apiRequestMock.mockResolvedValueOnce([
-                    {
-                        id: 'lesson-1',
-                        curriculum_version_id:
-                            'version-1',
-                        title: 'النسب',
-                        description:
-                            null,
-                        status:
-                            'published',
-                        display_order:
-                            1,
-                        published_revision_id:
-                            'revision-1',
-                        created_at:
-                            null,
-                        updated_at:
-                            null,
-                    },
-                ]);
-
-                renderPanel({
-                    ...draftVersion,
-                    status:
-                        'published',
-                });
-
-                expect(
-                    await screen.findByText(
-                        'النسب',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        'هذه النسخة للقراءة فقط؛ لا يمكن إنشاء أو تعديل الدروس.',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'إضافة Lesson',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name: 'تعديل',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-            },
-        );
-    },
-);
+        expect(await screen.findByText('النسب والتناسب')).toBeInTheDocument();
+        expect(screen.getByText('هذا الإصدار للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'إضافة درس' })).not.toBeInTheDocument();
+    });
+});
