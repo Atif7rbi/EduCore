@@ -53,7 +53,9 @@ function renderPanel(currentVersion: CurriculumVersion = version) {
 }
 
 describe('TopicsPanel', () => {
-    beforeEach(() => apiRequestMock.mockReset());
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
 
     it('keeps topic creation focused and Arabic', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
