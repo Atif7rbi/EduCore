@@ -147,7 +147,7 @@ function expectContextAcrossWorkspace(
         `lessons:${versionId}:${status}`,
     );
 
-    openSection('الموضوعات');
+    openSection('الوحدات');
     expect(screen.getByTestId('topics-panel')).toHaveTextContent(
         `topics:${versionId}:${status}`,
     );
