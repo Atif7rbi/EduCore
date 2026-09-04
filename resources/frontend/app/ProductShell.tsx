@@ -1,3 +1,5 @@
+import '../../css/admin-shell-polish.css';
+
 import {
     type PropsWithChildren,
     useState,
