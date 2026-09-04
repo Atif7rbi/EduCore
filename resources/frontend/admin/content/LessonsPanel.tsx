@@ -107,17 +107,26 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         useState<LessonFilter>('all');
     const [newTitle, setNewTitle] = useState('');
     const [newDescription, setNewDescription] = useState('');
-    const [newDisplayOrder, setNewDisplayOrder] = useState('0');
     const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
     const [authoringLessonId, setAuthoringLessonId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState('');
     const [editDescription, setEditDescription] = useState('');
-    const [editDisplayOrder, setEditDisplayOrder] = useState('0');
 
     const lessonsQuery = useQuery({
         queryKey: adminLessonsKey(version.id),
         queryFn: () => fetchLessons(version.id),
     });
+
+    const sortedLessons = useMemo(
+        () => [...(lessonsQuery.data ?? [])]
+            .sort((a, b) => a.display_order - b.display_order),
+        [lessonsQuery.data],
+    );
+
+    const nextDisplayOrder = useMemo(() => {
+        const orders = lessonsQuery.data?.map((lesson) => lesson.display_order) ?? [];
+        return orders.length === 0 ? 1 : Math.max(...orders) + 1;
+    }, [lessonsQuery.data]);
 
     const authoringLesson = useMemo(
         () =>
@@ -131,7 +140,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         const normalizedSearch =
             searchTerm.trim().toLocaleLowerCase('ar');
 
-        return (lessonsQuery.data ?? []).filter((lesson) => {
+        return sortedLessons.filter((lesson) => {
             const matchesStatus =
                 statusFilter === 'all'
                 || lesson.status === statusFilter;
@@ -147,7 +156,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
 
             return matchesStatus && matchesSearch;
         });
-    }, [lessonsQuery.data, searchTerm, statusFilter]);
+    }, [sortedLessons, searchTerm, statusFilter]);
 
     async function invalidate() {
         await queryClient.invalidateQueries({
@@ -160,12 +169,11 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             createLesson(version.id, {
                 title: newTitle.trim(),
                 description: newDescription.trim() || null,
-                display_order: Number(newDisplayOrder),
+                display_order: nextDisplayOrder,
             }),
         onSuccess: async (lesson) => {
             setNewTitle('');
             setNewDescription('');
-            setNewDisplayOrder('0');
             setShowCreate(false);
             setAuthoringLessonId(lesson.id);
             await invalidate();
@@ -193,15 +201,9 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             setEditingLesson(null);
             setEditTitle('');
             setEditDescription('');
-            setEditDisplayOrder('0');
             await invalidate();
         },
     });
-
-    function validOrder(value: string) {
-        const number = Number(value);
-        return Number.isInteger(number) && number >= 0;
-    }
 
     function submitCreate(event: FormEvent) {
         event.preventDefault();
@@ -210,7 +212,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             !editable
             || createMutation.isPending
             || newTitle.trim() === ''
-            || !validOrder(newDisplayOrder)
         ) {
             return;
         }
@@ -228,7 +229,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         setEditingLesson(lesson);
         setEditTitle(lesson.title);
         setEditDescription(lesson.description ?? '');
-        setEditDisplayOrder(String(lesson.display_order));
     }
 
     function submitEdit(event: FormEvent) {
@@ -240,7 +240,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             || editingLesson.status !== 'draft'
             || updateMutation.isPending
             || editTitle.trim() === ''
-            || !validOrder(editDisplayOrder)
         ) {
             return;
         }
@@ -249,7 +248,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             lessonId: editingLesson.id,
             title: editTitle.trim(),
             description: editDescription.trim() || null,
-            displayOrder: Number(editDisplayOrder),
+            displayOrder: editingLesson.display_order,
         });
     }
 
@@ -269,7 +268,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                     <div>
                         <h2>الدروس</h2>
                         <p>
-                            أدر الدروس وترتيبها وحالات النشر من مساحة واحدة.
+                            أضف الدروس وأدر محتواها وحالة نشرها من مساحة واحدة.
                         </p>
                     </div>
 
@@ -367,12 +366,14 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                     </div>
                 ) : (
                     <div className="admin-lessons-table-wrap">
+                        <div className="admin-lessons-order-label">
+                            ترتيب الدروس
+                        </div>
                         <table className="admin-lessons-table">
                             <thead>
                                 <tr>
                                     <th scope="col">#</th>
                                     <th scope="col">عنوان الدرس</th>
-                                    <th scope="col">ترتيب الظهور</th>
                                     <th scope="col">الحالة</th>
                                     <th scope="col">آخر تحديث</th>
                                     <th scope="col">إجراءات</th>
@@ -405,7 +406,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                                 ) : null}
                                             </button>
                                         </td>
-                                        <td>{lesson.display_order}</td>
                                         <td>
                                             <span
                                                 className={`admin-lesson-status admin-lesson-status--${lesson.status}`}
@@ -492,19 +492,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                             />
                         </label>
 
-                        <label>
-                            ترتيب الظهور
-                            <input
-                                aria-label="ترتيب الدرس الجديد"
-                                type="number"
-                                min="0"
-                                step="1"
-                                required
-                                value={newDisplayOrder}
-                                onChange={(event) => setNewDisplayOrder(event.target.value)}
-                            />
-                        </label>
-
                         <div className="admin-lesson-inspector__actions">
                             <Button
                                 type="submit"
@@ -549,10 +536,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                 <span>الحالة</span>
                                 <strong>{lessonStatusLabel(authoringLesson.status)}</strong>
                             </div>
-                            <div>
-                                <span>ترتيب الظهور</span>
-                                <strong>{authoringLesson.display_order}</strong>
-                            </div>
                         </div>
 
                         {authoringLesson.description ? (
@@ -584,19 +567,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                         rows={3}
                                         value={editDescription}
                                         onChange={(event) => setEditDescription(event.target.value)}
-                                    />
-                                </label>
-
-                                <label>
-                                    ترتيب الظهور
-                                    <input
-                                        aria-label="تعديل ترتيب الدرس"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        required
-                                        value={editDisplayOrder}
-                                        onChange={(event) => setEditDisplayOrder(event.target.value)}
                                     />
                                 </label>
 
