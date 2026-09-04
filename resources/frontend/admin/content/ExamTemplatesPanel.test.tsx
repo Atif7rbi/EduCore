@@ -33,509 +33,204 @@ interface RequestConfig {
 const apiRequestMock = vi.fn();
 
 vi.mock('../../api/client', () => ({
-    apiRequest: (
-        config: RequestConfig,
-    ) => apiRequestMock(config),
+    apiRequest: (config: RequestConfig) => apiRequestMock(config),
 }));
 
-const draftVersion:
-CurriculumVersion = {
+const draftVersion: CurriculumVersion = {
     id: 'version-1',
-    curriculum_id:
-        'curriculum-1',
+    curriculum_id: 'curriculum-1',
     version_number: 1,
     label: 'الإصدار الأول',
     status: 'draft',
 };
 
-const activeTemplate = {
+const availableExam = {
     id: 'template-1',
-    curriculum_version_id:
-        'version-1',
+    curriculum_version_id: 'version-1',
     name: 'اختبار تجريبي',
-    description:
-        'قالب أساسي',
+    description: 'اختبار أساسي',
     status: 'active',
-    published_version_id:
-        null,
+    published_version_id: null,
     versions_count: 2,
     created_at: null,
     updated_at: null,
 };
 
-function renderPanel(
-    version:
-        CurriculumVersion =
-            draftVersion,
-) {
-    const client =
-        new QueryClient({
-            defaultOptions: {
-                queries: {
-                    retry: false,
-                },
-                mutations: {
-                    retry: false,
-                },
-            },
-        });
+function renderPanel(version: CurriculumVersion = draftVersion) {
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
 
     render(
         <QueryClientProvider client={client}>
-            <ExamTemplatesPanel
-                version={version}
-            />
+            <ExamTemplatesPanel version={version} />
         </QueryClientProvider>,
     );
 }
 
-describe(
-    'ExamTemplatesPanel',
-    () => {
-        beforeEach(() => {
-            apiRequestMock.mockReset();
+describe('ExamTemplatesPanel', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it('lists exams for the selected curriculum', async () => {
+        apiRequestMock.mockResolvedValue([availableExam]);
+        renderPanel();
+
+        expect(await screen.findByText('اختبار تجريبي')).toBeInTheDocument();
+        expect(screen.getByText(/الحالة: متاح/)).toBeInTheDocument();
+        expect(screen.getByText(/الإعدادات المحفوظة: 2/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'الاختبارات' })).toBeInTheDocument();
+    });
+
+    it('creates an exam using the exact backend payload', async () => {
+        let created = false;
+
+        apiRequestMock.mockImplementation(({ method, url, data }: RequestConfig) => {
+            if (
+                method === 'GET'
+                && url === '/api/admin/curriculum-versions/version-1/exam-templates'
+            ) {
+                return Promise.resolve(created ? [availableExam] : []);
+            }
+            if (
+                method === 'POST'
+                && url === '/api/admin/curriculum-versions/version-1/exam-templates'
+            ) {
+                expect(data).toEqual({
+                    name: 'اختبار تجريبي',
+                    description: 'اختبار أساسي',
+                });
+                created = true;
+                return Promise.resolve(availableExam);
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
         });
 
-        it(
-            'lists exam templates for the selected curriculum version',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            return Promise.resolve([
-                                activeTemplate,
-                            ]);
-                        }
+        renderPanel();
+        await screen.findByText('لا توجد اختبارات لهذا المنهج حتى الآن.');
 
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
+        fireEvent.change(screen.getByLabelText('اسم الاختبار'), {
+            target: { value: 'اختبار تجريبي' },
+        });
+        fireEvent.change(screen.getByLabelText('وصف الاختبار'), {
+            target: { value: 'اختبار أساسي' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'إنشاء اختبار' }));
 
-                renderPanel();
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/curriculum-versions/version-1/exam-templates',
+                data: {
+                    name: 'اختبار تجريبي',
+                    description: 'اختبار أساسي',
+                },
+            });
+        });
+    });
 
-                expect(
-                    await screen.findByText(
-                        'اختبار تجريبي',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        /الحالة: نشط/,
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        /الإصدارات: 2/,
-                    ),
-                ).toBeInTheDocument();
-            },
-        );
-
-        it(
-            'creates an active exam template using the exact backend payload',
-            async () => {
-                let created = false;
-
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                        data,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            return Promise.resolve(
-                                created
-                                    ? [
-                                        activeTemplate,
-                                    ]
-                                    : [],
-                            );
-                        }
-
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            expect(
-                                data,
-                            ).toEqual({
-                                name:
-                                    'اختبار تجريبي',
-                                description:
-                                    'قالب أساسي',
-                            });
-
-                            created = true;
-
-                            return Promise.resolve(
-                                activeTemplate,
-                            );
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'لا توجد قوالب اختبارات لهذا الإصدار.',
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'اسم قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'اختبار تجريبي',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'وصف قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'قالب أساسي',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'إنشاء قالب اختبار',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'POST',
-                        url:
-                            '/api/admin/curriculum-versions/version-1/exam-templates',
-                        data: {
-                            name:
-                                'اختبار تجريبي',
-                            description:
-                                'قالب أساسي',
-                        },
-                    });
+    it('updates exam metadata while the exam is available', async () => {
+        apiRequestMock.mockImplementation(({ method, url, data }: RequestConfig) => {
+            if (
+                method === 'GET'
+                && url === '/api/admin/curriculum-versions/version-1/exam-templates'
+            ) return Promise.resolve([availableExam]);
+            if (
+                method === 'PUT'
+                && url === '/api/admin/exam-templates/template-1'
+            ) {
+                expect(data).toEqual({
+                    name: 'اختبار محدّث',
+                    description: 'اختبار أساسي',
                 });
-            },
-        );
-
-        it(
-            'updates metadata only for an active template',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                        data,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            return Promise.resolve([
-                                activeTemplate,
-                            ]);
-                        }
-
-                        if (
-                            method === 'PUT'
-                            && url
-                                === '/api/admin/exam-templates/template-1'
-                        ) {
-                            expect(
-                                data,
-                            ).toEqual({
-                                name:
-                                    'اختبار محدّث',
-                                description:
-                                    'قالب أساسي',
-                            });
-
-                            return Promise.resolve({
-                                ...activeTemplate,
-                                name:
-                                    'اختبار محدّث',
-                            });
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'اختبار تجريبي',
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'تعديل',
-                        },
-                    ),
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تعديل اسم قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'اختبار محدّث',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'حفظ التعديل',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'PUT',
-                        url:
-                            '/api/admin/exam-templates/template-1',
-                        data: {
-                            name:
-                                'اختبار محدّث',
-                            description:
-                                'قالب أساسي',
-                        },
-                    });
+                return Promise.resolve({
+                    ...availableExam,
+                    name: 'اختبار محدّث',
                 });
-            },
-        );
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
+        });
 
-        it(
-            'archives and reactivates templates using backend lifecycle routes',
-            async () => {
-                let active = true;
+        renderPanel();
+        await screen.findByText('اختبار تجريبي');
+        fireEvent.click(screen.getByRole('button', { name: 'تعديل' }));
+        fireEvent.change(screen.getByLabelText('تعديل اسم الاختبار'), {
+            target: { value: 'اختبار محدّث' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ التعديل' }));
 
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    ...activeTemplate,
-                                    status:
-                                        active
-                                            ? 'active'
-                                            : 'archived',
-                                },
-                            ]);
-                        }
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'PUT',
+                url: '/api/admin/exam-templates/template-1',
+                data: {
+                    name: 'اختبار محدّث',
+                    description: 'اختبار أساسي',
+                },
+            });
+        });
+    });
 
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/exam-templates/template-1/archive'
-                        ) {
-                            active = false;
+    it('stops and re-enables exams through backend lifecycle routes', async () => {
+        let active = true;
 
-                            return Promise.resolve({
-                                ...activeTemplate,
-                                status:
-                                    'archived',
-                            });
-                        }
+        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
+            if (
+                method === 'GET'
+                && url === '/api/admin/curriculum-versions/version-1/exam-templates'
+            ) {
+                return Promise.resolve([
+                    { ...availableExam, status: active ? 'active' : 'archived' },
+                ]);
+            }
+            if (
+                method === 'POST'
+                && url === '/api/admin/exam-templates/template-1/archive'
+            ) {
+                active = false;
+                return Promise.resolve({ ...availableExam, status: 'archived' });
+            }
+            if (
+                method === 'POST'
+                && url === '/api/admin/exam-templates/template-1/activate'
+            ) {
+                active = true;
+                return Promise.resolve({ ...availableExam, status: 'active' });
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
+        });
 
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/exam-templates/template-1/activate'
-                        ) {
-                            active = true;
+        renderPanel();
+        await screen.findByText(/الحالة: متاح/);
+        fireEvent.click(screen.getByRole('button', { name: 'إيقاف' }));
+        expect(await screen.findByText(/الحالة: متوقف/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'تعديل' })).not.toBeInTheDocument();
 
-                            return Promise.resolve({
-                                ...activeTemplate,
-                                status:
-                                    'active',
-                            });
-                        }
+        fireEvent.click(screen.getByRole('button', { name: 'إعادة الإتاحة' }));
+        expect(await screen.findByText(/الحالة: متاح/)).toBeInTheDocument();
+    });
 
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
+    it('keeps exam authoring read only outside a draft curriculum version', async () => {
+        apiRequestMock.mockResolvedValue([availableExam]);
+        renderPanel({ ...draftVersion, status: 'published' });
 
-                renderPanel();
-
-                await screen.findByText(
-                    /الحالة: نشط/,
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'أرشفة',
-                        },
-                    ),
-                );
-
-                expect(
-                    await screen.findByText(
-                        /الحالة: مؤرشف/,
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'تعديل',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'تفعيل',
-                        },
-                    ),
-                );
-
-                expect(
-                    await screen.findByText(
-                        /الحالة: نشط/,
-                    ),
-                ).toBeInTheDocument();
-            },
-        );
-
-        it(
-            'keeps template authoring read only outside draft curriculum versions',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/exam-templates'
-                        ) {
-                            return Promise.resolve([
-                                activeTemplate,
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel({
-                    ...draftVersion,
-                    status:
-                        'published',
-                });
-
-                expect(
-                    await screen.findByText(
-                        'Exam Templates للقراءة فقط لأن CurriculumVersion ليست draft.',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'إنشاء قالب اختبار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'تعديل',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'أرشفة',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-            },
-        );
-    },
-);
+        expect(
+            await screen.findByText(
+                'هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الاختبارات أو تعديلها.',
+            ),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', { name: 'إنشاء اختبار' }),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', { name: 'تعديل' }),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', { name: 'إيقاف' }),
+        ).not.toBeInTheDocument();
+    });
+});
