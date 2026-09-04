@@ -21,8 +21,8 @@ class ProductionSmokeCheck
         $checks['environment'] =
             app()->environment();
 
-        $checks['debug'] =
-            (bool) config('app.debug');
+        $checks['debug_disabled'] =
+            config('app.debug') === false;
 
         $checks['database_driver'] =
             DB::connection()->getDriverName();
@@ -68,12 +68,11 @@ class ProductionSmokeCheck
         $healthRoute = collect(
             Route::getRoutes()
         )->first(
-            fn ($route): bool =>
-                in_array(
-                    'GET',
-                    $route->methods(),
-                    true
-                )
+            fn ($route): bool => in_array(
+                'GET',
+                $route->methods(),
+                true
+            )
                 && $route->uri()
                     === 'api/health'
         );

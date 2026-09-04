@@ -27,6 +27,11 @@ class ProductionSmokeCheckTest extends TestCase
         );
 
         $this->assertSame(
+            config('app.debug') === false,
+            $result['debug_disabled']
+        );
+
+        $this->assertSame(
             'pgsql',
             $result['database_driver']
         );
@@ -47,6 +52,21 @@ class ProductionSmokeCheckTest extends TestCase
 
         $this->assertTrue(
             $result['storage_writable']
+        );
+    }
+
+    public function test_smoke_check_reports_debug_disabled_when_debug_is_false(): void
+    {
+        config([
+            'app.debug' => false,
+        ]);
+
+        $result = app(
+            ProductionSmokeCheck::class
+        )->inspect();
+
+        $this->assertTrue(
+            $result['debug_disabled']
         );
     }
 
