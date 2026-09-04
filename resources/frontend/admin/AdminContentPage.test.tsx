@@ -33,7 +33,7 @@ vi.mock('../api/client', () => ({
 }));
 
 vi.mock('./content/TopicsPanel', () => ({
-    TopicsPanel: () => <div data-testid="topics-panel">لوحة الموضوعات</div>,
+    TopicsPanel: () => <div data-testid="topics-panel">لوحة الوحدات</div>,
 }));
 
 vi.mock('./content/SkillsPanel', () => ({
@@ -146,11 +146,21 @@ describe('AdminContentPage', () => {
         expect(screen.queryByText('الإصدار الأول')).not.toBeInTheDocument();
     });
 
-    it('shows one authoring section at a time and keeps placements inside skills', async () => {
+    it('orders authoring tabs by user workflow and keeps placements inside skills', async () => {
         installContext();
         renderPage();
 
         await screen.findByTestId('lessons-panel');
+
+        const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
+        expect(tabs).toEqual([
+            'الوحدات',
+            'الدروس',
+            'بنك الأسئلة',
+            'التدريبات',
+            'الاختبارات',
+            'المهارات',
+        ]);
 
         fireEvent.click(screen.getByRole('tab', { name: 'المهارات' }));
 
@@ -161,7 +171,7 @@ describe('AdminContentPage', () => {
         );
         expect(screen.queryByTestId('lessons-panel')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('tab', { name: 'الموضوعات' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'الوحدات' }));
         expect(await screen.findByTestId('topics-panel')).toBeInTheDocument();
         expect(screen.queryByTestId('skills-panel')).not.toBeInTheDocument();
     });
