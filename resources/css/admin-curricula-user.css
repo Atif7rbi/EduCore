@@ -1,0 +1,22 @@
+.admin-curricula__grid--simple {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 68rem;
+}
+
+.admin-curricula__grid--simple .admin-curricula__panel {
+    min-height: 20rem;
+}
+
+.admin-curricula__grid--simple .foundation-card__text {
+    margin-top: 0.35rem;
+    color: var(--color-neutral-500);
+    font-size: 0.88rem;
+    line-height: 1.7;
+}
+
+@media (max-width: 64rem) {
+    .admin-curricula__grid--simple {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+}
