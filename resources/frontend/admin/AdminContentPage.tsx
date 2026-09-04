@@ -56,10 +56,6 @@ const workspaceSections: Array<{
         label: 'الموضوعات',
     },
     {
-        id: 'skills',
-        label: 'المهارات',
-    },
-    {
         id: 'lessons',
         label: 'الدروس',
     },
@@ -74,6 +70,10 @@ const workspaceSections: Array<{
     {
         id: 'exam-templates',
         label: 'الاختبارات',
+    },
+    {
+        id: 'skills',
+        label: 'المهارات',
     },
 ];
 
