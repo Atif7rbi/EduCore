@@ -57,7 +57,7 @@ describe('TopicsPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('keeps topic creation focused and Arabic', async () => {
+    it('creates a unit without exposing display order', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
             if (method === 'GET') return Promise.resolve([]);
             if (method === 'POST' && url === '/api/admin/curriculum-versions/version-1/topics') {
@@ -67,17 +67,16 @@ describe('TopicsPanel', () => {
         });
 
         renderPanel();
-        await screen.findByText('لا توجد موضوعات في هذا الإصدار حتى الآن.');
-        expect(screen.queryByLabelText('اسم الموضوع الجديد')).not.toBeInTheDocument();
+        await screen.findByText('لا توجد وحدات في هذا المنهج حتى الآن.');
+        expect(screen.getByText('اسم الوحدة أو العنوان العام الذي تندرج تحته مجموعة من الدروس.')).toBeInTheDocument();
+        expect(screen.queryByLabelText('اسم الوحدة الجديدة')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'إضافة موضوع' }));
-        fireEvent.change(screen.getByLabelText('اسم الموضوع الجديد'), {
+        fireEvent.click(screen.getByRole('button', { name: 'إضافة وحدة' }));
+        fireEvent.change(screen.getByLabelText('اسم الوحدة الجديدة'), {
             target: { value: 'النسب والتناسب' },
         });
-        fireEvent.change(screen.getByLabelText('ترتيب الموضوع الجديد'), {
-            target: { value: '2' },
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'حفظ الموضوع' }));
+        expect(screen.queryByText('ترتيب الظهور')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ الوحدة' }));
 
         await waitFor(() => {
             expect(apiRequestMock).toHaveBeenCalledWith({
@@ -85,7 +84,7 @@ describe('TopicsPanel', () => {
                 url: '/api/admin/curriculum-versions/version-1/topics',
                 data: {
                     name: 'النسب والتناسب',
-                    display_order: 2,
+                    display_order: 1,
                 },
             });
         });
@@ -95,7 +94,7 @@ describe('TopicsPanel', () => {
         apiRequestMock.mockResolvedValue([]);
         renderPanel({ ...version, status: 'published' });
 
-        expect(await screen.findByText('هذا الإصدار للقراءة فقط؛ لا يمكن إضافة الموضوعات أو تعديلها.')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'إضافة موضوع' })).not.toBeInTheDocument();
+        expect(await screen.findByText('هذا المنهج للقراءة فقط؛ لا يمكن إضافة الوحدات أو تعديلها.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'إضافة وحدة' })).not.toBeInTheDocument();
     });
 });
