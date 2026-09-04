@@ -80,7 +80,7 @@ function statusLabel(
         case 'published':
             return 'منشور';
         case 'retired':
-            return 'متقاعد';
+            return 'موقوف';
     }
 }
 
@@ -270,21 +270,17 @@ export function AssessmentItemsPanel({
             <div className="foundation-stack admin-content-panel">
                 <div>
                     <h2 className="foundation-card__title">
-                        Assessment Items
+                        بنك الأسئلة
                     </h2>
 
                     <p className="foundation-page__description">
-                        إدارة عناصر التقييم
-                        داخل إصدار المنهج.
+                        أنشئ الأسئلة ونظّمها داخل المنهج ثم أضف محتوى السؤال وإجابته الصحيحة.
                     </p>
                 </div>
 
                 {!editable ? (
                     <Feedback>
-                        هذه النسخة للقراءة
-                        فقط؛ لا يمكن إنشاء
-                        أو تعديل Assessment
-                        Items.
+                        هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الأسئلة أو تعديلها.
                     </Feedback>
                 ) : (
                     <form
@@ -294,10 +290,10 @@ export function AssessmentItemsPanel({
                         }
                     >
                         <label>
-                            Item Type
+                            نوع السؤال
 
                             <input
-                                aria-label="نوع عنصر التقييم الجديد"
+                                aria-label="نوع السؤال الجديد"
                                 maxLength={
                                     255
                                 }
@@ -318,10 +314,10 @@ export function AssessmentItemsPanel({
                         </label>
 
                         <label>
-                            Internal Label
+                            عنوان السؤال في البنك
 
                             <input
-                                aria-label="الاسم الداخلي لعنصر التقييم الجديد"
+                                aria-label="عنوان السؤال في البنك"
                                 maxLength={
                                     255
                                 }
@@ -347,7 +343,7 @@ export function AssessmentItemsPanel({
                                     .isPending
                             }
                         >
-                            إضافة Assessment Item
+                            إضافة سؤال
                         </Button>
                     </form>
                 )}
@@ -359,7 +355,7 @@ export function AssessmentItemsPanel({
                                 .error
                         }
                     >
-                        تعذر إنشاء عنصر التقييم.
+                        تعذر إنشاء السؤال.
                     </ItemFailure>
                 ) : null}
 
@@ -370,13 +366,13 @@ export function AssessmentItemsPanel({
                                 .error
                         }
                     >
-                        تعذر تعديل عنصر التقييم.
+                        تعذر تعديل السؤال.
                     </ItemFailure>
                 ) : null}
 
                 {itemsQuery.isPending ? (
                     <p>
-                        جار تحميل عناصر التقييم…
+                        جار تحميل الأسئلة…
                     </p>
                 ) : itemsQuery.isError ? (
                     <ItemFailure
@@ -384,13 +380,12 @@ export function AssessmentItemsPanel({
                             itemsQuery.error
                         }
                     >
-                        تعذر تحميل عناصر التقييم.
+                        تعذر تحميل الأسئلة.
                     </ItemFailure>
                 ) : itemsQuery.data
                     .length === 0 ? (
                     <Feedback>
-                        لا توجد Assessment
-                        Items في هذا الإصدار.
+                        لا توجد أسئلة في هذا المنهج حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
@@ -412,10 +407,10 @@ export function AssessmentItemsPanel({
                                             }
                                         >
                                             <label>
-                                                Item Type
+                                                نوع السؤال
 
                                                 <input
-                                                    aria-label="تعديل نوع عنصر التقييم"
+                                                    aria-label="تعديل نوع السؤال"
                                                     maxLength={
                                                         255
                                                     }
@@ -436,10 +431,10 @@ export function AssessmentItemsPanel({
                                             </label>
 
                                             <label>
-                                                Internal Label
+                                                عنوان السؤال في البنك
 
                                                 <input
-                                                    aria-label="تعديل الاسم الداخلي لعنصر التقييم"
+                                                    aria-label="تعديل عنوان السؤال في البنك"
                                                     maxLength={
                                                         255
                                                     }
@@ -511,15 +506,6 @@ export function AssessmentItemsPanel({
                                                         )
                                                     }
                                                 </p>
-
-                                                {item.internal_label ? (
-                                                    <p className="admin-content-list__meta">
-                                                        Internal Label:{' '}
-                                                        {
-                                                            item.internal_label
-                                                        }
-                                                    </p>
-                                                ) : null}
                                             </div>
 
                                             <div className="admin-content-actions">
@@ -533,7 +519,7 @@ export function AssessmentItemsPanel({
                                                         )
                                                     }
                                                 >
-                                                    Revisions
+                                                    إعداد السؤال
                                                 </Button>
 
                                                 {editable
