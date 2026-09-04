@@ -37,6 +37,8 @@ interface LessonsPanelProps {
     version: CurriculumVersion;
 }
 
+type LessonFilter = 'all' | Lesson['status'];
+
 function requestId(error: unknown) {
     return error instanceof EduCoreApiError
         ? error.requestId ?? null
@@ -77,11 +79,32 @@ function lessonStatusLabel(status: Lesson['status']) {
     }
 }
 
+function formatDate(value: string | null) {
+    if (!value) {
+        return '—';
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '—';
+    }
+
+    return new Intl.DateTimeFormat('ar-SA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(date);
+}
+
 export function LessonsPanel({ version }: LessonsPanelProps) {
     const queryClient = useQueryClient();
     const editable = version.status === 'draft';
 
     const [showCreate, setShowCreate] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] =
+        useState<LessonFilter>('all');
     const [newTitle, setNewTitle] = useState('');
     const [newDescription, setNewDescription] = useState('');
     const [newDisplayOrder, setNewDisplayOrder] = useState('0');
@@ -104,6 +127,28 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         [authoringLessonId, lessonsQuery.data],
     );
 
+    const filteredLessons = useMemo(() => {
+        const normalizedSearch =
+            searchTerm.trim().toLocaleLowerCase('ar');
+
+        return (lessonsQuery.data ?? []).filter((lesson) => {
+            const matchesStatus =
+                statusFilter === 'all'
+                || lesson.status === statusFilter;
+
+            const matchesSearch =
+                normalizedSearch === ''
+                || lesson.title
+                    .toLocaleLowerCase('ar')
+                    .includes(normalizedSearch)
+                || (lesson.description ?? '')
+                    .toLocaleLowerCase('ar')
+                    .includes(normalizedSearch);
+
+            return matchesStatus && matchesSearch;
+        });
+    }, [lessonsQuery.data, searchTerm, statusFilter]);
+
     async function invalidate() {
         await queryClient.invalidateQueries({
             queryKey: adminLessonsKey(version.id),
@@ -117,11 +162,12 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                 description: newDescription.trim() || null,
                 display_order: Number(newDisplayOrder),
             }),
-        onSuccess: async () => {
+        onSuccess: async (lesson) => {
             setNewTitle('');
             setNewDescription('');
             setNewDisplayOrder('0');
             setShowCreate(false);
+            setAuthoringLessonId(lesson.id);
             await invalidate();
         },
     });
@@ -177,6 +223,8 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             return;
         }
 
+        setShowCreate(false);
+        setAuthoringLessonId(lesson.id);
         setEditingLesson(lesson);
         setEditTitle(lesson.title);
         setEditDescription(lesson.description ?? '');
@@ -205,223 +253,388 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         });
     }
 
-    return (
-        <div className="grid gap-4">
-            <Surface>
-                <div className="foundation-stack admin-content-panel">
-                    <div className="admin-content-revisions__heading">
-                        <div>
-                            <h2 className="foundation-card__title">
-                                الدروس
-                            </h2>
-                            <p className="foundation-page__description">
-                                أنشئ الدروس ورتبها ثم افتح الدرس لإدارة محتواه ومهاراته ونشره.
-                            </p>
-                        </div>
+    const inspectorOpen =
+        showCreate || authoringLesson !== null;
 
-                        {editable ? (
-                            <Button
-                                type="button"
-                                onClick={() => setShowCreate((value) => !value)}
-                            >
-                                {showCreate ? 'إغلاق' : 'إضافة درس'}
-                            </Button>
-                        ) : null}
+    return (
+        <div
+            className={
+                inspectorOpen
+                    ? 'admin-lessons-layout admin-lessons-layout--inspector'
+                    : 'admin-lessons-layout'
+            }
+        >
+            <Surface className="admin-lessons-list-pane">
+                <div className="admin-lessons-list-pane__header">
+                    <div>
+                        <h2>الدروس</h2>
+                        <p>
+                            أدر الدروس وترتيبها وحالات النشر من مساحة واحدة.
+                        </p>
                     </div>
 
-                    {!editable ? (
-                        <Feedback>
-                            هذا الإصدار للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.
-                        </Feedback>
+                    {editable ? (
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                setAuthoringLessonId(null);
+                                setEditingLesson(null);
+                                setShowCreate(true);
+                            }}
+                        >
+                            <span aria-hidden="true">＋</span>
+                            إضافة درس
+                        </Button>
                     ) : null}
+                </div>
 
-                    {showCreate && editable ? (
-                        <form className="admin-content-form" onSubmit={submitCreate}>
-                            <label>
-                                عنوان الدرس
-                                <input
-                                    aria-label="عنوان الدرس الجديد"
-                                    value={newTitle}
-                                    maxLength={255}
-                                    required
-                                    onChange={(event) => setNewTitle(event.target.value)}
-                                />
-                            </label>
+                {!editable ? (
+                    <Feedback>
+                        هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.
+                    </Feedback>
+                ) : null}
 
-                            <label>
-                                الوصف المختصر
-                                <textarea
-                                    aria-label="وصف الدرس الجديد"
-                                    rows={3}
-                                    value={newDescription}
-                                    onChange={(event) => setNewDescription(event.target.value)}
-                                />
-                            </label>
+                <div className="admin-lessons-toolbar">
+                    <label className="admin-lessons-search">
+                        <span className="sr-only">البحث في الدروس</span>
+                        <input
+                            aria-label="البحث في الدروس"
+                            type="search"
+                            placeholder="البحث في الدروس…"
+                            value={searchTerm}
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)
+                            }
+                        />
+                    </label>
 
-                            <label>
-                                ترتيب الظهور
-                                <input
-                                    aria-label="ترتيب الدرس الجديد"
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    required
-                                    value={newDisplayOrder}
-                                    onChange={(event) => setNewDisplayOrder(event.target.value)}
-                                />
-                            </label>
+                    <label className="admin-lessons-filter">
+                        <span className="sr-only">تصفية حالة الدروس</span>
+                        <select
+                            aria-label="تصفية حالة الدروس"
+                            value={statusFilter}
+                            onChange={(event) => {
+                                const value = event.target.value;
 
-                            <div className="admin-content-actions">
-                                <Button type="submit" disabled={createMutation.isPending}>
-                                    حفظ الدرس
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => setShowCreate(false)}
-                                >
-                                    إلغاء
-                                </Button>
-                            </div>
-                        </form>
-                    ) : null}
+                                if (
+                                    value === 'all'
+                                    || value === 'draft'
+                                    || value === 'published'
+                                    || value === 'retired'
+                                ) {
+                                    setStatusFilter(value);
+                                }
+                            }}
+                        >
+                            <option value="all">جميع الحالات</option>
+                            <option value="draft">مسودة</option>
+                            <option value="published">منشور</option>
+                            <option value="retired">موقوف</option>
+                        </select>
+                    </label>
+                </div>
 
-                    {createMutation.isError ? (
-                        <LessonFailure error={createMutation.error}>
-                            تعذر إنشاء الدرس.
-                        </LessonFailure>
-                    ) : null}
+                {createMutation.isError ? (
+                    <LessonFailure error={createMutation.error}>
+                        تعذر إنشاء الدرس.
+                    </LessonFailure>
+                ) : null}
 
-                    {updateMutation.isError ? (
-                        <LessonFailure error={updateMutation.error}>
-                            تعذر تعديل الدرس.
-                        </LessonFailure>
-                    ) : null}
+                {updateMutation.isError ? (
+                    <LessonFailure error={updateMutation.error}>
+                        تعذر تعديل الدرس.
+                    </LessonFailure>
+                ) : null}
 
-                    {lessonsQuery.isPending ? (
-                        <p>جار تحميل الدروس…</p>
-                    ) : lessonsQuery.isError ? (
-                        <LessonFailure error={lessonsQuery.error}>
-                            تعذر تحميل الدروس.
-                        </LessonFailure>
-                    ) : lessonsQuery.data.length === 0 ? (
-                        <Feedback>
-                            لا توجد دروس في هذا الإصدار حتى الآن.
-                        </Feedback>
-                    ) : (
-                        <div className="admin-content-list">
-                            {lessonsQuery.data.map((lesson) => (
-                                <article
-                                    key={lesson.id}
-                                    className="admin-content-list__item"
-                                >
-                                    {editingLesson?.id === lesson.id ? (
-                                        <form
-                                            className="admin-content-form admin-content-list__editor"
-                                            onSubmit={submitEdit}
-                                        >
-                                            <label>
-                                                عنوان الدرس
-                                                <input
-                                                    aria-label="تعديل عنوان الدرس"
-                                                    value={editTitle}
-                                                    maxLength={255}
-                                                    required
-                                                    onChange={(event) => setEditTitle(event.target.value)}
-                                                />
-                                            </label>
-
-                                            <label>
-                                                الوصف المختصر
-                                                <textarea
-                                                    aria-label="تعديل وصف الدرس"
-                                                    rows={3}
-                                                    value={editDescription}
-                                                    onChange={(event) => setEditDescription(event.target.value)}
-                                                />
-                                            </label>
-
-                                            <label>
-                                                ترتيب الظهور
-                                                <input
-                                                    aria-label="تعديل ترتيب الدرس"
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    required
-                                                    value={editDisplayOrder}
-                                                    onChange={(event) => setEditDisplayOrder(event.target.value)}
-                                                />
-                                            </label>
-
-                                            <div className="admin-content-actions">
-                                                <Button
-                                                    size="sm"
-                                                    type="submit"
-                                                    disabled={updateMutation.isPending}
-                                                >
-                                                    حفظ
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="secondary"
-                                                    onClick={() => setEditingLesson(null)}
-                                                >
-                                                    إلغاء
-                                                </Button>
-                                            </div>
-                                        </form>
-                                    ) : (
-                                        <>
-                                            <div>
+                {lessonsQuery.isPending ? (
+                    <div className="admin-lessons-empty">
+                        جار تحميل الدروس…
+                    </div>
+                ) : lessonsQuery.isError ? (
+                    <LessonFailure error={lessonsQuery.error}>
+                        تعذر تحميل الدروس.
+                    </LessonFailure>
+                ) : lessonsQuery.data.length === 0 ? (
+                    <div className="admin-lessons-empty">
+                        <strong>لا توجد دروس حتى الآن.</strong>
+                        <span>
+                            أضف أول درس للبدء في بناء محتوى المنهج.
+                        </span>
+                    </div>
+                ) : filteredLessons.length === 0 ? (
+                    <div className="admin-lessons-empty">
+                        لا توجد نتائج مطابقة للبحث أو التصفية.
+                    </div>
+                ) : (
+                    <div className="admin-lessons-table-wrap">
+                        <table className="admin-lessons-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">عنوان الدرس</th>
+                                    <th scope="col">ترتيب الظهور</th>
+                                    <th scope="col">الحالة</th>
+                                    <th scope="col">آخر تحديث</th>
+                                    <th scope="col">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredLessons.map((lesson, index) => (
+                                    <tr
+                                        key={lesson.id}
+                                        className={
+                                            authoringLessonId === lesson.id
+                                                ? 'admin-lessons-table__row admin-lessons-table__row--selected'
+                                                : 'admin-lessons-table__row'
+                                        }
+                                    >
+                                        <td>{index + 1}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="admin-lesson-title-button"
+                                                onClick={() => {
+                                                    setShowCreate(false);
+                                                    setEditingLesson(null);
+                                                    setAuthoringLessonId(lesson.id);
+                                                }}
+                                            >
                                                 <strong>{lesson.title}</strong>
-                                                <p className="admin-content-list__meta">
-                                                    {lessonStatusLabel(lesson.status)} · ترتيب الظهور: {lesson.display_order}
-                                                </p>
                                                 {lesson.description ? (
-                                                    <p className="admin-content-list__meta">
-                                                        {lesson.description}
-                                                    </p>
+                                                    <span>{lesson.description}</span>
                                                 ) : null}
-                                            </div>
-
-                                            <div className="admin-content-actions">
+                                            </button>
+                                        </td>
+                                        <td>{lesson.display_order}</td>
+                                        <td>
+                                            <span
+                                                className={`admin-lesson-status admin-lesson-status--${lesson.status}`}
+                                            >
+                                                {lessonStatusLabel(lesson.status)}
+                                            </span>
+                                        </td>
+                                        <td>{formatDate(lesson.updated_at)}</td>
+                                        <td>
+                                            <div className="admin-lesson-row-actions">
                                                 <Button
                                                     size="sm"
+                                                    variant="secondary"
                                                     type="button"
-                                                    onClick={() => setAuthoringLessonId(lesson.id)}
+                                                    onClick={() => {
+                                                        setShowCreate(false);
+                                                        setEditingLesson(null);
+                                                        setAuthoringLessonId(lesson.id);
+                                                    }}
                                                 >
                                                     إدارة الدرس
                                                 </Button>
 
                                                 {editable && lesson.status === 'draft' ? (
-                                                    <Button
-                                                        size="sm"
+                                                    <button
                                                         type="button"
-                                                        variant="secondary"
-                                                        disabled={updateMutation.isPending}
+                                                        className="admin-lesson-more"
+                                                        aria-label={`تعديل بيانات الدرس ${lesson.title}`}
                                                         onClick={() => beginEdit(lesson)}
                                                     >
-                                                        تعديل البيانات
-                                                    </Button>
+                                                        ⋮
+                                                    </button>
                                                 ) : null}
                                             </div>
-                                        </>
-                                    )}
-                                </article>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </Surface>
 
+            {showCreate && editable ? (
+                <Surface className="admin-lesson-inspector">
+                    <div className="admin-lesson-inspector__header">
+                        <div>
+                            <span>إضافة درس جديد</span>
+                            <h3>بيانات الدرس</h3>
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="إغلاق إضافة الدرس"
+                            onClick={() => setShowCreate(false)}
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <form
+                        className="admin-lesson-inspector__form"
+                        onSubmit={submitCreate}
+                    >
+                        <label>
+                            عنوان الدرس
+                            <input
+                                aria-label="عنوان الدرس الجديد"
+                                value={newTitle}
+                                maxLength={255}
+                                required
+                                placeholder="اكتب عنوان الدرس"
+                                onChange={(event) => setNewTitle(event.target.value)}
+                            />
+                        </label>
+
+                        <label>
+                            الوصف المختصر
+                            <textarea
+                                aria-label="وصف الدرس الجديد"
+                                rows={4}
+                                value={newDescription}
+                                placeholder="اكتب وصفًا مختصرًا للدرس"
+                                onChange={(event) => setNewDescription(event.target.value)}
+                            />
+                        </label>
+
+                        <label>
+                            ترتيب الظهور
+                            <input
+                                aria-label="ترتيب الدرس الجديد"
+                                type="number"
+                                min="0"
+                                step="1"
+                                required
+                                value={newDisplayOrder}
+                                onChange={(event) => setNewDisplayOrder(event.target.value)}
+                            />
+                        </label>
+
+                        <div className="admin-lesson-inspector__actions">
+                            <Button
+                                type="submit"
+                                disabled={createMutation.isPending}
+                            >
+                                حفظ الدرس
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => setShowCreate(false)}
+                            >
+                                إلغاء
+                            </Button>
+                        </div>
+                    </form>
+                </Surface>
+            ) : null}
+
             {authoringLesson ? (
-                <LessonRevisionsPanel
-                    version={version}
-                    lesson={authoringLesson}
-                    onClose={() => setAuthoringLessonId(null)}
-                />
+                <aside className="admin-lesson-inspector-stack">
+                    <Surface className="admin-lesson-inspector admin-lesson-inspector--summary">
+                        <div className="admin-lesson-inspector__header">
+                            <div>
+                                <span>تفاصيل الدرس</span>
+                                <h3>{authoringLesson.title}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="إغلاق تفاصيل الدرس"
+                                onClick={() => {
+                                    setAuthoringLessonId(null);
+                                    setEditingLesson(null);
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="admin-lesson-inspector__summary-grid">
+                            <div>
+                                <span>الحالة</span>
+                                <strong>{lessonStatusLabel(authoringLesson.status)}</strong>
+                            </div>
+                            <div>
+                                <span>ترتيب الظهور</span>
+                                <strong>{authoringLesson.display_order}</strong>
+                            </div>
+                        </div>
+
+                        {authoringLesson.description ? (
+                            <p className="admin-lesson-inspector__description">
+                                {authoringLesson.description}
+                            </p>
+                        ) : null}
+
+                        {editingLesson?.id === authoringLesson.id ? (
+                            <form
+                                className="admin-lesson-inspector__form"
+                                onSubmit={submitEdit}
+                            >
+                                <label>
+                                    عنوان الدرس
+                                    <input
+                                        aria-label="تعديل عنوان الدرس"
+                                        value={editTitle}
+                                        maxLength={255}
+                                        required
+                                        onChange={(event) => setEditTitle(event.target.value)}
+                                    />
+                                </label>
+
+                                <label>
+                                    الوصف المختصر
+                                    <textarea
+                                        aria-label="تعديل وصف الدرس"
+                                        rows={3}
+                                        value={editDescription}
+                                        onChange={(event) => setEditDescription(event.target.value)}
+                                    />
+                                </label>
+
+                                <label>
+                                    ترتيب الظهور
+                                    <input
+                                        aria-label="تعديل ترتيب الدرس"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        required
+                                        value={editDisplayOrder}
+                                        onChange={(event) => setEditDisplayOrder(event.target.value)}
+                                    />
+                                </label>
+
+                                <div className="admin-lesson-inspector__actions">
+                                    <Button
+                                        size="sm"
+                                        type="submit"
+                                        disabled={updateMutation.isPending}
+                                    >
+                                        حفظ التعديلات
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() => setEditingLesson(null)}
+                                    >
+                                        إلغاء
+                                    </Button>
+                                </div>
+                            </form>
+                        ) : editable && authoringLesson.status === 'draft' ? (
+                            <Button
+                                variant="secondary"
+                                type="button"
+                                onClick={() => beginEdit(authoringLesson)}
+                            >
+                                تعديل بيانات الدرس
+                            </Button>
+                        ) : null}
+                    </Surface>
+
+                    <LessonRevisionsPanel
+                        version={version}
+                        lesson={authoringLesson}
+                        onClose={() => setAuthoringLessonId(null)}
+                    />
+                </aside>
             ) : null}
         </div>
     );
