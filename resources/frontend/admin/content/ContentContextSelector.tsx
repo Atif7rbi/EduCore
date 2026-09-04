@@ -7,7 +7,6 @@ import {
 
 import {
     Feedback,
-    Surface,
 } from '../../ui';
 
 import {
@@ -50,7 +49,7 @@ function statusLabel(
         case 'published':
             return 'منشور';
         case 'retired':
-            return 'متقاعد';
+            return 'موقوف';
     }
 }
 
@@ -152,6 +151,18 @@ export function ContentContextSelector({
         versionsQuery.data,
     ]);
 
+    const selectedSubject =
+        subjectsQuery.data?.find(
+            (subject) =>
+                subject.id === subjectId,
+        ) ?? null;
+
+    const selectedCurriculum =
+        curriculaQuery.data?.find(
+            (curriculum) =>
+                curriculum.id === curriculumId,
+        ) ?? null;
+
     const selectedVersion =
         versionsQuery.data?.find(
             (version) =>
@@ -168,252 +179,157 @@ export function ContentContextSelector({
         selectedVersion,
     ]);
 
-    return (
-        <Surface
-            className="admin-content-context"
-            elevated
-        >
-            <div className="foundation-stack">
-                <div>
-                    <h2 className="foundation-card__title">
-                        سياق المحتوى
-                    </h2>
-
-                    <p className="foundation-page__description">
-                        اختر المادة والمنهج وإصدار
-                        المنهج الذي تريد إدارة محتواه.
-                    </p>
-                </div>
-
-                {subjectsQuery.isPending ? (
-                    <p>
-                        جار تحميل المواد…
-                    </p>
-                ) : subjectsQuery.isError ? (
-                    <Feedback tone="danger">
-                        تعذر تحميل المواد.
-                    </Feedback>
-                ) : subjectsQuery.data.length
-                    === 0 ? (
-                    <Feedback>
-                        لا توجد مواد متاحة.
-                    </Feedback>
-                ) : (
-                    <div className="admin-content-context__fields">
-                        <label>
-                            المادة
-
-                            <select
-                                value={
-                                    subjectId
-                                    ?? ''
-                                }
-                                onChange={(
-                                    event,
-                                ) => {
-                                    const value =
-                                        event.target
-                                            .value
-                                        || null;
-
-                                    onSubjectChange(
-                                        value,
-                                    );
-
-                                    onCurriculumChange(
-                                        null,
-                                    );
-
-                                    onCurriculumVersionChange(
-                                        null,
-                                    );
-
-                                    onVersionResolved(
-                                        null,
-                                    );
-                                }}
-                            >
-                                {subjectsQuery.data.map(
-                                    (subject) => (
-                                        <option
-                                            key={
-                                                subject.id
-                                            }
-                                            value={
-                                                subject.id
-                                            }
-                                        >
-                                            {
-                                                subject.name
-                                            }
-                                        </option>
-                                    ),
-                                )}
-                            </select>
-                        </label>
-
-                        <label>
-                            المنهج
-
-                            <select
-                                value={
-                                    curriculumId
-                                    ?? ''
-                                }
-                                disabled={
-                                    !subjectId
-                                    || curriculaQuery
-                                        .isPending
-                                    || curriculaQuery
-                                        .isError
-                                    || (
-                                        curriculaQuery
-                                            .data
-                                        && curriculaQuery
-                                            .data
-                                            .length
-                                            === 0
-                                    )
-                                }
-                                onChange={(
-                                    event,
-                                ) => {
-                                    const value =
-                                        event.target
-                                            .value
-                                        || null;
-
-                                    onCurriculumChange(
-                                        value,
-                                    );
-
-                                    onCurriculumVersionChange(
-                                        null,
-                                    );
-
-                                    onVersionResolved(
-                                        null,
-                                    );
-                                }}
-                            >
-                                {curriculaQuery.data
-                                    ?.map(
-                                        (
-                                            curriculum,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    curriculum.id
-                                                }
-                                                value={
-                                                    curriculum.id
-                                                }
-                                            >
-                                                {
-                                                    curriculum.name
-                                                }
-                                            </option>
-                                        ),
-                                    )}
-                            </select>
-                        </label>
-
-                        <label>
-                            إصدار المنهج
-
-                            <select
-                                value={
-                                    curriculumVersionId
-                                    ?? ''
-                                }
-                                disabled={
-                                    !curriculumId
-                                    || versionsQuery
-                                        .isPending
-                                    || versionsQuery
-                                        .isError
-                                    || (
-                                        versionsQuery
-                                            .data
-                                        && versionsQuery
-                                            .data
-                                            .length
-                                            === 0
-                                    )
-                                }
-                                onChange={(
-                                    event,
-                                ) => {
-                                    onCurriculumVersionChange(
-                                        event.target
-                                            .value
-                                        || null,
-                                    );
-                                }}
-                            >
-                                {versionsQuery.data
-                                    ?.map(
-                                        (
-                                            version,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    version.id
-                                                }
-                                                value={
-                                                    version.id
-                                                }
-                                            >
-                                                {
-                                                    version.label
-                                                }
-                                                {' — '}
-                                                الإصدار{' '}
-                                                {
-                                                    version.version_number
-                                                }
-                                                {' — '}
-                                                {
-                                                    statusLabel(
-                                                        version.status,
-                                                    )
-                                                }
-                                            </option>
-                                        ),
-                                    )}
-                            </select>
-                        </label>
-                    </div>
-                )}
-
-                {curriculaQuery.isError ? (
-                    <Feedback tone="danger">
-                        تعذر تحميل المناهج.
-                    </Feedback>
-                ) : null}
-
-                {versionsQuery.isError ? (
-                    <Feedback tone="danger">
-                        تعذر تحميل إصدارات المنهج.
-                    </Feedback>
-                ) : null}
-
-                {selectedVersion ? (
-                    <Feedback
-                        tone={
-                            selectedVersion.status
-                            === 'draft'
-                                ? 'success'
-                                : undefined
-                        }
-                    >
-                        {selectedVersion.status
-                        === 'draft'
-                            ? 'هذه النسخة مسودة ويمكن تعديل محتواها.'
-                            : 'هذه النسخة للقراءة فقط؛ عمليات التأليف مجمدة.'}
-                    </Feedback>
-                ) : null}
+    if (subjectsQuery.isPending) {
+        return (
+            <div className="admin-context-bar admin-context-bar--loading">
+                جار تحميل سياق المحتوى…
             </div>
-        </Surface>
+        );
+    }
+
+    if (subjectsQuery.isError) {
+        return (
+            <Feedback tone="danger">
+                تعذر تحميل المواد.
+            </Feedback>
+        );
+    }
+
+    if (subjectsQuery.data.length === 0) {
+        return (
+            <Feedback>
+                لا توجد مواد متاحة.
+            </Feedback>
+        );
+    }
+
+    return (
+        <div className="admin-context-bar">
+            <div className="admin-context-bar__trail" aria-label="سياق المحتوى الحالي">
+                <label className="admin-context-chip">
+                    <span className="admin-context-chip__label">
+                        المادة
+                    </span>
+                    <select
+                        aria-label="المادة"
+                        value={subjectId ?? ''}
+                        onChange={(event) => {
+                            const value =
+                                event.target.value || null;
+
+                            onSubjectChange(value);
+                            onCurriculumChange(null);
+                            onCurriculumVersionChange(null);
+                            onVersionResolved(null);
+                        }}
+                    >
+                        {subjectsQuery.data.map(
+                            (subject) => (
+                                <option
+                                    key={subject.id}
+                                    value={subject.id}
+                                >
+                                    {subject.name}
+                                </option>
+                            ),
+                        )}
+                    </select>
+                </label>
+
+                <span className="admin-context-bar__separator" aria-hidden="true">
+                    ‹
+                </span>
+
+                <label className="admin-context-chip">
+                    <span className="admin-context-chip__label">
+                        المنهج
+                    </span>
+                    <select
+                        aria-label="المنهج"
+                        value={curriculumId ?? ''}
+                        disabled={
+                            !subjectId
+                            || curriculaQuery.isPending
+                            || curriculaQuery.isError
+                            || curriculaQuery.data?.length === 0
+                        }
+                        onChange={(event) => {
+                            const value =
+                                event.target.value || null;
+
+                            onCurriculumChange(value);
+                            onCurriculumVersionChange(null);
+                            onVersionResolved(null);
+                        }}
+                    >
+                        {curriculaQuery.data?.map(
+                            (curriculum) => (
+                                <option
+                                    key={curriculum.id}
+                                    value={curriculum.id}
+                                >
+                                    {curriculum.name}
+                                </option>
+                            ),
+                        )}
+                    </select>
+                </label>
+            </div>
+
+            <div className="admin-context-bar__meta">
+                {selectedVersion ? (
+                    <span
+                        className={`admin-context-status admin-context-status--${selectedVersion.status}`}
+                    >
+                        {statusLabel(selectedVersion.status)}
+                    </span>
+                ) : null}
+
+                {versionsQuery.data
+                    && versionsQuery.data.length > 1 ? (
+                    <label className="admin-context-version">
+                        <span>إصدار العمل</span>
+                        <select
+                            aria-label="إصدار المنهج"
+                            value={curriculumVersionId ?? ''}
+                            onChange={(event) => {
+                                onCurriculumVersionChange(
+                                    event.target.value || null,
+                                );
+                            }}
+                        >
+                            {versionsQuery.data.map(
+                                (version) => (
+                                    <option
+                                        key={version.id}
+                                        value={version.id}
+                                    >
+                                        الإصدار {version.version_number} — {statusLabel(version.status)}
+                                    </option>
+                                ),
+                            )}
+                        </select>
+                    </label>
+                ) : null}
+
+                <span className="admin-context-bar__summary">
+                    {selectedSubject?.name ?? '—'}
+                    {' · '}
+                    {selectedCurriculum?.name ?? '—'}
+                </span>
+            </div>
+
+            {curriculaQuery.isError ? (
+                <Feedback tone="danger">
+                    تعذر تحميل المناهج.
+                </Feedback>
+            ) : null}
+
+            {versionsQuery.isError ? (
+                <Feedback tone="danger">
+                    تعذر تحميل إصدارات المنهج.
+                </Feedback>
+            ) : null}
+        </div>
     );
 }
