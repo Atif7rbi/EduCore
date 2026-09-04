@@ -44,7 +44,9 @@ function renderPanel() {
 }
 
 describe('SkillsPanel', () => {
-    beforeEach(() => apiRequestMock.mockReset());
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
 
     it('creates a skill from a collapsed Arabic form', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
