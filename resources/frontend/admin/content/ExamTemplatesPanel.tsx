@@ -78,8 +78,8 @@ function statusLabel(
     status: ExamTemplate['status'],
 ) {
     return status === 'active'
-        ? 'نشط'
-        : 'مؤرشف';
+        ? 'متاح'
+        : 'متوقف';
 }
 
 export function ExamTemplatesPanel({
@@ -297,14 +297,11 @@ export function ExamTemplatesPanel({
             <div className="foundation-stack admin-content-panel">
                 <div>
                     <h2 className="foundation-card__title">
-                        Exam Templates
+                        الاختبارات
                     </h2>
 
                     <p className="foundation-page__description">
-                        إدارة قوالب الاختبارات
-                        داخل إصدار المنهج.
-                        القالب الجديد يُنشأ
-                        بحالة active.
+                        أنشئ الاختبارات ونظّمها ثم حدّد الأسئلة والإعدادات التي يحتاجها الطالب عند بدء الاختبار.
                     </p>
                 </div>
 
@@ -319,7 +316,7 @@ export function ExamTemplatesPanel({
                             الاسم
 
                             <input
-                                aria-label="اسم قالب الاختبار"
+                                aria-label="اسم الاختبار"
                                 value={name}
                                 required
                                 maxLength={255}
@@ -339,7 +336,7 @@ export function ExamTemplatesPanel({
                             الوصف
 
                             <textarea
-                                aria-label="وصف قالب الاختبار"
+                                aria-label="وصف الاختبار"
                                 rows={4}
                                 value={
                                     description
@@ -363,14 +360,12 @@ export function ExamTemplatesPanel({
                                     .isPending
                             }
                         >
-                            إنشاء قالب اختبار
+                            إنشاء اختبار
                         </Button>
                     </form>
                 ) : (
                     <Feedback>
-                        Exam Templates للقراءة فقط
-                        لأن CurriculumVersion
-                        ليست draft.
+                        هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الاختبارات أو تعديلها.
                     </Feedback>
                 )}
 
@@ -381,7 +376,7 @@ export function ExamTemplatesPanel({
                                 .error
                         }
                     >
-                        تعذر إنشاء قالب الاختبار.
+                        تعذر إنشاء الاختبار.
                     </TemplateFailure>
                 ) : null}
 
@@ -392,7 +387,7 @@ export function ExamTemplatesPanel({
                                 .error
                         }
                     >
-                        تعذر تعديل قالب الاختبار.
+                        تعذر تعديل الاختبار.
                     </TemplateFailure>
                 ) : null}
 
@@ -403,14 +398,13 @@ export function ExamTemplatesPanel({
                                 .error
                         }
                     >
-                        تعذر تغيير حالة قالب الاختبار.
+                        تعذر تغيير حالة الاختبار.
                     </TemplateFailure>
                 ) : null}
 
                 {templatesQuery.isPending ? (
                     <p>
-                        جار تحميل قوالب
-                        الاختبارات…
+                        جار تحميل الاختبارات…
                     </p>
                 ) : templatesQuery.isError ? (
                     <TemplateFailure
@@ -419,13 +413,12 @@ export function ExamTemplatesPanel({
                                 .error
                         }
                     >
-                        تعذر تحميل قوالب الاختبارات.
+                        تعذر تحميل الاختبارات.
                     </TemplateFailure>
                 ) : templatesQuery.data
                     .length === 0 ? (
                     <Feedback>
-                        لا توجد قوالب اختبارات
-                        لهذا الإصدار.
+                        لا توجد اختبارات لهذا المنهج حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
@@ -454,7 +447,7 @@ export function ExamTemplatesPanel({
                                                 )
                                             }
                                             {' · '}
-                                            الإصدارات:{' '}
+                                            الإعدادات المحفوظة:{' '}
                                             {
                                                 template.versions_count
                                                 ?? 0
@@ -465,15 +458,6 @@ export function ExamTemplatesPanel({
                                             <p className="admin-content-list__meta">
                                                 {
                                                     template.description
-                                                }
-                                            </p>
-                                        ) : null}
-
-                                        {template.published_version_id ? (
-                                            <p className="admin-content-list__meta">
-                                                Published Version:{' '}
-                                                {
-                                                    template.published_version_id
                                                 }
                                             </p>
                                         ) : null}
@@ -490,7 +474,7 @@ export function ExamTemplatesPanel({
                                                 )
                                             }
                                         >
-                                            الإصدارات
+                                            إعداد الاختبار
                                         </Button>
 
                                         {editable
@@ -534,7 +518,7 @@ export function ExamTemplatesPanel({
                                                             })
                                                     }
                                                 >
-                                                    أرشفة
+                                                    إيقاف
                                                 </Button>
                                             </>
                                         ) : null}
@@ -559,7 +543,7 @@ export function ExamTemplatesPanel({
                                                         })
                                                 }
                                             >
-                                                تفعيل
+                                                إعادة الإتاحة
                                             </Button>
                                         ) : null}
                                     </div>
@@ -577,14 +561,14 @@ export function ExamTemplatesPanel({
                         }
                     >
                         <h3 className="foundation-card__title">
-                            تعديل قالب الاختبار
+                            تعديل الاختبار
                         </h3>
 
                         <label>
                             الاسم
 
                             <input
-                                aria-label="تعديل اسم قالب الاختبار"
+                                aria-label="تعديل اسم الاختبار"
                                 required
                                 maxLength={255}
                                 value={
@@ -611,7 +595,7 @@ export function ExamTemplatesPanel({
                             الوصف
 
                             <textarea
-                                aria-label="تعديل وصف قالب الاختبار"
+                                aria-label="تعديل وصف الاختبار"
                                 rows={4}
                                 value={
                                     editingTemplate
