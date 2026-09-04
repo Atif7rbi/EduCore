@@ -1,3 +1,5 @@
+import '../../css/admin-authoring.css';
+
 import {
     useCallback,
     useState,
