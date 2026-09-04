@@ -205,6 +205,15 @@ describe('LessonRevisionsPanel', () => {
             if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
                 return Promise.resolve([topic]);
             }
+            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/lessons') {
+                return Promise.resolve([
+                    {
+                        ...lesson,
+                        status: 'published',
+                        published_revision_id: 'revision-1',
+                    },
+                ]);
+            }
             if (method === 'POST' && url === '/api/lessons/lesson-1/publish') {
                 return Promise.resolve({
                     ...lesson,
