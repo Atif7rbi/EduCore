@@ -80,8 +80,8 @@ function statusLabel(
         PracticeActivity['status'],
 ) {
     return status === 'active'
-        ? 'نشطة'
-        : 'مؤرشفة';
+        ? 'متاح'
+        : 'متوقف';
 }
 
 export function PracticeActivitiesPanel({
@@ -331,16 +331,11 @@ export function PracticeActivitiesPanel({
             <div className="foundation-stack admin-content-panel">
                 <div>
                     <h2 className="foundation-card__title">
-                        Practice Activities
+                        التدريبات
                     </h2>
 
                     <p className="foundation-page__description">
-                        إدارة مجموعات التدريب
-                        المرتبطة بإصدار المنهج.
-                        تُنشأ المجموعة بحالة
-                        archived، ولا يمكن تعديل
-                        بياناتها الوصفية أثناء
-                        كونها active.
+                        أنشئ مجموعات تدريب واربطها بالدروس ثم أضف الأسئلة وحدد متى تكون متاحة للطلاب.
                     </p>
                 </div>
 
@@ -448,10 +443,7 @@ export function PracticeActivitiesPanel({
                     </form>
                 ) : (
                     <Feedback>
-                        Practice Activities
-                        للقراءة فقط لأن
-                        CurriculumVersion ليست
-                        draft.
+                        هذا المنهج للقراءة فقط؛ لا يمكن إنشاء التدريبات أو تعديلها.
                     </Feedback>
                 )}
 
@@ -515,8 +507,7 @@ export function PracticeActivitiesPanel({
                 ) : activitiesQuery.data
                     .length === 0 ? (
                     <Feedback>
-                        لا توجد مجموعات تدريب
-                        لهذا الإصدار.
+                        لا توجد مجموعات تدريب لهذا المنهج حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
@@ -545,7 +536,7 @@ export function PracticeActivitiesPanel({
                                                 )
                                             }
                                             {' · '}
-                                            العناصر:{' '}
+                                            الأسئلة:{' '}
                                             {
                                                 activity.items_count
                                                 ?? 0
@@ -572,7 +563,7 @@ export function PracticeActivitiesPanel({
                                                 )
                                             }
                                         >
-                                            العناصر
+                                            إدارة الأسئلة
                                         </Button>
 
                                         {editable
@@ -615,7 +606,7 @@ export function PracticeActivitiesPanel({
                                                             })
                                                     }
                                                 >
-                                                    تفعيل
+                                                    إتاحة للطلاب
                                                 </Button>
                                             </>
                                         ) : null}
@@ -641,7 +632,7 @@ export function PracticeActivitiesPanel({
                                                         })
                                                 }
                                             >
-                                                أرشفة
+                                                إيقاف الإتاحة
                                             </Button>
                                         ) : null}
                                     </div>
