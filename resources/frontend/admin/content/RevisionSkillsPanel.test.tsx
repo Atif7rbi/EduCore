@@ -81,7 +81,9 @@ function renderPanel(currentRevision: LessonRevision = revision) {
 }
 
 describe('RevisionSkillsPanel', () => {
-    beforeEach(() => apiRequestMock.mockReset());
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
 
     it('links a curriculum skill to a draft lesson content version', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
