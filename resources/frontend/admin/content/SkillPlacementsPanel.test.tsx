@@ -70,7 +70,9 @@ function renderPanel(currentVersion: CurriculumVersion = version) {
 }
 
 describe('SkillPlacementsPanel', () => {
-    beforeEach(() => apiRequestMock.mockReset());
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
 
     it('links an existing skill to the curriculum using Arabic actions', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
