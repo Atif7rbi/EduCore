@@ -53,7 +53,7 @@ const workspaceSections: Array<{
 }> = [
     {
         id: 'topics',
-        label: 'الموضوعات',
+        label: 'الوحدات',
     },
     {
         id: 'lessons',
