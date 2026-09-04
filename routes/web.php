@@ -3,9 +3,7 @@
 use App\Http\Controllers\Auth\SessionController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::redirect('/', '/login');
 
 Route::prefix('auth')->group(function (): void {
     Route::post(
