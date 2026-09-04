@@ -1,4 +1,5 @@
 import '../../css/admin-shell-polish.css';
+import '../../css/admin-curricula-user.css';
 
 import {
     type PropsWithChildren,
