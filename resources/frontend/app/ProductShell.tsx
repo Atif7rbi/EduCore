@@ -189,26 +189,38 @@ export function ProductShell({
             </header>
 
             <Container className="authenticated-shell__layout">
-                <nav
-                    className="authenticated-shell__navigation"
-                    aria-label={`التنقل — ${areaLabel}`}
-                >
-                    {navigation.map(({ end, label, to }) => (
-                        <NavLink
-                            key={to}
-                            to={to}
-                            end={end}
-                            className={({ isActive }) =>
-                                isActive
-                                    ? 'authenticated-shell__nav-link authenticated-shell__nav-link--active'
-                                    : 'authenticated-shell__nav-link'
-                            }
-                        >
-                            <NavigationIcon to={to} />
-                            <span>{label}</span>
-                        </NavLink>
-                    ))}
-                </nav>
+                <aside className="authenticated-shell__sidebar">
+                    <div className="authenticated-shell__nav-heading">
+                        <span>{areaLabel}</span>
+                        <small>مساحة العمل</small>
+                    </div>
+
+                    <nav
+                        className="authenticated-shell__navigation"
+                        aria-label={`التنقل — ${areaLabel}`}
+                    >
+                        {navigation.map(({ end, label, to }) => (
+                            <NavLink
+                                key={to}
+                                to={to}
+                                end={end}
+                                className={({ isActive }) =>
+                                    isActive
+                                        ? 'authenticated-shell__nav-link authenticated-shell__nav-link--active'
+                                        : 'authenticated-shell__nav-link'
+                                }
+                            >
+                                <NavigationIcon to={to} />
+                                <span>{label}</span>
+                            </NavLink>
+                        ))}
+                    </nav>
+
+                    <div className="authenticated-shell__sidebar-footer">
+                        <strong>EduCore</strong>
+                        <span>منصة تعليمية متكاملة</span>
+                    </div>
+                </aside>
 
                 <main className="authenticated-shell__content">
                     {logoutError ? (
