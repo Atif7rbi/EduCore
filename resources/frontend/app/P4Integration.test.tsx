@@ -230,6 +230,134 @@ function installContextApi() {
     );
 }
 
+function openSection(name: string) {
+    fireEvent.click(
+        screen.getByRole(
+            'tab',
+            { name },
+        ),
+    );
+}
+
+function expectDraftContextAcrossWorkspace() {
+    expect(
+        screen.getByTestId(
+            'topics-panel',
+        ),
+    ).toHaveTextContent(
+        'topics:version-draft:draft',
+    );
+
+    openSection('المهارات');
+
+    expect(
+        screen.getByTestId(
+            'skills-panel',
+        ),
+    ).toHaveTextContent(
+        'skills:global',
+    );
+
+    expect(
+        screen.getByTestId(
+            'skill-placements-panel',
+        ),
+    ).toHaveTextContent(
+        'placements:version-draft:draft',
+    );
+
+    openSection('الدروس');
+    expect(
+        screen.getByTestId(
+            'lessons-panel',
+        ),
+    ).toHaveTextContent(
+        'lessons:version-draft:draft',
+    );
+
+    openSection('بنك الأسئلة');
+    expect(
+        screen.getByTestId(
+            'assessment-items-panel',
+        ),
+    ).toHaveTextContent(
+        'assessments:version-draft:draft',
+    );
+
+    openSection('التدريبات');
+    expect(
+        screen.getByTestId(
+            'practice-activities-panel',
+        ),
+    ).toHaveTextContent(
+        'practice:version-draft:draft',
+    );
+
+    openSection('الاختبارات');
+    expect(
+        screen.getByTestId(
+            'exam-templates-panel',
+        ),
+    ).toHaveTextContent(
+        'exams:version-draft:draft',
+    );
+}
+
+function expectPublishedContextAcrossWorkspace() {
+    expect(
+        screen.getByTestId(
+            'topics-panel',
+        ),
+    ).toHaveTextContent(
+        'topics:version-published:published',
+    );
+
+    openSection('المهارات');
+    expect(
+        screen.getByTestId(
+            'skill-placements-panel',
+        ),
+    ).toHaveTextContent(
+        'placements:version-published:published',
+    );
+
+    openSection('الدروس');
+    expect(
+        screen.getByTestId(
+            'lessons-panel',
+        ),
+    ).toHaveTextContent(
+        'lessons:version-published:published',
+    );
+
+    openSection('بنك الأسئلة');
+    expect(
+        screen.getByTestId(
+            'assessment-items-panel',
+        ),
+    ).toHaveTextContent(
+        'assessments:version-published:published',
+    );
+
+    openSection('التدريبات');
+    expect(
+        screen.getByTestId(
+            'practice-activities-panel',
+        ),
+    ).toHaveTextContent(
+        'practice:version-published:published',
+    );
+
+    openSection('الاختبارات');
+    expect(
+        screen.getByTestId(
+            'exam-templates-panel',
+        ),
+    ).toHaveTextContent(
+        'exams:version-published:published',
+    );
+}
+
 describe(
     'P4 admin product integration',
     () => {
@@ -250,61 +378,11 @@ describe(
                     ),
                 ).toBeInTheDocument();
 
-                expect(
-                    await screen.findByTestId(
-                        'topics-panel',
-                    ),
-                ).toHaveTextContent(
-                    'topics:version-draft:draft',
+                await screen.findByTestId(
+                    'topics-panel',
                 );
 
-                expect(
-                    screen.getByTestId(
-                        'skills-panel',
-                    ),
-                ).toHaveTextContent(
-                    'skills:global',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'skill-placements-panel',
-                    ),
-                ).toHaveTextContent(
-                    'placements:version-draft:draft',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'lessons-panel',
-                    ),
-                ).toHaveTextContent(
-                    'lessons:version-draft:draft',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'assessment-items-panel',
-                    ),
-                ).toHaveTextContent(
-                    'assessments:version-draft:draft',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'practice-activities-panel',
-                    ),
-                ).toHaveTextContent(
-                    'practice:version-draft:draft',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'exam-templates-panel',
-                    ),
-                ).toHaveTextContent(
-                    'exams:version-draft:draft',
-                );
+                expectDraftContextAcrossWorkspace();
             },
         );
 
@@ -340,53 +418,11 @@ describe(
                     ),
                 ).toBeInTheDocument();
 
-                expect(
-                    screen.getByTestId(
-                        'topics-panel',
-                    ),
-                ).toHaveTextContent(
-                    'topics:version-published:published',
+                await screen.findByTestId(
+                    'topics-panel',
                 );
 
-                expect(
-                    screen.getByTestId(
-                        'skill-placements-panel',
-                    ),
-                ).toHaveTextContent(
-                    'placements:version-published:published',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'lessons-panel',
-                    ),
-                ).toHaveTextContent(
-                    'lessons:version-published:published',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'assessment-items-panel',
-                    ),
-                ).toHaveTextContent(
-                    'assessments:version-published:published',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'practice-activities-panel',
-                    ),
-                ).toHaveTextContent(
-                    'practice:version-published:published',
-                );
-
-                expect(
-                    screen.getByTestId(
-                        'exam-templates-panel',
-                    ),
-                ).toHaveTextContent(
-                    'exams:version-published:published',
-                );
+                expectPublishedContextAcrossWorkspace();
             },
         );
     },
