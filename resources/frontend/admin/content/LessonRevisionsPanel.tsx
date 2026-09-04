@@ -208,9 +208,6 @@ export function LessonRevisionsPanel({
             <div className="foundation-stack admin-content-panel">
                 <div className="admin-content-revisions__heading">
                     <div>
-                        <p className="foundation-page__eyebrow">
-                            إدارة الدرس
-                        </p>
                         <h2 className="foundation-card__title">
                             {lesson.title}
                         </h2>
