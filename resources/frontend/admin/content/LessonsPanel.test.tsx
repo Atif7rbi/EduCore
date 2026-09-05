@@ -89,25 +89,29 @@ describe('LessonsPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('renders a searchable lesson table without exposing technical order fields', async () => {
+    it('uses the lesson title as the single entry point to details', async () => {
         apiRequestMock.mockResolvedValue([lesson()]);
         renderPanel();
 
         expect(await screen.findByText('النسب والتناسب')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'إضافة درس' })).toBeInTheDocument();
-        expect(screen.getByLabelText('البحث في الدروس')).toBeInTheDocument();
-        expect(screen.getByLabelText('تصفية حالة الدروس')).toBeInTheDocument();
+        expect(screen.getByRole('button', {
+            name: 'فتح الدرس النسب والتناسب',
+        })).toBeInTheDocument();
+        expect(screen.queryByRole('button', {
+            name: 'إدارة الدرس',
+        })).not.toBeInTheDocument();
+        expect(screen.queryByText('إجراءات')).not.toBeInTheDocument();
         expect(screen.getByText('ترتيب الدروس')).toBeInTheDocument();
         expect(screen.queryByText('ترتيب الظهور')).not.toBeInTheDocument();
-        expect(screen.queryByLabelText('عنوان الدرس الجديد')).not.toBeInTheDocument();
     });
 
-    it('creates a lesson with automatic next order from the side inspector', async () => {
+    it('creates a lesson with automatic next order', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
             if (method === 'GET') return Promise.resolve([]);
-            if (method === 'POST' && url === '/api/admin/curriculum-versions/version-1/lessons') {
-                return Promise.resolve({ id: 'lesson-1' });
-            }
+            if (
+                method === 'POST'
+                && url === '/api/admin/curriculum-versions/version-1/lessons'
+            ) return Promise.resolve({ id: 'lesson-1' });
             throw new Error(`Unexpected request ${method} ${url}`);
         });
 
@@ -133,12 +137,24 @@ describe('LessonsPanel', () => {
         });
     });
 
-    it('keeps the opened lesson synchronized with refreshed query data', async () => {
-        let current = lesson('draft');
-        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
+    it('allows metadata editing for a published lesson in the draft curriculum', async () => {
+        let current = lesson('published');
+        apiRequestMock.mockImplementation(({
+            method,
+            url,
+            data,
+        }: RequestConfig) => {
             if (method === 'GET') return Promise.resolve([current]);
             if (method === 'PUT' && url === '/api/admin/lessons/lesson-1') {
-                current = lesson('published');
+                expect(data).toEqual({
+                    title: 'النسب المعدلة',
+                    description: 'مقدمة في النسب.',
+                    display_order: 1,
+                });
+                current = {
+                    ...current,
+                    title: 'النسب المعدلة',
+                };
                 return Promise.resolve(current);
             }
             throw new Error(`Unexpected request ${method} ${url}`);
@@ -146,14 +162,34 @@ describe('LessonsPanel', () => {
 
         renderPanel();
         await screen.findByText('النسب والتناسب');
-        fireEvent.click(screen.getByRole('button', { name: 'إدارة الدرس' }));
-        expect(screen.getByTestId('lesson-authoring')).toHaveTextContent('draft');
+        fireEvent.click(screen.getByRole('button', {
+            name: 'فتح الدرس النسب والتناسب',
+        }));
 
-        fireEvent.click(screen.getByRole('button', { name: 'تعديل بيانات الدرس' }));
-        fireEvent.click(screen.getByRole('button', { name: 'حفظ التعديلات' }));
+        expect(screen.getByRole('button', {
+            name: 'تعديل بيانات الدرس',
+        })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {
+            name: 'تعديل بيانات الدرس',
+        }));
+        fireEvent.change(screen.getByLabelText('تعديل عنوان الدرس'), {
+            target: { value: 'النسب المعدلة' },
+        });
+        fireEvent.click(screen.getByRole('button', {
+            name: 'حفظ التعديلات',
+        }));
 
         await waitFor(() => {
-            expect(screen.getByTestId('lesson-authoring')).toHaveTextContent('published');
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'PUT',
+                url: '/api/admin/lessons/lesson-1',
+                data: {
+                    title: 'النسب المعدلة',
+                    description: 'مقدمة في النسب.',
+                    display_order: 1,
+                },
+            });
         });
     });
 
@@ -171,11 +207,9 @@ describe('LessonsPanel', () => {
 
         renderPanel();
         await screen.findByText('النسب والتناسب');
-
         fireEvent.change(screen.getByLabelText('البحث في الدروس'), {
             target: { value: 'الجبر' },
         });
-
         expect(screen.getByText('الجبر')).toBeInTheDocument();
         expect(screen.queryByText('النسب والتناسب')).not.toBeInTheDocument();
 
@@ -185,7 +219,6 @@ describe('LessonsPanel', () => {
         fireEvent.change(screen.getByLabelText('تصفية حالة الدروس'), {
             target: { value: 'published' },
         });
-
         expect(screen.getByText('الجبر')).toBeInTheDocument();
         expect(screen.queryByText('النسب والتناسب')).not.toBeInTheDocument();
     });
@@ -195,9 +228,17 @@ describe('LessonsPanel', () => {
         renderPanel({ ...draftVersion, status: 'published' });
 
         expect(await screen.findByText('النسب والتناسب')).toBeInTheDocument();
-        expect(
-            screen.getByText('هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.'),
-        ).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'إضافة درس' })).not.toBeInTheDocument();
+        expect(screen.getByText(
+            'هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.',
+        )).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'إضافة درس' }))
+            .not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {
+            name: 'فتح الدرس النسب والتناسب',
+        }));
+        expect(screen.queryByRole('button', {
+            name: 'تعديل بيانات الدرس',
+        })).not.toBeInTheDocument();
     });
 });
