@@ -3,6 +3,7 @@ import {
     render,
     screen,
     waitFor,
+    within,
 } from '@testing-library/react';
 import {
     QueryClient,
@@ -117,11 +118,15 @@ describe('AssessmentRevisionSkillsPanel', () => {
 
         renderPanel();
 
+        const skillName =
+            await screen.findByText('النسب');
+        const skillCard =
+            skillName.closest('article');
+
+        expect(skillCard).not.toBeNull();
         expect(
-            await screen.findByText('النسب'),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByText('أساسية'),
+            within(skillCard as HTMLElement)
+                .getByText('أساسية'),
         ).toBeInTheDocument();
         expect(
             screen.getByRole('heading', {
@@ -232,7 +237,7 @@ describe('AssessmentRevisionSkillsPanel', () => {
 
         renderPanel();
 
-        await screen.findByText('أساسية');
+        await screen.findByText('النسب');
 
         fireEvent.click(
             screen.getByRole('button', {
