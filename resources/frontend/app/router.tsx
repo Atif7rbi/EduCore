@@ -4,8 +4,14 @@ import {
 } from 'react-router-dom';
 
 import {
+    ForgotPasswordPage,
+} from '../auth/ForgotPasswordPage';
+import {
     LoginPage,
 } from '../auth/LoginPage';
+import {
+    ResetPasswordPage,
+} from '../auth/ResetPasswordPage';
 import {
     RequireAuth,
     RequireRole,
@@ -58,6 +64,14 @@ export const router = createBrowserRouter([
             {
                 path: '/login',
                 element: <LoginPage />,
+            },
+            {
+                path: '/forgot-password',
+                element: <ForgotPasswordPage />,
+            },
+            {
+                path: '/reset-password/:token',
+                element: <ResetPasswordPage />,
             },
             {
                 path: '/forbidden',
