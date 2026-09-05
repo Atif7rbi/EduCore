@@ -59,9 +59,7 @@ function SkillFailure({
     return (
         <Feedback tone="danger">
             <div>
-                <strong>
-                    {children}
-                </strong>
+                <strong>{children}</strong>
 
                 {id ? (
                     <p className="learner-read-request-id">
@@ -74,8 +72,7 @@ function SkillFailure({
 }
 
 function roleLabel(
-    role:
-        AssessmentRevisionSkillRole,
+    role: AssessmentRevisionSkillRole,
 ) {
     return role === 'primary'
         ? 'أساسية'
@@ -87,130 +84,99 @@ export function AssessmentRevisionSkillsPanel({
     revision,
     onClose,
 }: AssessmentRevisionSkillsPanelProps) {
-    const queryClient =
-        useQueryClient();
+    const queryClient = useQueryClient();
 
     const editable =
         version.status === 'draft'
         && revision.released_at === null;
 
-    const [
-        placementId,
-        setPlacementId,
-    ] = useState('');
-
-    const [
-        role,
-        setRole,
-    ] =
+    const [placementId, setPlacementId] =
+        useState('');
+    const [role, setRole] =
         useState<AssessmentRevisionSkillRole>(
             'primary',
         );
 
-    const skillsQuery =
-        useQuery({
+    const skillsQuery = useQuery({
+        queryKey:
+            adminAssessmentRevisionSkillsKey(
+                revision.id,
+            ),
+        queryFn: () =>
+            fetchAssessmentRevisionSkills(
+                revision.id,
+            ),
+    });
+
+    const placementsQuery = useQuery({
+        queryKey: adminPlacementsKey(
+            version.id,
+        ),
+        queryFn: () =>
+            fetchPlacements(version.id),
+    });
+
+    const availablePlacements = useMemo(() => {
+        const linked = new Set(
+            (skillsQuery.data ?? []).map(
+                (classification) =>
+                    classification
+                        .skill_version_placement_id,
+            ),
+        );
+
+        return (placementsQuery.data ?? [])
+            .filter(
+                (placement) =>
+                    !linked.has(placement.id),
+            );
+    }, [
+        placementsQuery.data,
+        skillsQuery.data,
+    ]);
+
+    async function invalidate() {
+        await queryClient.invalidateQueries({
             queryKey:
                 adminAssessmentRevisionSkillsKey(
                     revision.id,
                 ),
-            queryFn: () =>
-                fetchAssessmentRevisionSkills(
-                    revision.id,
-                ),
         });
-
-    const placementsQuery =
-        useQuery({
-            queryKey:
-                adminPlacementsKey(
-                    version.id,
-                ),
-            queryFn: () =>
-                fetchPlacements(
-                    version.id,
-                ),
-        });
-
-    const availablePlacements =
-        useMemo(() => {
-            const classified =
-                new Set(
-                    (
-                        skillsQuery.data
-                        ?? []
-                    ).map(
-                        (
-                            classification,
-                        ) =>
-                            classification
-                                .skill_version_placement_id,
-                    ),
-                );
-
-            return (
-                placementsQuery.data
-                ?? []
-            ).filter(
-                (placement) =>
-                    !classified.has(
-                        placement.id,
-                    ),
-            );
-        }, [
-            placementsQuery.data,
-            skillsQuery.data,
-        ]);
-
-    async function invalidate() {
-        await queryClient
-            .invalidateQueries({
-                queryKey:
-                    adminAssessmentRevisionSkillsKey(
-                        revision.id,
-                    ),
-            });
     }
 
-    const createMutation =
-        useMutation({
-            mutationFn: ({
+    const createMutation = useMutation({
+        mutationFn: ({
+            selectedPlacementId,
+            selectedRole,
+        }: {
+            selectedPlacementId: string;
+            selectedRole:
+                AssessmentRevisionSkillRole;
+        }) =>
+            createAssessmentRevisionSkill(
+                revision.id,
                 selectedPlacementId,
                 selectedRole,
-            }: {
-                selectedPlacementId:
-                    string;
-                selectedRole:
-                    AssessmentRevisionSkillRole;
-            }) =>
-                createAssessmentRevisionSkill(
-                    revision.id,
-                    selectedPlacementId,
-                    selectedRole,
-                ),
-            onSuccess: async () => {
-                setPlacementId('');
-                setRole('primary');
+            ),
+        onSuccess: async () => {
+            setPlacementId('');
+            setRole('primary');
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
+    const deleteMutation = useMutation({
+        mutationFn: (
+            classificationId: string,
+        ) =>
+            deleteAssessmentRevisionSkill(
+                revision.id,
+                classificationId,
+            ),
+        onSuccess: invalidate,
+    });
 
-    const deleteMutation =
-        useMutation({
-            mutationFn: (
-                classificationId:
-                    string,
-            ) =>
-                deleteAssessmentRevisionSkill(
-                    revision.id,
-                    classificationId,
-                ),
-            onSuccess: invalidate,
-        });
-
-    function submit(
-        event: FormEvent,
-    ) {
+    function submit(event: FormEvent) {
         event.preventDefault();
 
         if (
@@ -222,10 +188,8 @@ export function AssessmentRevisionSkillsPanel({
         }
 
         createMutation.mutate({
-            selectedPlacementId:
-                placementId,
-            selectedRole:
-                role,
+            selectedPlacementId: placementId,
+            selectedRole: role,
         });
     }
 
@@ -235,18 +199,11 @@ export function AssessmentRevisionSkillsPanel({
                 <div className="admin-content-revisions__heading">
                     <div>
                         <h4 className="foundation-card__title">
-                            Skills — Revision{' '}
-                            {
-                                revision.revision_number
-                            }
+                            ربط المهارات بالسؤال
                         </h4>
 
                         <p className="foundation-page__description">
-                            تصنيف المهارات إلى
-                            primary أو supporting
-                            باستخدام Skill
-                            Placements من نفس
-                            CurriculumVersion.
+                            حدد المهارة التي يقيسها السؤال، وبيّن إن كانت أساسية أو مساندة.
                         </p>
                     </div>
 
@@ -254,9 +211,7 @@ export function AssessmentRevisionSkillsPanel({
                         size="sm"
                         variant="secondary"
                         type="button"
-                        onClick={
-                            onClose
-                        }
+                        onClick={onClose}
                     >
                         إغلاق
                     </Button>
@@ -264,34 +219,23 @@ export function AssessmentRevisionSkillsPanel({
 
                 {!editable ? (
                     <Feedback>
-                        تصنيف المهارات للقراءة
-                        فقط؛ CurriculumVersion
-                        يجب أن تكون draft
-                        والـRevision غير محررة.
+                        روابط المهارات للقراءة فقط بعد اعتماد محتوى السؤال أو إغلاق المنهج للتعديل.
                     </Feedback>
                 ) : (
                     <form
                         className="admin-content-form"
-                        onSubmit={
-                            submit
-                        }
+                        onSubmit={submit}
                     >
                         <label>
-                            Skill Placement
+                            المهارة
 
                             <select
-                                aria-label="مهارة مراجعة عنصر التقييم"
+                                aria-label="المهارة المرتبطة بالسؤال"
                                 required
-                                value={
-                                    placementId
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
+                                value={placementId}
+                                onChange={(event) =>
                                     setPlacementId(
-                                        event
-                                            .target
-                                            .value,
+                                        event.target.value,
                                     )
                                 }
                             >
@@ -299,64 +243,44 @@ export function AssessmentRevisionSkillsPanel({
                                     اختر المهارة
                                 </option>
 
-                                {availablePlacements
-                                    .map(
-                                        (
-                                            placement,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    placement.id
-                                                }
-                                                value={
-                                                    placement.id
-                                                }
-                                            >
-                                                {
-                                                    placement.skill
-                                                        ?.name
-                                                    ?? placement.skill_id
-                                                }
-                                            </option>
-                                        ),
-                                    )}
+                                {availablePlacements.map(
+                                    (placement) => (
+                                        <option
+                                            key={placement.id}
+                                            value={placement.id}
+                                        >
+                                            {placement.skill
+                                                ?.name
+                                                ?? 'مهارة'}
+                                        </option>
+                                    ),
+                                )}
                             </select>
                         </label>
 
                         <label>
-                            Role
+                            أهمية المهارة في السؤال
 
                             <select
-                                aria-label="دور مهارة عنصر التقييم"
-                                value={
-                                    role
-                                }
-                                onChange={(
-                                    event,
-                                ) => {
+                                aria-label="أهمية المهارة في السؤال"
+                                value={role}
+                                onChange={(event) => {
                                     const value =
-                                        event
-                                            .target
-                                            .value;
+                                        event.target.value;
 
                                     if (
-                                        value
-                                            === 'primary'
-                                        || value
-                                            === 'supporting'
+                                        value === 'primary'
+                                        || value === 'supporting'
                                     ) {
-                                        setRole(
-                                            value,
-                                        );
+                                        setRole(value);
                                     }
                                 }}
                             >
                                 <option value="primary">
-                                    Primary
+                                    أساسية
                                 </option>
-
                                 <option value="supporting">
-                                    Supporting
+                                    مساندة
                                 </option>
                             </select>
                         </label>
@@ -364,96 +288,69 @@ export function AssessmentRevisionSkillsPanel({
                         <Button
                             type="submit"
                             disabled={
-                                createMutation
-                                    .isPending
+                                createMutation.isPending
                             }
                         >
-                            إضافة التصنيف
+                            ربط المهارة
                         </Button>
                     </form>
                 )}
 
                 {createMutation.isError ? (
                     <SkillFailure
-                        error={
-                            createMutation
-                                .error
-                        }
+                        error={createMutation.error}
                     >
-                        تعذر إضافة تصنيف المهارة.
+                        تعذر ربط المهارة.
                     </SkillFailure>
                 ) : null}
 
                 {deleteMutation.isError ? (
                     <SkillFailure
-                        error={
-                            deleteMutation
-                                .error
-                        }
+                        error={deleteMutation.error}
                     >
-                        تعذر إزالة تصنيف المهارة.
+                        تعذر إزالة المهارة.
                     </SkillFailure>
                 ) : null}
 
                 {placementsQuery.isError ? (
                     <SkillFailure
-                        error={
-                            placementsQuery
-                                .error
-                        }
+                        error={placementsQuery.error}
                     >
-                        تعذر تحميل Skill Placements.
+                        تعذر تحميل المهارات.
                     </SkillFailure>
                 ) : null}
 
                 {skillsQuery.isPending ? (
-                    <p>
-                        جار تحميل تصنيفات
-                        المهارات…
-                    </p>
+                    <p>جار تحميل المهارات…</p>
                 ) : skillsQuery.isError ? (
                     <SkillFailure
-                        error={
-                            skillsQuery.error
-                        }
+                        error={skillsQuery.error}
                     >
-                        تعذر تحميل تصنيفات المهارات.
+                        تعذر تحميل المهارات المرتبطة.
                     </SkillFailure>
-                ) : skillsQuery.data
-                    .length === 0 ? (
+                ) : skillsQuery.data.length === 0 ? (
                     <Feedback>
-                        لا توجد مهارات مصنفة
-                        لهذه الـRevision.
+                        لم يتم ربط مهارات بهذا السؤال حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
                         {skillsQuery.data.map(
-                            (
-                                classification,
-                            ) => (
+                            (classification) => (
                                 <article
-                                    key={
-                                        classification.id
-                                    }
+                                    key={classification.id}
                                     className="admin-content-list__item"
                                 >
                                     <div>
                                         <strong>
-                                            {
-                                                classification.skill
-                                                    ?.name
-                                                ?? classification
-                                                    .skill_version_placement_id
-                                            }
+                                            {classification.skill
+                                                ?.name
+                                                ?? 'مهارة'}
                                         </strong>
 
                                         <p className="admin-content-list__meta">
-                                            الدور:{' '}
-                                            {
-                                                roleLabel(
-                                                    classification.role,
-                                                )
-                                            }
+                                            {roleLabel(
+                                                classification.role,
+                                            )}
                                         </p>
                                     </div>
 
@@ -463,17 +360,15 @@ export function AssessmentRevisionSkillsPanel({
                                             variant="secondary"
                                             type="button"
                                             disabled={
-                                                deleteMutation
-                                                    .isPending
+                                                deleteMutation.isPending
                                             }
                                             onClick={() =>
-                                                deleteMutation
-                                                    .mutate(
-                                                        classification.id,
-                                                    )
+                                                deleteMutation.mutate(
+                                                    classification.id,
+                                                )
                                             }
                                         >
-                                            إزالة التصنيف
+                                            إزالة الربط
                                         </Button>
                                     ) : null}
                                 </article>
