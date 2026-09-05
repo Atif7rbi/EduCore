@@ -34,26 +34,21 @@ interface RequestConfig {
 const apiRequestMock = vi.fn();
 
 vi.mock('../../api/client', () => ({
-    apiRequest: (
-        config: RequestConfig,
-    ) => apiRequestMock(config),
+    apiRequest: (config: RequestConfig) =>
+        apiRequestMock(config),
 }));
 
-const version:
-CurriculumVersion = {
+const version: CurriculumVersion = {
     id: 'version-1',
-    curriculum_id:
-        'curriculum-1',
+    curriculum_id: 'curriculum-1',
     version_number: 1,
     label: 'الإصدار الأول',
     status: 'draft',
 };
 
-const activity:
-PracticeActivity = {
+const activity: PracticeActivity = {
     id: 'activity-1',
-    curriculum_version_id:
-        'version-1',
+    curriculum_version_id: 'version-1',
     lesson_id: null,
     name: 'تدريب النسب',
     description: null,
@@ -65,12 +60,9 @@ PracticeActivity = {
 
 const assessmentItem = {
     id: 'assessment-1',
-    curriculum_version_id:
-        'version-1',
-    item_type:
-        'multiple_choice',
-    internal_label:
-        'سؤال النسب',
+    curriculum_version_id: 'version-1',
+    item_type: 'multiple_choice',
+    internal_label: 'سؤال النسب',
     status: 'draft',
     published_revision_id: null,
     created_at: null,
@@ -79,10 +71,8 @@ const assessmentItem = {
 
 const releasedRevision = {
     id: 'revision-released',
-    assessment_item_id:
-        'assessment-1',
-    curriculum_version_id:
-        'version-1',
+    assessment_item_id: 'assessment-1',
+    curriculum_version_id: 'version-1',
     revision_number: 1,
     primary_topic_id: null,
     difficulty: 'easy',
@@ -90,8 +80,7 @@ const releasedRevision = {
     content_schema_version: 1,
     scoring_payload: [],
     scoring_schema_version: 1,
-    released_at:
-        '2026-08-31T00:00:00Z',
+    released_at: '2026-08-31T00:00:00Z',
     created_at: null,
 };
 
@@ -103,471 +92,255 @@ const unreleasedRevision = {
 };
 
 function renderPanel(
-    currentActivity:
-        PracticeActivity =
-            activity,
+    currentActivity: PracticeActivity = activity,
 ) {
-    const client =
-        new QueryClient({
-            defaultOptions: {
-                queries: {
-                    retry: false,
-                },
-                mutations: {
-                    retry: false,
-                },
-            },
-        });
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
 
     render(
         <QueryClientProvider client={client}>
             <PracticeActivityItemsPanel
                 version={version}
-                activity={
-                    currentActivity
-                }
+                activity={currentActivity}
                 onClose={() => {}}
             />
         </QueryClientProvider>,
     );
 }
 
-describe(
-    'PracticeActivityItemsPanel',
-    () => {
-        beforeEach(() => {
-            apiRequestMock.mockReset();
+function installBaseMock({
+    items = [],
+    revisions = [
+        releasedRevision,
+        unreleasedRevision,
+    ],
+}: {
+    items?: unknown[];
+    revisions?: unknown[];
+} = {}) {
+    apiRequestMock.mockImplementation(
+        ({ method, url, data }: RequestConfig) => {
+            if (
+                method === 'GET'
+                && url === '/api/admin/practice-activities/activity-1/items'
+            ) {
+                return Promise.resolve(items);
+            }
+
+            if (
+                method === 'GET'
+                && url === '/api/admin/curriculum-versions/version-1/assessment-items'
+            ) {
+                return Promise.resolve([assessmentItem]);
+            }
+
+            if (
+                method === 'GET'
+                && url === '/api/admin/assessment-items/assessment-1/revisions'
+            ) {
+                return Promise.resolve(revisions);
+            }
+
+            if (
+                method === 'POST'
+                && url === '/api/admin/practice-activities/activity-1/items'
+            ) {
+                return Promise.resolve({
+                    id: 'membership-new',
+                    data,
+                });
+            }
+
+            if (
+                method === 'DELETE'
+                && url === '/api/admin/practice-activities/activity-1/items/membership-1'
+            ) {
+                return Promise.resolve({ deleted: true });
+            }
+
+            throw new Error(
+                `Unexpected request ${method} ${url}`,
+            );
+        },
+    );
+}
+
+describe('PracticeActivityItemsPanel', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it('shows questions without revision or display-order terminology', async () => {
+        installBaseMock({
+            items: [
+                {
+                    id: 'membership-1',
+                    practice_activity_id: 'activity-1',
+                    assessment_item_revision_id: 'revision-released',
+                    assessment_item_id: 'assessment-1',
+                    curriculum_version_id: 'version-1',
+                    display_order: 3,
+                    revision: {
+                        id: 'revision-released',
+                        assessment_item_id: 'assessment-1',
+                        revision_number: 1,
+                        difficulty: 'easy',
+                        released_at: '2026-08-31T00:00:00Z',
+                    },
+                    created_at: null,
+                },
+            ],
         });
 
-        it(
-            'lists membership in backend display order',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/practice-activities/activity-1/items'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    id: 'membership-1',
-                                    practice_activity_id:
-                                        'activity-1',
-                                    assessment_item_revision_id:
-                                        'revision-released',
-                                    assessment_item_id:
-                                        'assessment-1',
-                                    curriculum_version_id:
-                                        'version-1',
-                                    display_order: 3,
-                                    revision: {
-                                        id:
-                                            'revision-released',
-                                        assessment_item_id:
-                                            'assessment-1',
-                                        revision_number:
-                                            1,
-                                        difficulty:
-                                            'easy',
-                                        released_at:
-                                            '2026-08-31T00:00:00Z',
-                                    },
-                                    created_at:
-                                        null,
-                                },
-                            ]);
-                        }
+        renderPanel();
 
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/assessment-items'
-                        ) {
-                            return Promise.resolve([
-                                assessmentItem,
-                            ]);
-                        }
+        expect(
+            await screen.findByText(/1\. سؤال النسب/),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('مستوى الصعوبة: سهل'),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText(/Revision/),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByLabelText(
+                'ترتيب عنصر مجموعة التدريب',
+            ),
+        ).not.toBeInTheDocument();
+    });
 
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
+    it('adds the latest question content and assigns order automatically', async () => {
+        installBaseMock();
+        renderPanel();
 
-                renderPanel();
+        await screen.findByText(
+            'لا توجد أسئلة في هذا التدريب حتى الآن.',
+        );
 
-                expect(
-                    await screen.findByText(
-                        'Revision 1',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        /الترتيب: 3/,
-                    ),
-                ).toBeInTheDocument();
+        fireEvent.change(
+            screen.getByLabelText(
+                'السؤال المضاف إلى التدريب',
+            ),
+            {
+                target: { value: 'assessment-1' },
             },
         );
 
-        it(
-            'adds a revision using only revision id and display order',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                        data,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/practice-activities/activity-1/items'
-                        ) {
-                            return Promise.resolve([]);
-                        }
+        await waitFor(() => {
+            expect(
+                screen.getByRole('button', {
+                    name: 'إضافة السؤال',
+                }),
+            ).not.toBeDisabled();
+        });
 
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/assessment-items'
-                        ) {
-                            return Promise.resolve([
-                                assessmentItem,
-                            ]);
-                        }
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'إضافة السؤال',
+            }),
+        );
 
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/assessment-items/assessment-1/revisions'
-                        ) {
-                            return Promise.resolve([
-                                releasedRevision,
-                                unreleasedRevision,
-                            ]);
-                        }
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/practice-activities/activity-1/items',
+                data: {
+                    assessment_item_revision_id:
+                        'revision-unreleased',
+                    display_order: 0,
+                },
+            });
+        });
+    });
 
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/practice-activities/activity-1/items'
-                        ) {
-                            expect(data).toEqual({
-                                assessment_item_revision_id:
-                                    'revision-unreleased',
-                                display_order: 4,
-                            });
+    it('uses only approved question content for an active training', async () => {
+        installBaseMock({ items: [] });
 
-                            return Promise.resolve({
-                                id: 'membership-1',
-                            });
-                        }
+        renderPanel({
+            ...activity,
+            status: 'active',
+            items_count: 2,
+        });
 
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'لا توجد عناصر في مجموعة التدريب.',
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'عنصر تقييم لمجموعة التدريب',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'assessment-1',
-                        },
-                    },
-                );
-
-                expect(
-                    await screen.findByRole(
-                        'option',
-                        {
-                            name:
-                                /Revision 2/,
-                        },
-                    ),
-                ).toBeInTheDocument();
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'مراجعة عنصر التقييم لمجموعة التدريب',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'revision-unreleased',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'ترتيب عنصر مجموعة التدريب',
-                    ),
-                    {
-                        target: {
-                            value: '4',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'إضافة العنصر',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method: 'POST',
-                        url:
-                            '/api/admin/practice-activities/activity-1/items',
-                        data: {
-                            assessment_item_revision_id:
-                                'revision-unreleased',
-                            display_order:
-                                4,
-                        },
-                    });
-                });
+        fireEvent.change(
+            await screen.findByLabelText(
+                'السؤال المضاف إلى التدريب',
+            ),
+            {
+                target: { value: 'assessment-1' },
             },
         );
 
-        it(
-            'offers released revisions only for an active activity',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/practice-activities/activity-1/items'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    id:
-                                        'membership-1',
-                                    practice_activity_id:
-                                        'activity-1',
-                                    assessment_item_revision_id:
-                                        'revision-released',
-                                    assessment_item_id:
-                                        'assessment-1',
-                                    curriculum_version_id:
-                                        'version-1',
-                                    display_order:
-                                        0,
-                                    revision: {
-                                        id:
-                                            'revision-released',
-                                        assessment_item_id:
-                                            'assessment-1',
-                                        revision_number:
-                                            1,
-                                        difficulty:
-                                            'easy',
-                                        released_at:
-                                            '2026-08-31T00:00:00Z',
-                                    },
-                                    created_at:
-                                        null,
-                                },
-                            ]);
-                        }
+        await waitFor(() => {
+            expect(
+                screen.getByRole('button', {
+                    name: 'إضافة السؤال',
+                }),
+            ).not.toBeDisabled();
+        });
 
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/assessment-items'
-                        ) {
-                            return Promise.resolve([
-                                assessmentItem,
-                            ]);
-                        }
-
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/assessment-items/assessment-1/revisions'
-                        ) {
-                            return Promise.resolve([
-                                releasedRevision,
-                                unreleasedRevision,
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel({
-                    ...activity,
-                    status: 'active',
-                    items_count: 1,
-                });
-
-                expect(
-                    await screen.findByRole(
-                        'option',
-                        {
-                            name:
-                                'سؤال النسب',
-                        },
-                    ),
-                ).toBeInTheDocument();
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'عنصر تقييم لمجموعة التدريب',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'assessment-1',
-                        },
-                    },
-                );
-
-                expect(
-                    await screen.findByRole(
-                        'option',
-                        {
-                            name:
-                                /Revision 1/,
-                        },
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'option',
-                        {
-                            name:
-                                /Revision 2/,
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        'المجموعة النشطة تقبل released revisions فقط.',
-                    ),
-                ).toBeInTheDocument();
-            },
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'إضافة السؤال',
+            }),
         );
 
-        it(
-            'prevents removing the last item from an active activity',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/practice-activities/activity-1/items'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    id:
-                                        'membership-1',
-                                    practice_activity_id:
-                                        'activity-1',
-                                    assessment_item_revision_id:
-                                        'revision-released',
-                                    assessment_item_id:
-                                        'assessment-1',
-                                    curriculum_version_id:
-                                        'version-1',
-                                    display_order:
-                                        0,
-                                    revision: {
-                                        id:
-                                            'revision-released',
-                                        assessment_item_id:
-                                            'assessment-1',
-                                        revision_number:
-                                            1,
-                                        difficulty:
-                                            'easy',
-                                        released_at:
-                                            '2026-08-31T00:00:00Z',
-                                    },
-                                    created_at:
-                                        null,
-                                },
-                            ]);
-                        }
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/practice-activities/activity-1/items',
+                data: {
+                    assessment_item_revision_id:
+                        'revision-released',
+                    display_order: 0,
+                },
+            });
+        });
+    });
 
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/curriculum-versions/version-1/assessment-items'
-                        ) {
-                            return Promise.resolve([
-                                assessmentItem,
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
+    it('prevents removing the last question from an active training', async () => {
+        installBaseMock({
+            items: [
+                {
+                    id: 'membership-1',
+                    practice_activity_id: 'activity-1',
+                    assessment_item_revision_id: 'revision-released',
+                    assessment_item_id: 'assessment-1',
+                    curriculum_version_id: 'version-1',
+                    display_order: 0,
+                    revision: {
+                        id: 'revision-released',
+                        assessment_item_id: 'assessment-1',
+                        revision_number: 1,
+                        difficulty: 'easy',
+                        released_at: '2026-08-31T00:00:00Z',
                     },
-                );
+                    created_at: null,
+                },
+            ],
+        });
 
-                renderPanel({
-                    ...activity,
-                    status: 'active',
-                    items_count: 1,
-                });
+        renderPanel({
+            ...activity,
+            status: 'active',
+            items_count: 1,
+        });
 
-                const removeButton =
-                    await screen.findByRole(
-                        'button',
-                        {
-                            name:
-                                'إزالة العنصر',
-                        },
-                    );
+        const removeButton =
+            await screen.findByRole('button', {
+                name: 'إزالة السؤال',
+            });
 
-                expect(
-                    removeButton,
-                ).toBeDisabled();
-
-                expect(
-                    screen.getByText(
-                        'لا يمكن إزالة آخر عنصر من Practice Activity نشطة.',
-                    ),
-                ).toBeInTheDocument();
-            },
-        );
-    },
-);
+        expect(removeButton).toBeDisabled();
+        expect(
+            screen.getByText(
+                'لا يمكن إزالة آخر سؤال من تدريب متاح للطلاب. أوقف الإتاحة أولًا إذا كنت تريد إفراغه.',
+            ),
+        ).toBeInTheDocument();
+    });
+});
