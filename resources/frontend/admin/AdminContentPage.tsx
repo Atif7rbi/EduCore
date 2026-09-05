@@ -1,5 +1,6 @@
 import '../../css/admin-authoring.css';
 import '../../css/admin-authoring-r2.css';
+import '../../css/admin-lesson-user.css';
 
 import {
     useCallback,
