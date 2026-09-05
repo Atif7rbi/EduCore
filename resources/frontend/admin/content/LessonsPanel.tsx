@@ -80,15 +80,10 @@ function lessonStatusLabel(status: Lesson['status']) {
 }
 
 function formatDate(value: string | null) {
-    if (!value) {
-        return '—';
-    }
+    if (!value) return '—';
 
     const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return '—';
-    }
+    if (Number.isNaN(date.getTime())) return '—';
 
     return new Intl.DateTimeFormat('ar-SA', {
         year: 'numeric',
@@ -99,7 +94,7 @@ function formatDate(value: string | null) {
 
 export function LessonsPanel({ version }: LessonsPanelProps) {
     const queryClient = useQueryClient();
-    const editable = version.status === 'draft';
+    const curriculumEditable = version.status === 'draft';
 
     const [showCreate, setShowCreate] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -124,15 +119,19 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
     );
 
     const nextDisplayOrder = useMemo(() => {
-        const orders = lessonsQuery.data?.map((lesson) => lesson.display_order) ?? [];
-        return orders.length === 0 ? 1 : Math.max(...orders) + 1;
+        const orders = lessonsQuery.data?.map(
+            (lesson) => lesson.display_order,
+        ) ?? [];
+
+        return orders.length === 0
+            ? 1
+            : Math.max(...orders) + 1;
     }, [lessonsQuery.data]);
 
     const authoringLesson = useMemo(
-        () =>
-            lessonsQuery.data?.find(
-                (lesson) => lesson.id === authoringLessonId,
-            ) ?? null,
+        () => lessonsQuery.data?.find(
+            (lesson) => lesson.id === authoringLessonId,
+        ) ?? null,
         [authoringLessonId, lessonsQuery.data],
     );
 
@@ -144,12 +143,9 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             const matchesStatus =
                 statusFilter === 'all'
                 || lesson.status === statusFilter;
-
             const matchesSearch =
                 normalizedSearch === ''
-                || lesson.title
-                    .toLocaleLowerCase('ar')
-                    .includes(normalizedSearch)
+                || lesson.title.toLocaleLowerCase('ar').includes(normalizedSearch)
                 || (lesson.description ?? '')
                     .toLocaleLowerCase('ar')
                     .includes(normalizedSearch);
@@ -165,12 +161,11 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
     }
 
     const createMutation = useMutation({
-        mutationFn: () =>
-            createLesson(version.id, {
-                title: newTitle.trim(),
-                description: newDescription.trim() || null,
-                display_order: nextDisplayOrder,
-            }),
+        mutationFn: () => createLesson(version.id, {
+            title: newTitle.trim(),
+            description: newDescription.trim() || null,
+            display_order: nextDisplayOrder,
+        }),
         onSuccess: async (lesson) => {
             setNewTitle('');
             setNewDescription('');
@@ -191,12 +186,11 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
             title: string;
             description: string | null;
             displayOrder: number;
-        }) =>
-            updateLesson(lessonId, {
-                title,
-                description,
-                display_order: displayOrder,
-            }),
+        }) => updateLesson(lessonId, {
+            title,
+            description,
+            display_order: displayOrder,
+        }),
         onSuccess: async () => {
             setEditingLesson(null);
             setEditTitle('');
@@ -207,22 +201,20 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
 
     function submitCreate(event: FormEvent) {
         event.preventDefault();
-
         if (
-            !editable
+            !curriculumEditable
             || createMutation.isPending
             || newTitle.trim() === ''
-        ) {
-            return;
-        }
+        ) return;
 
         createMutation.mutate();
     }
 
     function beginEdit(lesson: Lesson) {
-        if (!editable || lesson.status !== 'draft') {
-            return;
-        }
+        if (
+            !curriculumEditable
+            || lesson.status === 'retired'
+        ) return;
 
         setShowCreate(false);
         setAuthoringLessonId(lesson.id);
@@ -233,16 +225,13 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
 
     function submitEdit(event: FormEvent) {
         event.preventDefault();
-
         if (
-            !editable
+            !curriculumEditable
             || !editingLesson
-            || editingLesson.status !== 'draft'
+            || editingLesson.status === 'retired'
             || updateMutation.isPending
             || editTitle.trim() === ''
-        ) {
-            return;
-        }
+        ) return;
 
         updateMutation.mutate({
             lessonId: editingLesson.id,
@@ -252,8 +241,13 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         });
     }
 
-    const inspectorOpen =
-        showCreate || authoringLesson !== null;
+    function openLesson(lessonId: string) {
+        setShowCreate(false);
+        setEditingLesson(null);
+        setAuthoringLessonId(lessonId);
+    }
+
+    const inspectorOpen = showCreate || authoringLesson !== null;
 
     return (
         <div
@@ -272,7 +266,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                         </p>
                     </div>
 
-                    {editable ? (
+                    {curriculumEditable ? (
                         <Button
                             type="button"
                             onClick={() => {
@@ -287,7 +281,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                     ) : null}
                 </div>
 
-                {!editable ? (
+                {!curriculumEditable ? (
                     <Feedback>
                         هذا المنهج للقراءة فقط؛ لا يمكن إنشاء الدروس أو تعديلها.
                     </Feedback>
@@ -301,9 +295,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                             type="search"
                             placeholder="البحث في الدروس…"
                             value={searchTerm}
-                            onChange={(event) =>
-                                setSearchTerm(event.target.value)
-                            }
+                            onChange={(event) => setSearchTerm(event.target.value)}
                         />
                     </label>
 
@@ -314,15 +306,12 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                             value={statusFilter}
                             onChange={(event) => {
                                 const value = event.target.value;
-
                                 if (
                                     value === 'all'
                                     || value === 'draft'
                                     || value === 'published'
                                     || value === 'retired'
-                                ) {
-                                    setStatusFilter(value);
-                                }
+                                ) setStatusFilter(value);
                             }}
                         >
                             <option value="all">جميع الحالات</option>
@@ -338,7 +327,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                         تعذر إنشاء الدرس.
                     </LessonFailure>
                 ) : null}
-
                 {updateMutation.isError ? (
                     <LessonFailure error={updateMutation.error}>
                         تعذر تعديل الدرس.
@@ -346,9 +334,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                 ) : null}
 
                 {lessonsQuery.isPending ? (
-                    <div className="admin-lessons-empty">
-                        جار تحميل الدروس…
-                    </div>
+                    <div className="admin-lessons-empty">جار تحميل الدروس…</div>
                 ) : lessonsQuery.isError ? (
                     <LessonFailure error={lessonsQuery.error}>
                         تعذر تحميل الدروس.
@@ -356,9 +342,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                 ) : lessonsQuery.data.length === 0 ? (
                     <div className="admin-lessons-empty">
                         <strong>لا توجد دروس حتى الآن.</strong>
-                        <span>
-                            أضف أول درس للبدء في بناء محتوى المنهج.
-                        </span>
+                        <span>أضف أول درس للبدء في بناء محتوى المنهج.</span>
                     </div>
                 ) : filteredLessons.length === 0 ? (
                     <div className="admin-lessons-empty">
@@ -366,9 +350,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                     </div>
                 ) : (
                     <div className="admin-lessons-table-wrap">
-                        <div className="admin-lessons-order-label">
-                            ترتيب الدروس
-                        </div>
+                        <div className="admin-lessons-order-label">ترتيب الدروس</div>
                         <table className="admin-lessons-table">
                             <thead>
                                 <tr>
@@ -376,7 +358,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                     <th scope="col">عنوان الدرس</th>
                                     <th scope="col">الحالة</th>
                                     <th scope="col">آخر تحديث</th>
-                                    <th scope="col">إجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -394,11 +375,8 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                             <button
                                                 type="button"
                                                 className="admin-lesson-title-button"
-                                                onClick={() => {
-                                                    setShowCreate(false);
-                                                    setEditingLesson(null);
-                                                    setAuthoringLessonId(lesson.id);
-                                                }}
+                                                aria-label={`فتح الدرس ${lesson.title}`}
+                                                onClick={() => openLesson(lesson.id)}
                                             >
                                                 <strong>{lesson.title}</strong>
                                                 {lesson.description ? (
@@ -414,33 +392,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                             </span>
                                         </td>
                                         <td>{formatDate(lesson.updated_at)}</td>
-                                        <td>
-                                            <div className="admin-lesson-row-actions">
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setShowCreate(false);
-                                                        setEditingLesson(null);
-                                                        setAuthoringLessonId(lesson.id);
-                                                    }}
-                                                >
-                                                    إدارة الدرس
-                                                </Button>
-
-                                                {editable && lesson.status === 'draft' ? (
-                                                    <button
-                                                        type="button"
-                                                        className="admin-lesson-more"
-                                                        aria-label={`تعديل بيانات الدرس ${lesson.title}`}
-                                                        onClick={() => beginEdit(lesson)}
-                                                    >
-                                                        ⋮
-                                                    </button>
-                                                ) : null}
-                                            </div>
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -449,7 +400,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                 )}
             </Surface>
 
-            {showCreate && editable ? (
+            {showCreate && curriculumEditable ? (
                 <Surface className="admin-lesson-inspector">
                     <div className="admin-lesson-inspector__header">
                         <div>
@@ -465,10 +416,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                         </button>
                     </div>
 
-                    <form
-                        className="admin-lesson-inspector__form"
-                        onSubmit={submitCreate}
-                    >
+                    <form className="admin-lesson-inspector__form" onSubmit={submitCreate}>
                         <label>
                             عنوان الدرس
                             <input
@@ -480,7 +428,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                 onChange={(event) => setNewTitle(event.target.value)}
                             />
                         </label>
-
                         <label>
                             الوصف المختصر
                             <textarea
@@ -491,19 +438,11 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                 onChange={(event) => setNewDescription(event.target.value)}
                             />
                         </label>
-
                         <div className="admin-lesson-inspector__actions">
-                            <Button
-                                type="submit"
-                                disabled={createMutation.isPending}
-                            >
+                            <Button type="submit" disabled={createMutation.isPending}>
                                 حفظ الدرس
                             </Button>
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => setShowCreate(false)}
-                            >
+                            <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
                                 إلغاء
                             </Button>
                         </div>
@@ -545,10 +484,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                         ) : null}
 
                         {editingLesson?.id === authoringLesson.id ? (
-                            <form
-                                className="admin-lesson-inspector__form"
-                                onSubmit={submitEdit}
-                            >
+                            <form className="admin-lesson-inspector__form" onSubmit={submitEdit}>
                                 <label>
                                     عنوان الدرس
                                     <input
@@ -559,7 +495,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                         onChange={(event) => setEditTitle(event.target.value)}
                                     />
                                 </label>
-
                                 <label>
                                     الوصف المختصر
                                     <textarea
@@ -569,26 +504,16 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                         onChange={(event) => setEditDescription(event.target.value)}
                                     />
                                 </label>
-
                                 <div className="admin-lesson-inspector__actions">
-                                    <Button
-                                        size="sm"
-                                        type="submit"
-                                        disabled={updateMutation.isPending}
-                                    >
+                                    <Button size="sm" type="submit" disabled={updateMutation.isPending}>
                                         حفظ التعديلات
                                     </Button>
-                                    <Button
-                                        size="sm"
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={() => setEditingLesson(null)}
-                                    >
+                                    <Button size="sm" type="button" variant="secondary" onClick={() => setEditingLesson(null)}>
                                         إلغاء
                                     </Button>
                                 </div>
                             </form>
-                        ) : editable && authoringLesson.status === 'draft' ? (
+                        ) : curriculumEditable && authoringLesson.status !== 'retired' ? (
                             <Button
                                 variant="secondary"
                                 type="button"
