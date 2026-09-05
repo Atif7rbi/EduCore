@@ -44,14 +44,14 @@ function loginErrorMessage(
         error.code === 'invalid_credentials'
         || error.status === 401
     ) {
-        return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+        return 'بيانات تسجيل الدخول غير صحيحة.';
     }
 
     if (
         error.code === 'csrf_token_mismatch'
         || error.status === 419
     ) {
-        return 'انتهت صلاحية جلسة تسجيل الدخول. أعد المحاولة.';
+        return 'انتهت صلاحية الجلسة. أعد المحاولة.';
     }
 
     if (
