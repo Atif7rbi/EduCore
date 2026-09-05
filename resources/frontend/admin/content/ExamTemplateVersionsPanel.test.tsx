@@ -186,9 +186,11 @@ describe('ExamTemplateVersionsPanel', () => {
 
         renderPanel();
 
-        await screen.findByText(
-            'الإعدادات الأساسية',
-        );
+        expect(
+            await screen.findAllByText(
+                'الإعدادات الأساسية',
+            ),
+        ).toHaveLength(2);
         fireEvent.change(
             screen.getByLabelText(
                 'اسم إعدادات الاختبار',
