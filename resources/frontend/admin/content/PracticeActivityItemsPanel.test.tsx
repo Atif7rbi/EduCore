@@ -267,8 +267,12 @@ describe('PracticeActivityItemsPanel', () => {
             items_count: 2,
         });
 
+        await screen.findByRole('option', {
+            name: 'سؤال النسب',
+        });
+
         fireEvent.change(
-            await screen.findByLabelText(
+            screen.getByLabelText(
                 'السؤال المضاف إلى التدريب',
             ),
             {
