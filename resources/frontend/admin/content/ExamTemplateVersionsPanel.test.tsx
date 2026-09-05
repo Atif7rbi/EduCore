@@ -34,44 +34,36 @@ interface RequestConfig {
 const apiRequestMock = vi.fn();
 
 vi.mock('../../api/client', () => ({
-    apiRequest: (
-        config: RequestConfig,
-    ) => apiRequestMock(config),
+    apiRequest: (config: RequestConfig) =>
+        apiRequestMock(config),
 }));
 
-const curriculumVersion:
-CurriculumVersion = {
+const curriculumVersion: CurriculumVersion = {
     id: 'version-1',
-    curriculum_id:
-        'curriculum-1',
+    curriculum_id: 'curriculum-1',
     version_number: 1,
     label: 'الإصدار الأول',
     status: 'draft',
 };
 
-const template:
-ExamTemplate = {
+const template: ExamTemplate = {
     id: 'template-1',
-    curriculum_version_id:
-        'version-1',
+    curriculum_version_id: 'version-1',
     name: 'اختبار تجريبي',
     description: null,
     status: 'active',
-    published_version_id:
-        null,
+    published_version_id: null,
     versions_count: 1,
     created_at: null,
     updated_at: null,
 };
 
-const draftTemplateVersion = {
+const draftSettings = {
     id: 'template-version-1',
-    exam_template_id:
-        'template-1',
-    curriculum_version_id:
-        'version-1',
+    exam_template_id: 'template-1',
+    curriculum_version_id: 'version-1',
     version_number: 1,
-    label: 'الإصدار الأول',
+    label: 'الإعدادات الأساسية',
     status: 'draft',
     rules_payload: [],
     rules_schema_version: 1,
@@ -80,700 +72,339 @@ const draftTemplateVersion = {
 };
 
 function renderPanel(
-    currentTemplate:
-        ExamTemplate =
-            template,
-    currentVersion:
-        CurriculumVersion =
-            curriculumVersion,
+    currentTemplate: ExamTemplate = template,
+    currentVersion: CurriculumVersion =
+        curriculumVersion,
 ) {
-    const client =
-        new QueryClient({
-            defaultOptions: {
-                queries: {
-                    retry: false,
-                },
-                mutations: {
-                    retry: false,
-                },
-            },
-        });
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
 
     render(
         <QueryClientProvider client={client}>
             <ExamTemplateVersionsPanel
-                version={
-                    currentVersion
-                }
-                template={
-                    currentTemplate
-                }
+                version={currentVersion}
+                template={currentTemplate}
                 onClose={() => {}}
             />
         </QueryClientProvider>,
     );
 }
 
-describe(
-    'ExamTemplateVersionsPanel',
-    () => {
-        beforeEach(() => {
-            apiRequestMock.mockReset();
+function installListMock(items: unknown[]) {
+    apiRequestMock.mockImplementation(
+        ({ method, url }: RequestConfig) => {
+            if (
+                method === 'GET'
+                && url === '/api/admin/exam-templates/template-1/versions'
+            ) {
+                return Promise.resolve(items);
+            }
+
+            throw new Error(
+                `Unexpected request ${method} ${url}`,
+            );
+        },
+    );
+}
+
+describe('ExamTemplateVersionsPanel', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it('shows exam settings without schema, JSON, or version-number controls', async () => {
+        installListMock([draftSettings]);
+        renderPanel();
+
+        expect(
+            await screen.findByText(
+                'الإعدادات الأساسية',
+            ),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('مسودة'),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByLabelText(
+                'رقم إصدار قالب الاختبار',
+            ),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByLabelText(
+                'قواعد إصدار قالب الاختبار',
+            ),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByText(/schema/i),
+        ).not.toBeInTheDocument();
+    });
+
+    it('creates the next internal settings version automatically', async () => {
+        apiRequestMock.mockImplementation(
+            ({ method, url, data }: RequestConfig) => {
+                if (
+                    method === 'GET'
+                    && url === '/api/admin/exam-templates/template-1/versions'
+                ) {
+                    return Promise.resolve([
+                        draftSettings,
+                        {
+                            ...draftSettings,
+                            id: 'template-version-2',
+                            version_number: 2,
+                        },
+                    ]);
+                }
+
+                if (
+                    method === 'POST'
+                    && url === '/api/admin/exam-templates/template-1/versions'
+                ) {
+                    expect(data).toEqual({
+                        version_number: 3,
+                        label: 'إعدادات جديدة',
+                        rules_payload: [],
+                        rules_schema_version: 1,
+                    });
+
+                    return Promise.resolve({
+                        ...draftSettings,
+                        id: 'template-version-3',
+                        version_number: 3,
+                    });
+                }
+
+                throw new Error(
+                    `Unexpected request ${method} ${url}`,
+                );
+            },
+        );
+
+        renderPanel();
+
+        await screen.findByText(
+            'الإعدادات الأساسية',
+        );
+        fireEvent.change(
+            screen.getByLabelText(
+                'اسم إعدادات الاختبار',
+            ),
+            {
+                target: {
+                    value: 'إعدادات جديدة',
+                },
+            },
+        );
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'إنشاء إعدادات جديدة',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/exam-templates/template-1/versions',
+                data: {
+                    version_number: 3,
+                    label: 'إعدادات جديدة',
+                    rules_payload: [],
+                    rules_schema_version: 1,
+                },
+            });
+        });
+    });
+
+    it('edits only the visible name while preserving hidden backend rules', async () => {
+        apiRequestMock.mockImplementation(
+            ({ method, url, data }: RequestConfig) => {
+                if (
+                    method === 'GET'
+                    && url === '/api/admin/exam-templates/template-1/versions'
+                ) {
+                    return Promise.resolve([
+                        {
+                            ...draftSettings,
+                            rules_payload: {
+                                mode: 'fixed',
+                            },
+                            rules_schema_version: 4,
+                        },
+                    ]);
+                }
+
+                if (
+                    method === 'PUT'
+                    && url === '/api/admin/exam-template-versions/template-version-1'
+                ) {
+                    expect(data).toEqual({
+                        label: 'اسم محدث',
+                        rules_payload: {
+                            mode: 'fixed',
+                        },
+                        rules_schema_version: 4,
+                    });
+
+                    return Promise.resolve({
+                        ...draftSettings,
+                        label: 'اسم محدث',
+                    });
+                }
+
+                throw new Error(
+                    `Unexpected request ${method} ${url}`,
+                );
+            },
+        );
+
+        renderPanel();
+        await screen.findByText(
+            'الإعدادات الأساسية',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تعديل الاسم',
+            }),
+        );
+        fireEvent.change(
+            screen.getByLabelText(
+                'تعديل اسم إعدادات الاختبار',
+            ),
+            {
+                target: { value: 'اسم محدث' },
+            },
+        );
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'حفظ',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'PUT',
+                url: '/api/admin/exam-template-versions/template-version-1',
+                data: {
+                    label: 'اسم محدث',
+                    rules_payload: {
+                        mode: 'fixed',
+                    },
+                    rules_schema_version: 4,
+                },
+            });
+        });
+    });
+
+    it('publishes settings using user-facing approval wording', async () => {
+        apiRequestMock.mockImplementation(
+            ({ method, url }: RequestConfig) => {
+                if (
+                    method === 'GET'
+                    && url === '/api/admin/exam-templates/template-1/versions'
+                ) {
+                    return Promise.resolve([
+                        draftSettings,
+                    ]);
+                }
+
+                if (
+                    method === 'POST'
+                    && url === '/api/admin/exam-template-versions/template-version-1/publish'
+                ) {
+                    return Promise.resolve({
+                        version: {
+                            ...draftSettings,
+                            status: 'published',
+                        },
+                        template: {
+                            ...template,
+                            published_version_id:
+                                'template-version-1',
+                        },
+                    });
+                }
+
+                throw new Error(
+                    `Unexpected request ${method} ${url}`,
+                );
+            },
+        );
+
+        renderPanel();
+        await screen.findByText(
+            'الإعدادات الأساسية',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'اعتماد الإعدادات',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/admin/exam-template-versions/template-version-1/publish',
+            });
+        });
+    });
+
+    it('marks the current approved settings without exposing Current or version internals', async () => {
+        installListMock([
+            {
+                ...draftSettings,
+                status: 'published',
+            },
+        ]);
+
+        renderPanel({
+            ...template,
+            published_version_id:
+                'template-version-1',
         });
 
-        it(
-            'lists versions in backend order',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                draftTemplateVersion,
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                expect(
-                    await screen.findByText(
-                        'إصدار 1 — الإصدار الأول',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.getByText(
-                        /الحالة: مسودة/,
-                    ),
-                ).toBeInTheDocument();
-            },
-        );
-
-        it(
-            'creates a draft version with schema-neutral rules payload',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                        data,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([]);
-                        }
-
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            expect(
-                                data,
-                            ).toEqual({
-                                version_number:
-                                    2,
-                                label:
-                                    'الإصدار الثاني',
-                                rules_payload: {
-                                    mode:
-                                        'adaptive',
-                                },
-                                rules_schema_version:
-                                    1,
-                            });
-
-                            return Promise.resolve({
-                                ...draftTemplateVersion,
-                                id:
-                                    'template-version-2',
-                                version_number:
-                                    2,
-                            });
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'لا توجد إصدارات لهذا القالب.',
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'رقم إصدار قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value: '2',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تسمية إصدار قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'الإصدار الثاني',
-                        },
-                    },
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'قواعد إصدار قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                '{"mode":"adaptive"}',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'إنشاء إصدار',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'POST',
-                        url:
-                            '/api/admin/exam-templates/template-1/versions',
-                        data: {
-                            version_number:
-                                2,
-                            label:
-                                'الإصدار الثاني',
-                            rules_payload: {
-                                mode:
-                                    'adaptive',
-                            },
-                            rules_schema_version:
-                                1,
-                        },
-                    });
-                });
-            },
-        );
-
-        it(
-            'updates only mutable draft-version fields and never version number',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                        data,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                draftTemplateVersion,
-                            ]);
-                        }
-
-                        if (
-                            method === 'PUT'
-                            && url
-                                === '/api/admin/exam-template-versions/template-version-1'
-                        ) {
-                            expect(
-                                data,
-                            ).toEqual({
-                                label:
-                                    'نسخة معدلة',
-                                rules_payload: [],
-                                rules_schema_version:
-                                    1,
-                            });
-
-                            expect(
-                                data,
-                            ).not.toHaveProperty(
-                                'version_number',
-                            );
-
-                            return Promise.resolve({
-                                ...draftTemplateVersion,
-                                label:
-                                    'نسخة معدلة',
-                            });
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'إصدار 1 — الإصدار الأول',
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'تعديل الإصدار',
-                        },
-                    ),
-                );
-
-                fireEvent.change(
-                    screen.getByLabelText(
-                        'تعديل تسمية إصدار قالب الاختبار',
-                    ),
-                    {
-                        target: {
-                            value:
-                                'نسخة معدلة',
-                        },
-                    },
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'حفظ الإصدار',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method: 'PUT',
-                        url:
-                            '/api/admin/exam-template-versions/template-version-1',
-                        data: {
-                            label:
-                                'نسخة معدلة',
-                            rules_payload:
-                                [],
-                            rules_schema_version:
-                                1,
-                        },
-                    });
-                });
-            },
-        );
-
-        it(
-            'does not expose version editing outside the exact draft authoring boundary',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                draftTemplateVersion,
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel({
-                    ...template,
-                    status:
-                        'archived',
-                });
-
-                expect(
-                    await screen.findByText(
-                        'إنشاء وتعديل الإصدارات متاح فقط لقالب active داخل CurriculumVersion draft.',
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'إنشاء إصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'تعديل الإصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-            },
-        );
-
-        it(
-            'publishes a draft version and refreshes the current published pointer',
-            async () => {
-                let published = false;
-
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    ...draftTemplateVersion,
-                                    status:
-                                        published
-                                            ? 'published'
-                                            : 'draft',
-                                },
-                            ]);
-                        }
-
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/exam-template-versions/template-version-1/publish'
-                        ) {
-                            published = true;
-
-                            return Promise.resolve({
-                                version: {
-                                    ...draftTemplateVersion,
-                                    status:
-                                        'published',
-                                },
-                                template: {
-                                    ...template,
-                                    published_version_id:
-                                        'template-version-1',
-                                },
-                            });
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel();
-
-                await screen.findByText(
-                    'إصدار 1 — الإصدار الأول',
-                );
-
-                fireEvent.click(
-                    screen.getByRole(
-                        'button',
-                        {
-                            name:
-                                'نشر الإصدار',
-                        },
-                    ),
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'POST',
-                        url:
-                            '/api/admin/exam-template-versions/template-version-1/publish',
-                    });
-                });
-            },
-        );
-
-        it(
-            'allows retiring only a published version that is no longer current',
-            async () => {
-                let retired = false;
-
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    ...draftTemplateVersion,
-                                    status:
-                                        retired
-                                            ? 'retired'
-                                            : 'published',
-                                },
-                                {
-                                    ...draftTemplateVersion,
-                                    id:
-                                        'template-version-2',
-                                    version_number:
-                                        2,
-                                    label:
-                                        'الإصدار الثاني',
-                                    status:
-                                        'published',
-                                },
-                            ]);
-                        }
-
-                        if (
-                            method === 'POST'
-                            && url
-                                === '/api/admin/exam-template-versions/template-version-1/retire'
-                        ) {
-                            retired = true;
-
-                            return Promise.resolve({
-                                ...draftTemplateVersion,
-                                status:
-                                    'retired',
-                            });
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel({
-                    ...template,
-                    published_version_id:
-                        'template-version-2',
-                });
-
-                await screen.findByText(
-                    'إصدار 1 — الإصدار الأول',
-                );
-
-                const retireButtons =
-                    screen.getAllByRole(
-                        'button',
-                        {
-                            name:
-                                'تقاعد الإصدار',
-                        },
-                    );
-
-                expect(
-                    retireButtons,
-                ).toHaveLength(1);
-
-                fireEvent.click(
-                    retireButtons[0],
-                );
-
-                await waitFor(() => {
-                    expect(
-                        apiRequestMock,
-                    ).toHaveBeenCalledWith({
-                        method:
-                            'POST',
-                        url:
-                            '/api/admin/exam-template-versions/template-version-1/retire',
-                    });
-                });
-
-                expect(
-                    await screen.findByText(
-                        /الحالة: متقاعد/,
-                    ),
-                ).toBeInTheDocument();
-            },
-        );
-
-        it(
-            'never exposes retire for the current published version',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    ...draftTemplateVersion,
-                                    status:
-                                        'published',
-                                },
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel({
-                    ...template,
-                    published_version_id:
-                        'template-version-1',
-                });
-
-                expect(
-                    await screen.findByText(
-                        /Current/,
-                    ),
-                ).toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'تقاعد الإصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'نشر الإصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-            },
-        );
-
-        it(
-            'freezes version lifecycle when the template or curriculum version is not authorable',
-            async () => {
-                apiRequestMock.mockImplementation(
-                    ({
-                        method,
-                        url,
-                    }: RequestConfig) => {
-                        if (
-                            method === 'GET'
-                            && url
-                                === '/api/admin/exam-templates/template-1/versions'
-                        ) {
-                            return Promise.resolve([
-                                {
-                                    ...draftTemplateVersion,
-                                    status:
-                                        'published',
-                                },
-                            ]);
-                        }
-
-                        throw new Error(
-                            `Unexpected request ${method} ${url}`,
-                        );
-                    },
-                );
-
-                renderPanel(
-                    {
-                        ...template,
-                        status:
-                            'archived',
-                        published_version_id:
-                            null,
-                    },
-                );
-
-                await screen.findByText(
-                    'إنشاء وتعديل الإصدارات متاح فقط لقالب active داخل CurriculumVersion draft.',
-                );
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'نشر الإصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-
-                expect(
-                    screen.queryByRole(
-                        'button',
-                        {
-                            name:
-                                'تقاعد الإصدار',
-                        },
-                    ),
-                ).not
-                    .toBeInTheDocument();
-            },
-        );
-
-    },
-);
+        expect(
+            await screen.findByText(
+                'المعتمدة حاليًا',
+            ),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText('Current'),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {
+                name: 'إيقاف الإعدادات السابقة',
+            }),
+        ).not.toBeInTheDocument();
+    });
+
+    it('keeps settings read only outside the authoring boundary', async () => {
+        installListMock([draftSettings]);
+
+        renderPanel({
+            ...template,
+            status: 'archived',
+        });
+
+        expect(
+            await screen.findByText(
+                'إعدادات الاختبار للقراءة فقط لأن الاختبار أو المنهج غير متاح للتعديل.',
+            ),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {
+                name: 'إنشاء إعدادات جديدة',
+            }),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {
+                name: 'تعديل الاسم',
+            }),
+        ).not.toBeInTheDocument();
+    });
+});
