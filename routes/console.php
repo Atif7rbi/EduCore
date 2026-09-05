@@ -67,8 +67,16 @@ Artisan::command('educore:recover-d4 {--confirm=}', function (): int {
 
     $password = $this->secret('New EduCore admin password');
 
-    if (! is_string($password) || mb_strlen($password) < 12) {
-        $this->error('Admin password must contain at least 12 characters.');
+    $passwordIsValid = is_string($password)
+        && mb_strlen($password) >= 8
+        && preg_match('/[A-Z]/', $password) === 1
+        && preg_match('/[a-z]/', $password) === 1
+        && preg_match('/[0-9]/', $password) === 1;
+
+    if (! $passwordIsValid) {
+        $this->error(
+            'Admin password must contain at least 8 characters, including an uppercase letter, a lowercase letter, and a number.'
+        );
 
         return 1;
     }
