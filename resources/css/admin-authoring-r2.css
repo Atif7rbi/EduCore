@@ -352,6 +352,8 @@
     .admin-authoring-tabs {
         display: flex;
         overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
     }
 
     .admin-authoring-tabs__item {
@@ -362,5 +364,165 @@
     .admin-skills-workspace,
     .admin-lessons-layout--inspector {
         grid-template-columns: 1fr;
+    }
+
+    .admin-context-bar,
+    .admin-context-bar__trail,
+    .admin-context-bar__meta {
+        width: 100%;
+    }
+
+    .admin-context-bar__trail,
+    .admin-context-bar__meta {
+        flex-wrap: wrap;
+    }
+
+    .admin-context-chip,
+    .admin-context-version {
+        min-width: min(100%, 14rem);
+        flex: 1 1 12rem;
+    }
+
+    .admin-content-form {
+        grid-template-columns: 1fr !important;
+    }
+
+    .admin-content-list__item,
+    .admin-content-placement,
+    .admin-content-revisions__heading {
+        align-items: stretch !important;
+        flex-direction: column;
+    }
+
+    .admin-content-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .admin-content-actions .ui-button {
+        flex: 1 1 10rem;
+    }
+}
+
+@media (max-width: 40rem) {
+    .authenticated-shell__header-inner.ui-container {
+        padding-inline: 0.85rem;
+    }
+
+    .authenticated-shell__header-inner {
+        min-height: 3.75rem;
+        gap: 0.65rem;
+    }
+
+    .authenticated-shell__content {
+        padding: 0.75rem;
+    }
+
+    .admin-authoring {
+        gap: 0.75rem;
+    }
+
+    .admin-authoring__header {
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .admin-authoring__header h1 {
+        font-size: clamp(1.65rem, 8vw, 2rem);
+    }
+
+    .admin-authoring__header p {
+        font-size: 0.84rem;
+        line-height: 1.65;
+    }
+
+    .admin-context-bar {
+        padding: 0.6rem;
+    }
+
+    .admin-context-bar__separator {
+        display: none;
+    }
+
+    .admin-context-chip,
+    .admin-context-version {
+        min-width: 100%;
+        flex-basis: 100%;
+    }
+
+    .admin-authoring__workspace {
+        border-radius: 0.7rem;
+    }
+
+    .admin-authoring-tabs {
+        min-height: 3.45rem;
+    }
+
+    .admin-authoring-tabs__item {
+        min-width: 7.25rem;
+        min-height: 3.45rem;
+        padding: 0.55rem 0.45rem;
+        font-size: 0.82rem;
+    }
+
+    .admin-authoring__panel {
+        padding: 0.55rem;
+    }
+
+    .admin-content-panel,
+    .admin-lesson-inspector,
+    .admin-skills-workspace .admin-content-panel {
+        padding: 0.75rem;
+    }
+
+    .admin-content-form input,
+    .admin-content-form textarea,
+    .admin-content-form select,
+    .admin-lesson-inspector__form input,
+    .admin-lesson-inspector__form textarea,
+    .admin-lesson-inspector__form select {
+        width: 100%;
+        min-width: 0;
+        font-size: 1rem;
+    }
+
+    .admin-content-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+    }
+
+    .admin-content-actions .ui-button,
+    .admin-lesson-inspector__actions .ui-button {
+        width: 100%;
+    }
+
+    .admin-lesson-inspector__actions {
+        flex-direction: column;
+    }
+
+    .admin-lesson-inspector__summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-lessons-list-pane__header,
+    .admin-lessons-toolbar,
+    .admin-lesson-inspector__header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-lessons-search,
+    .admin-lessons-filter {
+        flex-basis: auto;
+        width: 100%;
+    }
+
+    .admin-lessons-table-wrap {
+        margin-inline: -0.55rem;
+        padding-inline: 0.55rem;
+    }
+
+    .admin-lessons-table {
+        min-width: 30rem;
     }
 }
