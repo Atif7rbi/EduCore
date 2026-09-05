@@ -9,6 +9,8 @@ import {
     useNavigate,
 } from 'react-router-dom';
 
+import '../../css/login-polish.css';
+
 import {
     EduCoreApiError,
 } from '../api/errors';
@@ -33,6 +35,33 @@ function firstFieldError(
     field: string,
 ): string | undefined {
     return error.details?.[field]?.[0];
+}
+
+function loginErrorMessage(
+    error: EduCoreApiError,
+): string {
+    if (
+        error.code === 'invalid_credentials'
+        || error.status === 401
+    ) {
+        return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+    }
+
+    if (
+        error.code === 'csrf_token_mismatch'
+        || error.status === 419
+    ) {
+        return 'انتهت صلاحية جلسة تسجيل الدخول. أعد المحاولة.';
+    }
+
+    if (
+        error.code === 'validation_error'
+        || error.status === 422
+    ) {
+        return 'تحقق من البيانات المدخلة ثم حاول مرة أخرى.';
+    }
+
+    return 'تعذر تسجيل الدخول الآن. حاول مرة أخرى.';
 }
 
 function destinationForRole(
@@ -89,6 +118,38 @@ function requestedDestination(
     }
 
     return destinationForRole(role);
+}
+
+function LoginHeading({
+    includeDescription = true,
+}: {
+    includeDescription?: boolean;
+}) {
+    return (
+        <div className="auth-page__heading">
+            <div
+                className="auth-page__brand-mark"
+                aria-hidden="true"
+            />
+
+            <p className="foundation-page__eyebrow">
+                الوصول إلى المنصة
+            </p>
+
+            <h1
+                className="foundation-page__title"
+                id="login-title"
+            >
+                تسجيل الدخول
+            </h1>
+
+            {includeDescription ? (
+                <p className="foundation-page__description">
+                    استخدم حسابك المسجل للوصول إلى EduCore ومتابعة عملك من مكان واحد.
+                </p>
+            ) : null}
+        </div>
+    );
 }
 
 export function LoginPage() {
@@ -216,21 +277,12 @@ export function LoginPage() {
     if (status === 'loading') {
         return (
             <section
-                className="auth-page"
+                className="auth-page auth-page--login"
                 aria-labelledby="login-title"
             >
-                <div className="auth-page__heading">
-                    <p className="foundation-page__eyebrow">
-                        الوصول إلى المنصة
-                    </p>
-
-                    <h1
-                        className="foundation-page__title"
-                        id="login-title"
-                    >
-                        تسجيل الدخول
-                    </h1>
-                </div>
+                <LoginHeading
+                    includeDescription={false}
+                />
 
                 <Feedback>
                     جارٍ التحقق من حالة الجلسة...
@@ -241,25 +293,10 @@ export function LoginPage() {
 
     return (
         <section
-            className="auth-page"
+            className="auth-page auth-page--login"
             aria-labelledby="login-title"
         >
-            <div className="auth-page__heading">
-                <p className="foundation-page__eyebrow">
-                    الوصول إلى المنصة
-                </p>
-
-                <h1
-                    className="foundation-page__title"
-                    id="login-title"
-                >
-                    تسجيل الدخول
-                </h1>
-
-                <p className="foundation-page__description">
-                    استخدم حسابك المسجل للوصول إلى EduCore.
-                </p>
-            </div>
+            <LoginHeading />
 
             <Surface
                 className="auth-card"
@@ -298,10 +335,7 @@ export function LoginPage() {
 
                             {sessionIssue.requestId ? (
                                 <span className="auth-error-reference">
-                                    {' '}
-                                    رقم المرجع:
-                                    {' '}
-                                    {sessionIssue.requestId}
+                                    رقم المرجع: {sessionIssue.requestId}
                                 </span>
                             ) : null}
                         </Feedback>
@@ -309,16 +343,19 @@ export function LoginPage() {
 
                     {submitError ? (
                         <Feedback tone="danger">
-                            {submitError.message}
-
-                            {submitError.requestId ? (
-                                <span className="auth-error-reference">
-                                    {' '}
-                                    رقم المرجع:
-                                    {' '}
-                                    {submitError.requestId}
+                            <div className="auth-login-error">
+                                <span className="auth-login-error__message">
+                                    {loginErrorMessage(
+                                        submitError,
+                                    )}
                                 </span>
-                            ) : null}
+
+                                {submitError.requestId ? (
+                                    <span className="auth-error-reference">
+                                        رقم المرجع: {submitError.requestId}
+                                    </span>
+                                ) : null}
+                            </div>
                         </Feedback>
                     ) : null}
 
