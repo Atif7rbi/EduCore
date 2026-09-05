@@ -107,10 +107,10 @@ class AdminLessonAuthoringController extends Controller
             );
         }
 
-        if ($lesson->status !== 'draft') {
+        if ($lesson->status === 'retired') {
             return ApiResponse::error(
-                'lesson_not_draft',
-                'Only draft lessons may be edited.',
+                'lesson_retired',
+                'Retired lessons may not be edited.',
                 409,
             );
         }
@@ -178,10 +178,10 @@ class AdminLessonAuthoringController extends Controller
             );
         }
 
-        if ($lesson->status !== 'draft') {
+        if ($lesson->status === 'retired') {
             return ApiResponse::error(
-                'lesson_not_draft',
-                'New revisions may only be authored for draft lessons.',
+                'lesson_retired',
+                'New revisions may not be authored for retired lessons.',
                 409,
             );
         }
