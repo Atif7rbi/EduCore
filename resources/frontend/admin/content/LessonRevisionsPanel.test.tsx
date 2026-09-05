@@ -38,7 +38,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('./RevisionSkillsPanel', () => ({
-    RevisionSkillsPanel: () => <div>ربط مهارات النسخة</div>,
+    RevisionSkillsPanel: () => <div>ربط المهارات</div>,
 }));
 
 const version: CurriculumVersion = {
@@ -49,7 +49,7 @@ const version: CurriculumVersion = {
     status: 'draft',
 };
 
-const lesson: Lesson = {
+const draftLesson: Lesson = {
     id: 'lesson-1',
     curriculum_version_id: 'version-1',
     title: 'النسب',
@@ -61,6 +61,12 @@ const lesson: Lesson = {
     updated_at: null,
 };
 
+const publishedLesson: Lesson = {
+    ...draftLesson,
+    status: 'published',
+    published_revision_id: 'revision-1',
+};
+
 const topic = {
     id: 'topic-1',
     curriculum_version_id: 'version-1',
@@ -70,7 +76,11 @@ const topic = {
     updated_at: null,
 };
 
-function revision(number = 1, releasedAt: string | null = null) {
+function revision(
+    number = 1,
+    releasedAt: string | null = null,
+    text = 'المحتوى المنشور',
+) {
     return {
         id: `revision-${number}`,
         lesson_id: 'lesson-1',
@@ -78,7 +88,7 @@ function revision(number = 1, releasedAt: string | null = null) {
         revision_number: number,
         primary_topic_id: 'topic-1',
         content_payload: {
-            blocks: [{ type: 'text', value: 'محتوى' }],
+            blocks: [{ type: 'text', value: text }],
         },
         content_schema_version: 1,
         released_at: releasedAt,
@@ -86,7 +96,7 @@ function revision(number = 1, releasedAt: string | null = null) {
     };
 }
 
-function renderPanel(currentLesson: Lesson = lesson) {
+function renderPanel(currentLesson: Lesson = draftLesson) {
     const client = new QueryClient({
         defaultOptions: {
             queries: { retry: false },
@@ -105,7 +115,7 @@ function renderPanel(currentLesson: Lesson = lesson) {
     );
 }
 
-function installReads(revisions: ReturnType<typeof revision>[] = []) {
+function installReads(revisions: ReturnType<typeof revision>[]) {
     apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
         if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
             return Promise.resolve(revisions);
@@ -122,32 +132,57 @@ describe('LessonRevisionsPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('creates the next content version from normal teacher text', async () => {
-        apiRequestMock.mockImplementation(({ method, url, data }: RequestConfig) => {
+    it('shows published content without exposing revision terminology', async () => {
+        installReads([
+            revision(1, '2026-09-04T00:00:00Z'),
+        ]);
+        renderPanel(publishedLesson);
+
+        expect(await screen.findByText('المحتوى المنشور')).toBeInTheDocument();
+        expect(screen.getByText('هذا هو المحتوى الذي يراه الطلاب حاليًا.'))
+            .toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }))
+            .toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'إيقاف النشر' }))
+            .toBeInTheDocument();
+        expect(screen.queryByText('نسخ المحتوى')).not.toBeInTheDocument();
+        expect(screen.queryByText('النسخة 1')).not.toBeInTheDocument();
+        expect(screen.queryByText('revision-1')).not.toBeInTheDocument();
+    });
+
+    it('creates unpublished edits for a published lesson using teacher copy', async () => {
+        let revisions = [
+            revision(1, '2026-09-04T00:00:00Z'),
+        ];
+
+        apiRequestMock.mockImplementation(({
+            method,
+            url,
+            data,
+        }: RequestConfig) => {
             if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
-                return Promise.resolve([revision(1, '2026-09-04T00:00:00Z')]);
+                return Promise.resolve(revisions);
             }
             if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
                 return Promise.resolve([topic]);
             }
             if (method === 'POST' && url === '/api/admin/lessons/lesson-1/revisions') {
-                return Promise.resolve({ id: 'revision-2', data });
+                const created = revision(2, null, 'المحتوى المعدل');
+                revisions = [...revisions, created];
+                return Promise.resolve(created);
             }
             throw new Error(`Unexpected request ${method} ${url}`);
         });
 
-        renderPanel();
-        expect(await screen.findByText('سيحفظ النظام هذه النسخة تلقائيًا برقم 2.')).toBeInTheDocument();
+        renderPanel(publishedLesson);
+        await screen.findByText('المحتوى المنشور');
+        fireEvent.click(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }));
 
-        fireEvent.change(screen.getByLabelText('الموضوع الرئيسي للنسخة'), {
-            target: { value: 'topic-1' },
-        });
+        expect(screen.getByLabelText('الوحدة الرئيسية للدرس')).toHaveValue('topic-1');
         fireEvent.change(screen.getByLabelText('محتوى الدرس'), {
-            target: {
-                value: 'الفقرة الأولى.\n\nالفقرة الثانية.',
-            },
+            target: { value: 'المحتوى المعدل' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'حفظ نسخة جديدة' }));
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ التعديلات' }));
 
         await waitFor(() => {
             expect(apiRequestMock).toHaveBeenCalledWith({
@@ -158,8 +193,7 @@ describe('LessonRevisionsPanel', () => {
                     primary_topic_id: 'topic-1',
                     content_payload: {
                         blocks: [
-                            { type: 'text', value: 'الفقرة الأولى.' },
-                            { type: 'text', value: 'الفقرة الثانية.' },
+                            { type: 'text', value: 'المحتوى المعدل' },
                         ],
                     },
                     content_schema_version: 1,
@@ -167,66 +201,49 @@ describe('LessonRevisionsPanel', () => {
             });
         });
 
-        expect(screen.queryByText('Content Payload')).not.toBeInTheDocument();
-        expect(screen.queryByText('Content Schema Version')).not.toBeInTheDocument();
+        expect(await screen.findByText('تعديلات غير منشورة')).toBeInTheDocument();
+        expect(screen.queryByText('النسخة 2')).not.toBeInTheDocument();
     });
 
-    it('uses clear Arabic lifecycle actions for content versions', async () => {
-        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
-            if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
-                return Promise.resolve([revision(1)]);
-            }
-            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
-                return Promise.resolve([topic]);
-            }
-            if (method === 'POST' && url === '/api/lesson-revisions/revision-1/release') {
-                return Promise.resolve(revision(1, '2026-09-04T00:00:00Z'));
-            }
-            throw new Error(`Unexpected request ${method} ${url}`);
-        });
+    it('offers skill linking and approval for unpublished edits', async () => {
+        installReads([
+            revision(1, '2026-09-04T00:00:00Z'),
+            revision(2, null, 'تعديلات'),
+        ]);
+        renderPanel(publishedLesson);
 
-        renderPanel();
-        const button = await screen.findByRole('button', { name: 'اعتماد النسخة' });
-        fireEvent.click(button);
-
-        await waitFor(() => {
-            expect(apiRequestMock).toHaveBeenCalledWith({
-                method: 'POST',
-                url: '/api/lesson-revisions/revision-1/release',
-            });
-        });
+        expect(await screen.findByText('تعديلات غير منشورة')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'ربط المهارات' }))
+            .toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'اعتماد التعديلات' }))
+            .toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'اعتماد النسخة' }))
+            .not.toBeInTheDocument();
     });
 
-    it('publishes a draft lesson with an approved content version', async () => {
+    it('publishes approved edits without exposing internal revision labels', async () => {
         apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
             if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
-                return Promise.resolve([revision(1, '2026-09-04T00:00:00Z')]);
-            }
-            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
-                return Promise.resolve([topic]);
-            }
-            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/lessons') {
                 return Promise.resolve([
-                    {
-                        ...lesson,
-                        status: 'published',
-                        published_revision_id: 'revision-1',
-                    },
+                    revision(1, '2026-09-04T00:00:00Z'),
+                    revision(2, '2026-09-05T00:00:00Z', 'تعديلات معتمدة'),
                 ]);
+            }
+            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
+                return Promise.resolve([topic]);
             }
             if (method === 'POST' && url === '/api/lessons/lesson-1/publish') {
                 return Promise.resolve({
-                    ...lesson,
-                    status: 'published',
-                    published_revision_id: 'revision-1',
+                    ...publishedLesson,
+                    published_revision_id: 'revision-2',
                 });
             }
             throw new Error(`Unexpected request ${method} ${url}`);
         });
 
-        renderPanel();
+        renderPanel(publishedLesson);
         const button = await screen.findByRole('button', {
-            name: 'نشر الدرس بهذه النسخة',
+            name: 'نشر التعديلات',
         });
         fireEvent.click(button);
 
@@ -234,21 +251,21 @@ describe('LessonRevisionsPanel', () => {
             expect(apiRequestMock).toHaveBeenCalledWith({
                 method: 'POST',
                 url: '/api/lessons/lesson-1/publish',
-                data: { published_revision_id: 'revision-1' },
+                data: { published_revision_id: 'revision-2' },
             });
         });
+
+        expect(screen.queryByText('النسخة 2')).not.toBeInTheDocument();
     });
 
-    it('does not expose technical identifiers for a published lesson', async () => {
-        installReads([revision(1, '2026-09-04T00:00:00Z')]);
-        renderPanel({
-            ...lesson,
-            status: 'published',
-            published_revision_id: 'revision-1',
-        });
+    it('uses a simple initial content action for a new draft lesson', async () => {
+        installReads([]);
+        renderPanel();
 
-        expect(await screen.findByText('هذا الدرس منشور للطلاب بالنسخة المعتمدة الحالية.')).toBeInTheDocument();
-        expect(screen.queryByText('revision-1')).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'إيقاف الدرس' })).toBeInTheDocument();
+        expect(await screen.findByText('لم يُضف محتوى لهذا الدرس بعد.'))
+            .toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'إضافة محتوى الدرس' }))
+            .toBeInTheDocument();
+        expect(screen.queryByText('نسخة جديدة من المحتوى')).not.toBeInTheDocument();
     });
 });
