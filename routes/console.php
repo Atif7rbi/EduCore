@@ -204,7 +204,7 @@ Artisan::command('educore:recover-d4 {--confirm=}', function (): int {
                 ],
             ], JSON_THROW_ON_ERROR),
             'content_schema_version' => 1,
-            'released_at' => $now,
+            'released_at' => null,
             'created_at' => $now,
         ]);
 
@@ -217,6 +217,12 @@ Artisan::command('educore:recover-d4 {--confirm=}', function (): int {
                 'created_at' => $now,
             ]);
         }
+
+        DB::table('lesson_revisions')
+            ->where('id', $revisionId)
+            ->update([
+                'released_at' => $now,
+            ]);
 
         DB::table('lessons')
             ->where('id', $lessonId)
