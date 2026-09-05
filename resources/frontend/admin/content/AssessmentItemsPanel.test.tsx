@@ -3,6 +3,7 @@ import {
     render,
     screen,
     waitFor,
+    within,
 } from '@testing-library/react';
 import {
     QueryClient,
@@ -84,11 +85,15 @@ describe('AssessmentItemsPanel', () => {
 
         renderPanel();
 
+        const questionTitle =
+            await screen.findByText('سؤال النسب 1');
+        const questionCard =
+            questionTitle.closest('article');
+
+        expect(questionCard).not.toBeNull();
         expect(
-            await screen.findByText('سؤال النسب 1'),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByText(/اختيار من متعدد/),
+            within(questionCard as HTMLElement)
+                .getByText(/اختيار من متعدد/),
         ).toBeInTheDocument();
         expect(
             screen.queryByText('multiple_choice'),
