@@ -191,7 +191,6 @@ class AdminPublishedLessonAuthoringApiTest extends TestCase
             'content_schema_version' => 1,
             'released_at' => now(),
             'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         DB::table('lessons')
