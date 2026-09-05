@@ -138,7 +138,9 @@ describe('LessonRevisionsPanel', () => {
         ]);
         renderPanel(publishedLesson);
 
-        expect(await screen.findByText('المحتوى المنشور')).toBeInTheDocument();
+        expect(
+            await screen.findByRole('heading', { name: 'المحتوى المنشور' }),
+        ).toBeInTheDocument();
         expect(screen.getByText('هذا هو المحتوى الذي يراه الطلاب حاليًا.'))
             .toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }))
@@ -175,7 +177,7 @@ describe('LessonRevisionsPanel', () => {
         });
 
         renderPanel(publishedLesson);
-        await screen.findByText('المحتوى المنشور');
+        await screen.findByRole('heading', { name: 'المحتوى المنشور' });
         fireEvent.click(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }));
 
         expect(screen.getByLabelText('الوحدة الرئيسية للدرس')).toHaveValue('topic-1');
