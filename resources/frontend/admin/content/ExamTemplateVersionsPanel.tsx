@@ -1,5 +1,6 @@
 import {
     FormEvent,
+    useMemo,
     useState,
 } from 'react';
 import {
@@ -11,7 +12,6 @@ import {
 import {
     EduCoreApiError,
 } from '../../api/errors';
-
 import {
     Button,
     Feedback,
@@ -44,9 +44,7 @@ interface ExamTemplateVersionsPanelProps {
     onClose: () => void;
 }
 
-function requestId(
-    error: unknown,
-): string | null {
+function requestId(error: unknown): string | null {
     return error instanceof EduCoreApiError
         ? error.requestId ?? null
         : null;
@@ -64,10 +62,7 @@ function VersionFailure({
     return (
         <Feedback tone="danger">
             <div>
-                <strong>
-                    {children}
-                </strong>
-
+                <strong>{children}</strong>
                 {id ? (
                     <p className="learner-read-request-id">
                         رقم الطلب: {id}
@@ -79,51 +74,25 @@ function VersionFailure({
 }
 
 function statusLabel(
-    status:
-        ExamTemplateVersion['status'],
+    item: ExamTemplateVersion,
+    currentPublishedId: string | null,
 ) {
-    if (status === 'published') {
-        return 'منشور';
+    if (
+        item.status === 'published'
+        && item.id === currentPublishedId
+    ) {
+        return 'المعتمدة حاليًا';
     }
 
-    if (status === 'retired') {
-        return 'متقاعد';
+    if (item.status === 'published') {
+        return 'معتمدة سابقًا';
+    }
+
+    if (item.status === 'retired') {
+        return 'متوقفة';
     }
 
     return 'مسودة';
-}
-
-function parseJsonPayload(
-    value: string,
-):
-    | unknown[]
-    | Record<string, unknown>
-    | null {
-    let parsed: unknown;
-
-    try {
-        parsed = JSON.parse(value);
-    } catch {
-        return null;
-    }
-
-    if (
-        Array.isArray(parsed)
-    ) {
-        return parsed;
-    }
-
-    if (
-        typeof parsed === 'object'
-        && parsed !== null
-    ) {
-        return parsed as Record<
-            string,
-            unknown
-        >;
-    }
-
-    return null;
 }
 
 export function ExamTemplateVersionsPanel({
@@ -131,75 +100,39 @@ export function ExamTemplateVersionsPanel({
     template,
     onClose,
 }: ExamTemplateVersionsPanelProps) {
-    const queryClient =
-        useQueryClient();
+    const queryClient = useQueryClient();
 
     const canAuthor =
         version.status === 'draft'
         && template.status === 'active';
 
-    const [
-        versionNumber,
-        setVersionNumber,
-    ] = useState('1');
+    const [label, setLabel] = useState('');
+    const [editingVersion, setEditingVersion] =
+        useState<ExamTemplateVersion | null>(null);
+    const [editingLabel, setEditingLabel] =
+        useState('');
 
-    const [
-        label,
-        setLabel,
-    ] = useState('');
+    const versionsQuery = useQuery({
+        queryKey: adminExamTemplateVersionsKey(
+            template.id,
+        ),
+        queryFn: () =>
+            fetchExamTemplateVersions(template.id),
+    });
 
-    const [
-        rulesPayload,
-        setRulesPayload,
-    ] = useState('[]');
+    const nextVersionNumber = useMemo(() => {
+        const versions = versionsQuery.data ?? [];
 
-    const [
-        rulesSchemaVersion,
-        setRulesSchemaVersion,
-    ] = useState('1');
+        if (versions.length === 0) {
+            return 1;
+        }
 
-    const [
-        editingVersion,
-        setEditingVersion,
-    ] =
-        useState<ExamTemplateVersion | null>(
-            null,
-        );
-
-    const [
-        editingLabel,
-        setEditingLabel,
-    ] = useState('');
-
-    const [
-        editingRulesPayload,
-        setEditingRulesPayload,
-    ] = useState('[]');
-
-    const [
-        editingRulesSchemaVersion,
-        setEditingRulesSchemaVersion,
-    ] = useState('1');
-
-    const [
-        localValidationError,
-        setLocalValidationError,
-    ] =
-        useState<string | null>(
-            null,
-        );
-
-    const versionsQuery =
-        useQuery({
-            queryKey:
-                adminExamTemplateVersionsKey(
-                    template.id,
-                ),
-            queryFn: () =>
-                fetchExamTemplateVersions(
-                    template.id,
-                ),
-        });
+        return Math.max(
+            ...versions.map(
+                (item) => item.version_number,
+            ),
+        ) + 1;
+    }, [versionsQuery.data]);
 
     async function invalidate() {
         await Promise.all([
@@ -218,127 +151,76 @@ export function ExamTemplateVersionsPanel({
         ]);
     }
 
-    const createMutation =
-        useMutation({
-            mutationFn: ({
-                parsedVersionNumber,
-                parsedRulesPayload,
-                parsedRulesSchemaVersion,
-            }: {
-                parsedVersionNumber:
-                    number;
-                parsedRulesPayload:
-                    | unknown[]
-                    | Record<string, unknown>;
-                parsedRulesSchemaVersion:
-                    number;
-            }) =>
-                createExamTemplateVersion(
-                    template.id,
-                    {
-                        version_number:
-                            parsedVersionNumber,
-                        label:
-                            label.trim()
-                            || null,
-                        rules_payload:
-                            parsedRulesPayload,
-                        rules_schema_version:
-                            parsedRulesSchemaVersion,
-                    },
-                ),
-            onSuccess: async () => {
-                setVersionNumber('1');
-                setLabel('');
-                setRulesPayload('[]');
-                setRulesSchemaVersion(
-                    '1',
-                );
-                setLocalValidationError(
-                    null,
-                );
+    const createMutation = useMutation({
+        mutationFn: () =>
+            createExamTemplateVersion(
+                template.id,
+                {
+                    version_number:
+                        nextVersionNumber,
+                    label:
+                        label.trim() || null,
+                    rules_payload: [],
+                    rules_schema_version: 1,
+                },
+            ),
+        onSuccess: async () => {
+            setLabel('');
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
+    const updateMutation = useMutation({
+        mutationFn: ({
+            item,
+            newLabel,
+        }: {
+            item: ExamTemplateVersion;
+            newLabel: string;
+        }) =>
+            updateExamTemplateVersion(
+                item.id,
+                {
+                    label:
+                        newLabel.trim() || null,
+                    rules_payload:
+                        item.rules_payload,
+                    rules_schema_version:
+                        item.rules_schema_version,
+                },
+            ),
+        onSuccess: async () => {
+            setEditingVersion(null);
+            setEditingLabel('');
+            await invalidate();
+        },
+    });
 
-    const updateMutation =
-        useMutation({
-            mutationFn: ({
-                versionId,
-                parsedRulesPayload,
-                parsedRulesSchemaVersion,
-            }: {
-                versionId: string;
-                parsedRulesPayload:
-                    | unknown[]
-                    | Record<string, unknown>;
-                parsedRulesSchemaVersion:
-                    number;
-            }) =>
-                updateExamTemplateVersion(
+    const lifecycleMutation = useMutation<
+        | PublishExamTemplateVersionResult
+        | ExamTemplateVersion,
+        Error,
+        {
+            versionId: string;
+            action: 'publish' | 'retire';
+        }
+    >({
+        mutationFn: ({ versionId, action }) =>
+            action === 'publish'
+                ? publishExamTemplateVersion(
                     versionId,
-                    {
-                        label:
-                            editingLabel
-                                .trim()
-                            || null,
-                        rules_payload:
-                            parsedRulesPayload,
-                        rules_schema_version:
-                            parsedRulesSchemaVersion,
-                    },
+                )
+                : retireExamTemplateVersion(
+                    versionId,
                 ),
-            onSuccess: async () => {
-                setEditingVersion(
-                    null,
-                );
-                setLocalValidationError(
-                    null,
-                );
+        onSuccess: async () => {
+            setEditingVersion(null);
+            setEditingLabel('');
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
-
-    const lifecycleMutation =
-        useMutation<
-            | PublishExamTemplateVersionResult
-            | ExamTemplateVersion,
-            Error,
-            {
-                versionId: string;
-                action:
-                    | 'publish'
-                    | 'retire';
-            }
-        >({
-            mutationFn: ({
-                versionId,
-                action,
-            }) =>
-                action === 'publish'
-                    ? publishExamTemplateVersion(
-                        versionId,
-                    )
-                    : retireExamTemplateVersion(
-                        versionId,
-                    ),
-            onSuccess: async () => {
-                setEditingVersion(
-                    null,
-                );
-                setLocalValidationError(
-                    null,
-                );
-
-                await invalidate();
-            },
-        });
-
-    function submitCreate(
-        event: FormEvent,
-    ) {
+    function submitCreate(event: FormEvent) {
         event.preventDefault();
 
         if (
@@ -348,66 +230,10 @@ export function ExamTemplateVersionsPanel({
             return;
         }
 
-        const parsedVersionNumber =
-            Number(versionNumber);
-
-        const parsedRulesSchemaVersion =
-            Number(
-                rulesSchemaVersion,
-            );
-
-        const parsedRulesPayload =
-            parseJsonPayload(
-                rulesPayload,
-            );
-
-        if (
-            !Number.isInteger(
-                parsedVersionNumber,
-            )
-            || parsedVersionNumber < 1
-        ) {
-            setLocalValidationError(
-                'رقم الإصدار يجب أن يكون عددًا صحيحًا يبدأ من 1.',
-            );
-            return;
-        }
-
-        if (
-            !Number.isInteger(
-                parsedRulesSchemaVersion,
-            )
-            || parsedRulesSchemaVersion < 1
-        ) {
-            setLocalValidationError(
-                'إصدار مخطط القواعد يجب أن يكون عددًا صحيحًا يبدأ من 1.',
-            );
-            return;
-        }
-
-        if (
-            parsedRulesPayload === null
-        ) {
-            setLocalValidationError(
-                'rules_payload يجب أن يكون JSON array أو object صالحًا.',
-            );
-            return;
-        }
-
-        setLocalValidationError(
-            null,
-        );
-
-        createMutation.mutate({
-            parsedVersionNumber,
-            parsedRulesPayload,
-            parsedRulesSchemaVersion,
-        });
+        createMutation.mutate();
     }
 
-    function beginEdit(
-        item: ExamTemplateVersion,
-    ) {
+    function beginEdit(item: ExamTemplateVersion) {
         if (
             !canAuthor
             || item.status !== 'draft'
@@ -416,81 +242,24 @@ export function ExamTemplateVersionsPanel({
         }
 
         setEditingVersion(item);
-        setEditingLabel(
-            item.label ?? '',
-        );
-        setEditingRulesPayload(
-            JSON.stringify(
-                item.rules_payload,
-                null,
-                2,
-            ),
-        );
-        setEditingRulesSchemaVersion(
-            String(
-                item.rules_schema_version,
-            ),
-        );
-        setLocalValidationError(
-            null,
-        );
+        setEditingLabel(item.label ?? '');
     }
 
-    function submitEdit(
-        event: FormEvent,
-    ) {
+    function submitEdit(event: FormEvent) {
         event.preventDefault();
 
         if (
             !editingVersion
             || !canAuthor
-            || editingVersion.status
-                !== 'draft'
+            || editingVersion.status !== 'draft'
             || updateMutation.isPending
         ) {
             return;
         }
 
-        const parsedRulesPayload =
-            parseJsonPayload(
-                editingRulesPayload,
-            );
-
-        const parsedRulesSchemaVersion =
-            Number(
-                editingRulesSchemaVersion,
-            );
-
-        if (
-            parsedRulesPayload === null
-        ) {
-            setLocalValidationError(
-                'rules_payload يجب أن يكون JSON array أو object صالحًا.',
-            );
-            return;
-        }
-
-        if (
-            !Number.isInteger(
-                parsedRulesSchemaVersion,
-            )
-            || parsedRulesSchemaVersion < 1
-        ) {
-            setLocalValidationError(
-                'إصدار مخطط القواعد يجب أن يكون عددًا صحيحًا يبدأ من 1.',
-            );
-            return;
-        }
-
-        setLocalValidationError(
-            null,
-        );
-
         updateMutation.mutate({
-            versionId:
-                editingVersion.id,
-            parsedRulesPayload,
-            parsedRulesSchemaVersion,
+            item: editingVersion,
+            newLabel: editingLabel,
         });
     }
 
@@ -500,15 +269,10 @@ export function ExamTemplateVersionsPanel({
                 <div className="admin-content-revisions__heading">
                     <div>
                         <h3 className="foundation-card__title">
-                            إصدارات قالب الاختبار — {
-                                template.name
-                            }
+                            إعداد الاختبار — {template.name}
                         </h3>
-
                         <p className="foundation-page__description">
-                            إدارة ExamTemplateVersion
-                            وقواعده بصيغة JSON
-                            schema-neutral.
+                            أنشئ إعدادات الاختبار واعتمدها عندما تصبح جاهزة للطلاب. يحتفظ النظام بالتاريخ السابق تلقائيًا.
                         </p>
                     </div>
 
@@ -516,9 +280,7 @@ export function ExamTemplateVersionsPanel({
                         type="button"
                         size="sm"
                         variant="secondary"
-                        onClick={
-                            onClose
-                        }
+                        onClick={onClose}
                     >
                         إغلاق
                     </Button>
@@ -526,101 +288,23 @@ export function ExamTemplateVersionsPanel({
 
                 {!canAuthor ? (
                     <Feedback>
-                        إنشاء وتعديل الإصدارات
-                        متاح فقط لقالب active
-                        داخل CurriculumVersion
-                        draft.
+                        إعدادات الاختبار للقراءة فقط لأن الاختبار أو المنهج غير متاح للتعديل.
                     </Feedback>
                 ) : (
                     <form
                         className="admin-content-form"
-                        onSubmit={
-                            submitCreate
-                        }
+                        onSubmit={submitCreate}
                     >
                         <label>
-                            رقم الإصدار
-
+                            اسم الإعدادات
                             <input
-                                aria-label="رقم إصدار قالب الاختبار"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                value={
-                                    versionNumber
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setVersionNumber(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            Label
-
-                            <input
-                                aria-label="تسمية إصدار قالب الاختبار"
+                                aria-label="اسم إعدادات الاختبار"
                                 maxLength={255}
+                                placeholder="مثال: الإعدادات الأساسية"
                                 value={label}
-                                onChange={(
-                                    event,
-                                ) =>
+                                onChange={(event) =>
                                     setLabel(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            rules_payload
-
-                            <textarea
-                                aria-label="قواعد إصدار قالب الاختبار"
-                                rows={10}
-                                value={
-                                    rulesPayload
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setRulesPayload(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            rules_schema_version
-
-                            <input
-                                aria-label="إصدار مخطط قواعد قالب الاختبار"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                value={
-                                    rulesSchemaVersion
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setRulesSchemaVersion(
-                                        event
-                                            .target
-                                            .value,
+                                        event.target.value,
                                     )
                                 }
                             />
@@ -629,169 +313,110 @@ export function ExamTemplateVersionsPanel({
                         <Button
                             type="submit"
                             disabled={
-                                createMutation
-                                    .isPending
+                                createMutation.isPending
                             }
                         >
-                            إنشاء إصدار
+                            إنشاء إعدادات جديدة
                         </Button>
                     </form>
                 )}
 
-                {localValidationError ? (
-                    <Feedback tone="danger">
-                        {
-                            localValidationError
-                        }
-                    </Feedback>
-                ) : null}
-
                 {createMutation.isError ? (
                     <VersionFailure
-                        error={
-                            createMutation
-                                .error
-                        }
+                        error={createMutation.error}
                     >
-                        تعذر إنشاء إصدار قالب الاختبار.
+                        تعذر إنشاء إعدادات الاختبار.
                     </VersionFailure>
                 ) : null}
 
                 {updateMutation.isError ? (
                     <VersionFailure
-                        error={
-                            updateMutation
-                                .error
-                        }
+                        error={updateMutation.error}
                     >
-                        تعذر تعديل إصدار قالب الاختبار.
+                        تعذر تعديل إعدادات الاختبار.
                     </VersionFailure>
                 ) : null}
 
                 {lifecycleMutation.isError ? (
                     <VersionFailure
-                        error={
-                            lifecycleMutation
-                                .error
-                        }
+                        error={lifecycleMutation.error}
                     >
-                        تعذر تغيير حالة إصدار قالب الاختبار.
+                        تعذر تغيير حالة إعدادات الاختبار.
                     </VersionFailure>
                 ) : null}
 
                 {versionsQuery.isPending ? (
-                    <p>
-                        جار تحميل الإصدارات…
-                    </p>
+                    <p>جار تحميل إعدادات الاختبار…</p>
                 ) : versionsQuery.isError ? (
                     <VersionFailure
-                        error={
-                            versionsQuery
-                                .error
-                        }
+                        error={versionsQuery.error}
                     >
-                        تعذر تحميل إصدارات قالب الاختبار.
+                        تعذر تحميل إعدادات الاختبار.
                     </VersionFailure>
-                ) : versionsQuery.data
-                    .length === 0 ? (
+                ) : versionsQuery.data.length === 0 ? (
                     <Feedback>
-                        لا توجد إصدارات لهذا
-                        القالب.
+                        لم يتم إنشاء إعدادات لهذا الاختبار بعد.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
                         {versionsQuery.data.map(
-                            (
-                                item,
-                            ) => (
+                            (item) => (
                                 <article
-                                    key={
-                                        item.id
-                                    }
+                                    key={item.id}
                                     className="admin-content-list__item"
                                 >
                                     <div>
                                         <strong>
-                                            إصدار {
-                                                item.version_number
-                                            }
-                                            {
-                                                item.label
-                                                    ? ` — ${item.label}`
-                                                    : ''
-                                            }
+                                            {item.label
+                                            ?? 'إعدادات الاختبار'}
                                         </strong>
-
                                         <p className="admin-content-list__meta">
-                                            الحالة:{' '}
-                                            {
-                                                statusLabel(
-                                                    item.status,
-                                                )
-                                            }
-                                            {' · '}
-                                            schema:{' '}
-                                            {
-                                                item.rules_schema_version
-                                            }
-                                            {
-                                                template.published_version_id
-                                                    === item.id
-                                                    ? ' · Current'
-                                                    : ''
-                                            }
+                                            {statusLabel(
+                                                item,
+                                                template.published_version_id,
+                                            )}
                                         </p>
                                     </div>
 
                                     <div className="admin-content-actions">
                                         {canAuthor
-                                        && item.status
-                                            === 'draft' ? (
+                                        && item.status === 'draft' ? (
                                             <>
                                                 <Button
                                                     type="button"
                                                     size="sm"
                                                     variant="secondary"
                                                     disabled={
-                                                        updateMutation
-                                                            .isPending
-                                                        || lifecycleMutation
-                                                            .isPending
+                                                        updateMutation.isPending
+                                                        || lifecycleMutation.isPending
                                                     }
                                                     onClick={() =>
-                                                        beginEdit(
-                                                            item,
-                                                        )
+                                                        beginEdit(item)
                                                     }
                                                 >
-                                                    تعديل الإصدار
+                                                    تعديل الاسم
                                                 </Button>
 
                                                 <Button
                                                     type="button"
                                                     size="sm"
                                                     disabled={
-                                                        lifecycleMutation
-                                                            .isPending
+                                                        lifecycleMutation.isPending
                                                     }
                                                     onClick={() =>
-                                                        lifecycleMutation
-                                                            .mutate({
-                                                                versionId:
-                                                                    item.id,
-                                                                action:
-                                                                    'publish',
-                                                            })
+                                                        lifecycleMutation.mutate({
+                                                            versionId: item.id,
+                                                            action: 'publish',
+                                                        })
                                                     }
                                                 >
-                                                    نشر الإصدار
+                                                    اعتماد الإعدادات
                                                 </Button>
                                             </>
                                         ) : null}
 
                                         {canAuthor
-                                        && item.status
-                                            === 'published'
+                                        && item.status === 'published'
                                         && template.published_version_id
                                             !== item.id ? (
                                             <Button
@@ -799,20 +424,16 @@ export function ExamTemplateVersionsPanel({
                                                 size="sm"
                                                 variant="secondary"
                                                 disabled={
-                                                    lifecycleMutation
-                                                        .isPending
+                                                    lifecycleMutation.isPending
                                                 }
                                                 onClick={() =>
-                                                    lifecycleMutation
-                                                        .mutate({
-                                                            versionId:
-                                                                item.id,
-                                                            action:
-                                                                'retire',
-                                                        })
+                                                    lifecycleMutation.mutate({
+                                                        versionId: item.id,
+                                                        action: 'retire',
+                                                    })
                                                 }
                                             >
-                                                تقاعد الإصدار
+                                                إيقاف الإعدادات السابقة
                                             </Button>
                                         ) : null}
                                     </div>
@@ -825,78 +446,21 @@ export function ExamTemplateVersionsPanel({
                 {editingVersion ? (
                     <form
                         className="admin-content-form"
-                        onSubmit={
-                            submitEdit
-                        }
+                        onSubmit={submitEdit}
                     >
                         <h3 className="foundation-card__title">
-                            تعديل الإصدار {
-                                editingVersion
-                                    .version_number
-                            }
+                            تعديل اسم الإعدادات
                         </h3>
 
                         <label>
-                            Label
-
+                            الاسم
                             <input
-                                aria-label="تعديل تسمية إصدار قالب الاختبار"
+                                aria-label="تعديل اسم إعدادات الاختبار"
                                 maxLength={255}
-                                value={
-                                    editingLabel
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
+                                value={editingLabel}
+                                onChange={(event) =>
                                     setEditingLabel(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            rules_payload
-
-                            <textarea
-                                aria-label="تعديل قواعد إصدار قالب الاختبار"
-                                rows={10}
-                                value={
-                                    editingRulesPayload
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setEditingRulesPayload(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            rules_schema_version
-
-                            <input
-                                aria-label="تعديل إصدار مخطط قواعد قالب الاختبار"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                value={
-                                    editingRulesSchemaVersion
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setEditingRulesSchemaVersion(
-                                        event
-                                            .target
-                                            .value,
+                                        event.target.value,
                                     )
                                 }
                             />
@@ -906,28 +470,20 @@ export function ExamTemplateVersionsPanel({
                             <Button
                                 type="submit"
                                 disabled={
-                                    updateMutation
-                                        .isPending
+                                    updateMutation.isPending
                                 }
                             >
-                                حفظ الإصدار
+                                حفظ
                             </Button>
-
                             <Button
                                 type="button"
                                 variant="secondary"
                                 disabled={
-                                    updateMutation
-                                        .isPending
+                                    updateMutation.isPending
                                 }
-                                onClick={() => {
-                                    setEditingVersion(
-                                        null,
-                                    );
-                                    setLocalValidationError(
-                                        null,
-                                    );
-                                }}
+                                onClick={() =>
+                                    setEditingVersion(null)
+                                }
                             >
                                 إلغاء
                             </Button>
