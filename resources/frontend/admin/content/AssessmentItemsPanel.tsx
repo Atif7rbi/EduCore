@@ -57,9 +57,7 @@ function ItemFailure({
     return (
         <Feedback tone="danger">
             <div>
-                <strong>
-                    {children}
-                </strong>
+                <strong>{children}</strong>
 
                 {id ? (
                     <p className="learner-read-request-id">
@@ -84,19 +82,19 @@ function statusLabel(
     }
 }
 
+function itemTypeLabel(
+    itemType: string,
+) {
+    return itemType === 'multiple_choice'
+        ? 'اختيار من متعدد'
+        : 'سؤال';
+}
+
 export function AssessmentItemsPanel({
     version,
 }: AssessmentItemsPanelProps) {
-    const queryClient =
-        useQueryClient();
-
-    const editable =
-        version.status === 'draft';
-
-    const [
-        newItemType,
-        setNewItemType,
-    ] = useState('');
+    const queryClient = useQueryClient();
+    const editable = version.status === 'draft';
 
     const [
         newInternalLabel,
@@ -106,100 +104,75 @@ export function AssessmentItemsPanel({
     const [
         editingItem,
         setEditingItem,
-    ] = useState<AssessmentItem | null>(
-        null,
-    );
+    ] = useState<AssessmentItem | null>(null);
 
     const [
         authoringItem,
         setAuthoringItem,
-    ] = useState<AssessmentItem | null>(
-        null,
-    );
-
-    const [
-        editItemType,
-        setEditItemType,
-    ] = useState('');
+    ] = useState<AssessmentItem | null>(null);
 
     const [
         editInternalLabel,
         setEditInternalLabel,
     ] = useState('');
 
-    const itemsQuery =
-        useQuery({
-            queryKey:
-                adminAssessmentItemsKey(
-                    version.id,
-                ),
-            queryFn: () =>
-                fetchAssessmentItems(
-                    version.id,
-                ),
-        });
+    const itemsQuery = useQuery({
+        queryKey: adminAssessmentItemsKey(
+            version.id,
+        ),
+        queryFn: () =>
+            fetchAssessmentItems(version.id),
+    });
 
     async function invalidate() {
-        await queryClient
-            .invalidateQueries({
-                queryKey:
-                    adminAssessmentItemsKey(
-                        version.id,
-                    ),
-            });
+        await queryClient.invalidateQueries({
+            queryKey: adminAssessmentItemsKey(
+                version.id,
+            ),
+        });
     }
 
-    const createMutation =
-        useMutation({
-            mutationFn: () =>
-                createAssessmentItem(
-                    version.id,
-                    {
-                        item_type:
-                            newItemType.trim(),
-                        internal_label:
-                            newInternalLabel
-                                .trim()
-                            || null,
-                    },
-                ),
-            onSuccess: async () => {
-                setNewItemType('');
-                setNewInternalLabel('');
+    const createMutation = useMutation({
+        mutationFn: () =>
+            createAssessmentItem(
+                version.id,
+                {
+                    item_type:
+                        'multiple_choice',
+                    internal_label:
+                        newInternalLabel.trim(),
+                },
+            ),
+        onSuccess: async () => {
+            setNewInternalLabel('');
+            await invalidate();
+        },
+    });
 
-                await invalidate();
-            },
-        });
-
-    const updateMutation =
-        useMutation({
-            mutationFn: ({
+    const updateMutation = useMutation({
+        mutationFn: ({
+            itemId,
+            itemType,
+            internalLabel,
+        }: {
+            itemId: string;
+            itemType: string;
+            internalLabel: string;
+        }) =>
+            updateAssessmentItem(
                 itemId,
-                itemType,
-                internalLabel,
-            }: {
-                itemId: string;
-                itemType: string;
-                internalLabel:
-                    string | null;
-            }) =>
-                updateAssessmentItem(
-                    itemId,
-                    {
-                        item_type:
-                            itemType,
-                        internal_label:
-                            internalLabel,
-                    },
-                ),
-            onSuccess: async () => {
-                setEditingItem(null);
-                setEditItemType('');
-                setEditInternalLabel('');
-
-                await invalidate();
-            },
-        });
+                {
+                    item_type: itemType,
+                    internal_label:
+                        internalLabel,
+                },
+            ),
+        onSuccess: async () => {
+            setEditingItem(null);
+            setEditInternalLabel('');
+            await invalidate();
+        },
+    });
 
     function submitCreate(
         event: FormEvent,
@@ -209,7 +182,7 @@ export function AssessmentItemsPanel({
         if (
             !editable
             || createMutation.isPending
-            || newItemType.trim() === ''
+            || newInternalLabel.trim() === ''
         ) {
             return;
         }
@@ -228,12 +201,8 @@ export function AssessmentItemsPanel({
         }
 
         setEditingItem(item);
-        setEditItemType(
-            item.item_type,
-        );
         setEditInternalLabel(
-            item.internal_label
-            ?? '',
+            item.internal_label ?? '',
         );
     }
 
@@ -245,23 +214,18 @@ export function AssessmentItemsPanel({
         if (
             !editable
             || !editingItem
-            || editingItem.status
-                !== 'draft'
+            || editingItem.status !== 'draft'
             || updateMutation.isPending
-            || editItemType.trim() === ''
+            || editInternalLabel.trim() === ''
         ) {
             return;
         }
 
         updateMutation.mutate({
-            itemId:
-                editingItem.id,
-            itemType:
-                editItemType.trim(),
+            itemId: editingItem.id,
+            itemType: editingItem.item_type,
             internalLabel:
-                editInternalLabel
-                    .trim()
-                || null,
+                editInternalLabel.trim(),
         });
     }
 
@@ -274,7 +238,7 @@ export function AssessmentItemsPanel({
                     </h2>
 
                     <p className="foundation-page__description">
-                        أنشئ الأسئلة ونظّمها داخل المنهج ثم أضف محتوى السؤال وإجابته الصحيحة.
+                        أنشئ أسئلة الاختيار من متعدد، وحدد الإجابة الصحيحة واربط كل سؤال بمهارات المنهج.
                     </p>
                 </div>
 
@@ -285,52 +249,20 @@ export function AssessmentItemsPanel({
                 ) : (
                     <form
                         className="admin-content-form"
-                        onSubmit={
-                            submitCreate
-                        }
+                        onSubmit={submitCreate}
                     >
-                        <label>
-                            نوع السؤال
-
-                            <input
-                                aria-label="نوع السؤال الجديد"
-                                maxLength={
-                                    255
-                                }
-                                required
-                                value={
-                                    newItemType
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setNewItemType(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
                         <label>
                             عنوان السؤال في البنك
 
                             <input
                                 aria-label="عنوان السؤال في البنك"
-                                maxLength={
-                                    255
-                                }
-                                value={
-                                    newInternalLabel
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
+                                maxLength={255}
+                                required
+                                placeholder="مثال: تبسيط النسبة"
+                                value={newInternalLabel}
+                                onChange={(event) =>
                                     setNewInternalLabel(
-                                        event
-                                            .target
-                                            .value,
+                                        event.target.value,
                                     )
                                 }
                             />
@@ -339,8 +271,7 @@ export function AssessmentItemsPanel({
                         <Button
                             type="submit"
                             disabled={
-                                createMutation
-                                    .isPending
+                                createMutation.isPending
                             }
                         >
                             إضافة سؤال
@@ -350,10 +281,7 @@ export function AssessmentItemsPanel({
 
                 {createMutation.isError ? (
                     <ItemFailure
-                        error={
-                            createMutation
-                                .error
-                        }
+                        error={createMutation.error}
                     >
                         تعذر إنشاء السؤال.
                     </ItemFailure>
@@ -361,193 +289,132 @@ export function AssessmentItemsPanel({
 
                 {updateMutation.isError ? (
                     <ItemFailure
-                        error={
-                            updateMutation
-                                .error
-                        }
+                        error={updateMutation.error}
                     >
                         تعذر تعديل السؤال.
                     </ItemFailure>
                 ) : null}
 
                 {itemsQuery.isPending ? (
-                    <p>
-                        جار تحميل الأسئلة…
-                    </p>
+                    <p>جار تحميل الأسئلة…</p>
                 ) : itemsQuery.isError ? (
                     <ItemFailure
-                        error={
-                            itemsQuery.error
-                        }
+                        error={itemsQuery.error}
                     >
                         تعذر تحميل الأسئلة.
                     </ItemFailure>
-                ) : itemsQuery.data
-                    .length === 0 ? (
+                ) : itemsQuery.data.length === 0 ? (
                     <Feedback>
                         لا توجد أسئلة في هذا المنهج حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
-                        {itemsQuery.data.map(
-                            (item) => (
-                                <article
-                                    key={
-                                        item.id
-                                    }
-                                    className="admin-content-list__item"
-                                >
-                                    {editingItem
-                                        ?.id
-                                    === item.id ? (
-                                        <form
-                                            className="admin-content-form admin-content-list__editor"
-                                            onSubmit={
-                                                submitEdit
-                                            }
-                                        >
-                                            <label>
-                                                نوع السؤال
+                        {itemsQuery.data.map((item) => (
+                            <article
+                                key={item.id}
+                                className="admin-content-list__item"
+                            >
+                                {editingItem?.id
+                                === item.id ? (
+                                    <form
+                                        className="admin-content-form admin-content-list__editor"
+                                        onSubmit={submitEdit}
+                                    >
+                                        <label>
+                                            عنوان السؤال في البنك
 
-                                                <input
-                                                    aria-label="تعديل نوع السؤال"
-                                                    maxLength={
-                                                        255
-                                                    }
-                                                    required
-                                                    value={
-                                                        editItemType
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        setEditItemType(
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
-                                                />
-                                            </label>
+                                            <input
+                                                aria-label="تعديل عنوان السؤال في البنك"
+                                                maxLength={255}
+                                                required
+                                                value={editInternalLabel}
+                                                onChange={(event) =>
+                                                    setEditInternalLabel(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </label>
 
-                                            <label>
-                                                عنوان السؤال في البنك
+                                        <div className="admin-content-actions">
+                                            <Button
+                                                size="sm"
+                                                type="submit"
+                                                disabled={
+                                                    updateMutation.isPending
+                                                }
+                                            >
+                                                حفظ
+                                            </Button>
 
-                                                <input
-                                                    aria-label="تعديل عنوان السؤال في البنك"
-                                                    maxLength={
-                                                        255
-                                                    }
-                                                    value={
-                                                        editInternalLabel
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        setEditInternalLabel(
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
-                                                />
-                                            </label>
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                variant="secondary"
+                                                disabled={
+                                                    updateMutation.isPending
+                                                }
+                                                onClick={() =>
+                                                    setEditingItem(null)
+                                                }
+                                            >
+                                                إلغاء
+                                            </Button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <strong>
+                                                {item.internal_label
+                                                    ?? 'سؤال بدون عنوان'}
+                                            </strong>
 
-                                            <div className="admin-content-actions">
-                                                <Button
-                                                    size="sm"
-                                                    type="submit"
-                                                    disabled={
-                                                        updateMutation
-                                                            .isPending
-                                                    }
-                                                >
-                                                    حفظ
-                                                </Button>
+                                            <p className="admin-content-list__meta">
+                                                {itemTypeLabel(
+                                                    item.item_type,
+                                                )}
+                                                {' · '}
+                                                {statusLabel(
+                                                    item.status,
+                                                )}
+                                            </p>
+                                        </div>
 
-                                                <Button
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="secondary"
-                                                    disabled={
-                                                        updateMutation
-                                                            .isPending
-                                                    }
-                                                    onClick={() =>
-                                                        setEditingItem(
-                                                            null,
-                                                        )
-                                                    }
-                                                >
-                                                    إلغاء
-                                                </Button>
-                                            </div>
-                                        </form>
-                                    ) : (
-                                        <>
-                                            <div>
-                                                <strong>
-                                                    {
-                                                        item.internal_label
-                                                        ?? item.item_type
-                                                    }
-                                                </strong>
+                                        <div className="admin-content-actions">
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                type="button"
+                                                onClick={() =>
+                                                    setAuthoringItem(item)
+                                                }
+                                            >
+                                                فتح السؤال
+                                            </Button>
 
-                                                <p className="admin-content-list__meta">
-                                                    النوع:{' '}
-                                                    {
-                                                        item.item_type
-                                                    }
-                                                    {' · '}
-                                                    الحالة:{' '}
-                                                    {
-                                                        statusLabel(
-                                                            item.status,
-                                                        )
-                                                    }
-                                                </p>
-                                            </div>
-
-                                            <div className="admin-content-actions">
+                                            {editable
+                                            && item.status
+                                                === 'draft' ? (
                                                 <Button
                                                     size="sm"
                                                     variant="secondary"
                                                     type="button"
+                                                    disabled={
+                                                        updateMutation.isPending
+                                                    }
                                                     onClick={() =>
-                                                        setAuthoringItem(
-                                                            item,
-                                                        )
+                                                        beginEdit(item)
                                                     }
                                                 >
-                                                    إعداد السؤال
+                                                    تعديل العنوان
                                                 </Button>
-
-                                                {editable
-                                                && item.status
-                                                    === 'draft' ? (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        type="button"
-                                                        disabled={
-                                                            updateMutation
-                                                                .isPending
-                                                        }
-                                                        onClick={() =>
-                                                            beginEdit(
-                                                                item,
-                                                            )
-                                                        }
-                                                    >
-                                                        تعديل
-                                                    </Button>
-                                                ) : null}
-                                            </div>
-                                        </>
-                                    )}
-                                </article>
-                            ),
-                        )}
+                                            ) : null}
+                                        </div>
+                                    </>
+                                )}
+                            </article>
+                        ))}
                     </div>
                 )}
             </div>
@@ -555,13 +422,9 @@ export function AssessmentItemsPanel({
             {authoringItem ? (
                 <AssessmentItemRevisionsPanel
                     version={version}
-                    item={
-                        authoringItem
-                    }
+                    item={authoringItem}
                     onClose={() =>
-                        setAuthoringItem(
-                            null,
-                        )
+                        setAuthoringItem(null)
                     }
                 />
             ) : null}
