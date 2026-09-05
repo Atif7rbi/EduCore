@@ -156,6 +156,27 @@
     opacity: 0.72;
 }
 
+.auth-form__password-help {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: -0.35rem;
+}
+
+.auth-secondary-link {
+    color: #0877c9;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.auth-secondary-link:hover {
+    text-decoration: underline;
+}
+
+.auth-form__stack .auth-secondary-link {
+    justify-self: center;
+}
+
 @media (max-width: 40rem) {
     .auth-page--login {
         padding-top: 1.5rem;
