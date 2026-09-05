@@ -5,6 +5,7 @@ import {
     useState,
 } from 'react';
 import {
+    Link,
     useLocation,
     useNavigate,
 } from 'react-router-dom';
@@ -382,6 +383,12 @@ export function LoginPage() {
                         error={fieldErrors.password}
                         autoComplete="current-password"
                     />
+
+                    <div className="auth-form__password-help">
+                        <Link to="/forgot-password" className="auth-secondary-link">
+                            نسيت كلمة المرور؟
+                        </Link>
+                    </div>
 
                     <Button
                         type="submit"
