@@ -1,5 +1,6 @@
 import {
     FormEvent,
+    useMemo,
     useState,
 } from 'react';
 import {
@@ -62,9 +63,7 @@ function RevisionFailure({
     return (
         <Feedback tone="danger">
             <div>
-                <strong>
-                    {children}
-                </strong>
+                <strong>{children}</strong>
 
                 {id ? (
                     <p className="learner-read-request-id">
@@ -77,8 +76,7 @@ function RevisionFailure({
 }
 
 function difficultyLabel(
-    difficulty:
-        AssessmentDifficulty,
+    difficulty: AssessmentDifficulty,
 ) {
     switch (difficulty) {
         case 'easy':
@@ -90,33 +88,25 @@ function difficultyLabel(
     }
 }
 
-function parseJsonPayload(
-    value: string,
-):
-    | unknown[]
-    | Record<string, unknown>
-    | null {
-    let parsed: unknown;
-
-    try {
-        parsed = JSON.parse(
-            value,
-        );
-    } catch {
-        return null;
-    }
+function questionStem(
+    revision: AssessmentItemRevision,
+): string | null {
+    const payload = revision.content_payload;
 
     if (
-        parsed === null
-        || typeof parsed
-            !== 'object'
+        Array.isArray(payload)
+        || payload === null
+        || typeof payload !== 'object'
     ) {
         return null;
     }
 
-    return parsed as
-        | unknown[]
-        | Record<string, unknown>;
+    const stem = payload.stem;
+
+    return typeof stem === 'string'
+        && stem.trim() !== ''
+        ? stem
+        : null;
 }
 
 export function AssessmentItemRevisionsPanel({
@@ -124,17 +114,11 @@ export function AssessmentItemRevisionsPanel({
     item,
     onClose,
 }: AssessmentItemRevisionsPanelProps) {
-    const queryClient =
-        useQueryClient();
+    const queryClient = useQueryClient();
 
     const editable =
         version.status === 'draft'
         && item.status === 'draft';
-
-    const [
-        revisionNumber,
-        setRevisionNumber,
-    ] = useState('');
 
     const [
         primaryTopicId,
@@ -144,49 +128,21 @@ export function AssessmentItemRevisionsPanel({
     const [
         difficulty,
         setDifficulty,
-    ] =
-        useState<AssessmentDifficulty>(
-            'medium',
-        );
-
-    const [
-        contentJson,
-        setContentJson,
-    ] = useState(
-        JSON.stringify(
-            [],
-            null,
-            2,
-        ),
+    ] = useState<AssessmentDifficulty>(
+        'medium',
     );
 
-    const [
-        contentSchemaVersion,
-        setContentSchemaVersion,
-    ] = useState('1');
+    const [stem, setStem] = useState('');
+    const [optionOne, setOptionOne] = useState('');
+    const [optionTwo, setOptionTwo] = useState('');
+    const [optionThree, setOptionThree] = useState('');
+    const [optionFour, setOptionFour] = useState('');
+    const [correctOption, setCorrectOption] = useState('0');
 
     const [
-        scoringJson,
-        setScoringJson,
-    ] = useState(
-        JSON.stringify(
-            [],
-            null,
-            2,
-        ),
-    );
-
-    const [
-        scoringSchemaVersion,
-        setScoringSchemaVersion,
-    ] = useState('1');
-
-    const [
-        payloadError,
-        setPayloadError,
-    ] = useState<string | null>(
-        null,
-    );
+        formError,
+        setFormError,
+    ] = useState<string | null>(null);
 
     const [
         classifyingRevision,
@@ -195,209 +151,147 @@ export function AssessmentItemRevisionsPanel({
         null,
     );
 
-    const revisionsQuery =
-        useQuery({
+    const revisionsQuery = useQuery({
+        queryKey: adminAssessmentItemRevisionsKey(
+            item.id,
+        ),
+        queryFn: () =>
+            fetchAssessmentItemRevisions(item.id),
+    });
+
+    const topicsQuery = useQuery({
+        queryKey: adminTopicsKey(version.id),
+        queryFn: () => fetchTopics(version.id),
+    });
+
+    const nextRevisionNumber = useMemo(() => {
+        const revisions = revisionsQuery.data ?? [];
+
+        return revisions.reduce(
+            (highest, revision) =>
+                Math.max(
+                    highest,
+                    revision.revision_number,
+                ),
+            0,
+        ) + 1;
+    }, [revisionsQuery.data]);
+
+    async function invalidate() {
+        await queryClient.invalidateQueries({
             queryKey:
                 adminAssessmentItemRevisionsKey(
                     item.id,
                 ),
-            queryFn: () =>
-                fetchAssessmentItemRevisions(
-                    item.id,
-                ),
         });
-
-    const topicsQuery =
-        useQuery({
-            queryKey:
-                adminTopicsKey(
-                    version.id,
-                ),
-            queryFn: () =>
-                fetchTopics(
-                    version.id,
-                ),
-        });
-
-    async function invalidate() {
-        await queryClient
-            .invalidateQueries({
-                queryKey:
-                    adminAssessmentItemRevisionsKey(
-                        item.id,
-                    ),
-            });
     }
 
-    const createMutation =
-        useMutation({
-            mutationFn: ({
-                revisionNumber,
-                topicId,
-                selectedDifficulty,
-                contentPayload,
-                contentSchema,
-                scoringPayload,
-                scoringSchema,
-            }: {
-                revisionNumber:
-                    number;
-                topicId:
-                    string | null;
-                selectedDifficulty:
-                    AssessmentDifficulty;
-                contentPayload:
-                    | unknown[]
-                    | Record<
-                        string,
-                        unknown
-                    >;
-                contentSchema:
-                    number;
-                scoringPayload:
-                    | unknown[]
-                    | Record<
-                        string,
-                        unknown
-                    >;
-                scoringSchema:
-                    number;
-            }) =>
-                createAssessmentItemRevision(
-                    item.id,
-                    {
-                        revision_number:
-                            revisionNumber,
-                        primary_topic_id:
-                            topicId,
-                        difficulty:
-                            selectedDifficulty,
-                        content_payload:
-                            contentPayload,
-                        content_schema_version:
-                            contentSchema,
-                        scoring_payload:
-                            scoringPayload,
-                        scoring_schema_version:
-                            scoringSchema,
+    const createMutation = useMutation({
+        mutationFn: ({
+            revisionNumber,
+            topicId,
+            selectedDifficulty,
+            questionStemValue,
+            options,
+            correctOptionIndex,
+        }: {
+            revisionNumber: number;
+            topicId: string | null;
+            selectedDifficulty:
+                AssessmentDifficulty;
+            questionStemValue: string;
+            options: string[];
+            correctOptionIndex: number;
+        }) =>
+            createAssessmentItemRevision(
+                item.id,
+                {
+                    revision_number:
+                        revisionNumber,
+                    primary_topic_id:
+                        topicId,
+                    difficulty:
+                        selectedDifficulty,
+                    content_payload: {
+                        stem: questionStemValue,
+                        options,
                     },
-                ),
-            onSuccess: async () => {
-                setRevisionNumber('');
-                setPrimaryTopicId('');
-                setDifficulty(
-                    'medium',
-                );
-                setContentJson(
-                    JSON.stringify(
-                        [],
-                        null,
-                        2,
-                    ),
-                );
-                setContentSchemaVersion(
-                    '1',
-                );
-                setScoringJson(
-                    JSON.stringify(
-                        [],
-                        null,
-                        2,
-                    ),
-                );
-                setScoringSchemaVersion(
-                    '1',
-                );
-                setPayloadError(null);
+                    content_schema_version: 1,
+                    scoring_payload: {
+                        correct_option:
+                            correctOptionIndex,
+                    },
+                    scoring_schema_version: 1,
+                },
+            ),
+        onSuccess: async () => {
+            setPrimaryTopicId('');
+            setDifficulty('medium');
+            setStem('');
+            setOptionOne('');
+            setOptionTwo('');
+            setOptionThree('');
+            setOptionFour('');
+            setCorrectOption('0');
+            setFormError(null);
 
-                await invalidate();
-            },
-        });
+            await invalidate();
+        },
+    });
 
-    function submit(
-        event: FormEvent,
-    ) {
+    function submit(event: FormEvent) {
         event.preventDefault();
 
         if (
             !editable
             || createMutation.isPending
+            || revisionsQuery.isPending
         ) {
             return;
         }
 
-        const parsedRevision =
-            Number(
-                revisionNumber,
-            );
-
-        const parsedContentSchema =
-            Number(
-                contentSchemaVersion,
-            );
-
-        const parsedScoringSchema =
-            Number(
-                scoringSchemaVersion,
-            );
+        const questionStemValue = stem.trim();
+        const options = [
+            optionOne.trim(),
+            optionTwo.trim(),
+            optionThree.trim(),
+            optionFour.trim(),
+        ];
+        const correctOptionIndex =
+            Number(correctOption);
 
         if (
-            !Number.isInteger(
-                parsedRevision,
+            questionStemValue === ''
+            || options.some(
+                (option) => option === '',
             )
-            || parsedRevision < 1
-            || !Number.isInteger(
-                parsedContentSchema,
-            )
-            || parsedContentSchema < 1
-            || !Number.isInteger(
-                parsedScoringSchema,
-            )
-            || parsedScoringSchema < 1
         ) {
-            return;
-        }
-
-        const contentPayload =
-            parseJsonPayload(
-                contentJson,
-            );
-
-        if (!contentPayload) {
-            setPayloadError(
-                'Content Payload يجب أن يكون JSON array أو object.',
+            setFormError(
+                'أدخل نص السؤال والخيارات الأربعة قبل الحفظ.',
             );
             return;
         }
 
-        const scoringPayload =
-            parseJsonPayload(
-                scoringJson,
-            );
-
-        if (!scoringPayload) {
-            setPayloadError(
-                'Scoring Payload يجب أن يكون JSON array أو object.',
+        if (
+            !Number.isInteger(correctOptionIndex)
+            || correctOptionIndex < 0
+            || correctOptionIndex > 3
+        ) {
+            setFormError(
+                'اختر الإجابة الصحيحة.',
             );
             return;
         }
 
-        setPayloadError(null);
+        setFormError(null);
 
         createMutation.mutate({
-            revisionNumber:
-                parsedRevision,
-            topicId:
-                primaryTopicId
-                || null,
-            selectedDifficulty:
-                difficulty,
-            contentPayload,
-            contentSchema:
-                parsedContentSchema,
-            scoringPayload,
-            scoringSchema:
-                parsedScoringSchema,
+            revisionNumber: nextRevisionNumber,
+            topicId: primaryTopicId || null,
+            selectedDifficulty: difficulty,
+            questionStemValue,
+            options,
+            correctOptionIndex,
         });
     }
 
@@ -407,17 +301,12 @@ export function AssessmentItemRevisionsPanel({
                 <div className="admin-content-revisions__heading">
                     <div>
                         <h3 className="foundation-card__title">
-                            Revisions: {
-                                item.internal_label
-                                ?? item.item_type
-                            }
+                            {item.internal_label
+                                ?? 'تحرير السؤال'}
                         </h3>
 
                         <p className="foundation-page__description">
-                            إنشاء revisions
-                            لمحتوى عنصر التقييم
-                            وبيانات التصحيح دون
-                            فرض schema إضافي.
+                            اكتب السؤال وخياراته وحدد الإجابة الصحيحة ومستوى الصعوبة.
                         </p>
                     </div>
 
@@ -425,9 +314,7 @@ export function AssessmentItemRevisionsPanel({
                         size="sm"
                         variant="secondary"
                         type="button"
-                        onClick={
-                            onClose
-                        }
+                        onClick={onClose}
                     >
                         إغلاق
                     </Button>
@@ -436,89 +323,147 @@ export function AssessmentItemRevisionsPanel({
                 {editable ? (
                     <form
                         className="admin-content-form"
-                        onSubmit={
-                            submit
-                        }
+                        onSubmit={submit}
                     >
                         <label>
-                            Revision Number
+                            نص السؤال
 
-                            <input
-                                aria-label="رقم مراجعة عنصر التقييم"
-                                type="number"
-                                min="1"
-                                step="1"
+                            <textarea
+                                aria-label="نص السؤال"
+                                rows={4}
                                 required
-                                value={
-                                    revisionNumber
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setRevisionNumber(
-                                        event
-                                            .target
-                                            .value,
+                                value={stem}
+                                onChange={(event) =>
+                                    setStem(
+                                        event.target.value,
                                     )
                                 }
                             />
                         </label>
 
                         <label>
-                            Primary Topic
+                            الخيار الأول
+
+                            <input
+                                aria-label="الخيار الأول"
+                                required
+                                value={optionOne}
+                                onChange={(event) =>
+                                    setOptionOne(
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </label>
+
+                        <label>
+                            الخيار الثاني
+
+                            <input
+                                aria-label="الخيار الثاني"
+                                required
+                                value={optionTwo}
+                                onChange={(event) =>
+                                    setOptionTwo(
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </label>
+
+                        <label>
+                            الخيار الثالث
+
+                            <input
+                                aria-label="الخيار الثالث"
+                                required
+                                value={optionThree}
+                                onChange={(event) =>
+                                    setOptionThree(
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </label>
+
+                        <label>
+                            الخيار الرابع
+
+                            <input
+                                aria-label="الخيار الرابع"
+                                required
+                                value={optionFour}
+                                onChange={(event) =>
+                                    setOptionFour(
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </label>
+
+                        <label>
+                            الإجابة الصحيحة
 
                             <select
-                                aria-label="الموضوع الرئيسي لعنصر التقييم"
-                                value={
-                                    primaryTopicId
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setPrimaryTopicId(
-                                        event
-                                            .target
-                                            .value,
+                                aria-label="الإجابة الصحيحة"
+                                value={correctOption}
+                                onChange={(event) =>
+                                    setCorrectOption(
+                                        event.target.value,
                                     )
                                 }
                             >
-                                <option value="">
-                                    بدون Topic
+                                <option value="0">
+                                    الخيار الأول
                                 </option>
-
-                                {topicsQuery.data
-                                    ?.map(
-                                        (
-                                            topic,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    topic.id
-                                                }
-                                                value={
-                                                    topic.id
-                                                }
-                                            >
-                                                {
-                                                    topic.name
-                                                }
-                                            </option>
-                                        ),
-                                    )}
+                                <option value="1">
+                                    الخيار الثاني
+                                </option>
+                                <option value="2">
+                                    الخيار الثالث
+                                </option>
+                                <option value="3">
+                                    الخيار الرابع
+                                </option>
                             </select>
                         </label>
 
                         <label>
-                            Difficulty
+                            الوحدة الرئيسية
 
                             <select
-                                aria-label="صعوبة عنصر التقييم"
-                                value={
-                                    difficulty
+                                aria-label="الوحدة الرئيسية للسؤال"
+                                value={primaryTopicId}
+                                onChange={(event) =>
+                                    setPrimaryTopicId(
+                                        event.target.value,
+                                    )
                                 }
-                                onChange={(
-                                    event,
-                                ) => {
+                            >
+                                <option value="">
+                                    بدون وحدة محددة
+                                </option>
+
+                                {topicsQuery.data?.map(
+                                    (topic) => (
+                                        <option
+                                            key={topic.id}
+                                            value={topic.id}
+                                        >
+                                            {topic.name}
+                                        </option>
+                                    ),
+                                )}
+                            </select>
+                        </label>
+
+                        <label>
+                            مستوى الصعوبة
+
+                            <select
+                                aria-label="مستوى صعوبة السؤال"
+                                value={difficulty}
+                                onChange={(event) => {
                                     const value =
                                         event.target.value;
 
@@ -527,9 +472,7 @@ export function AssessmentItemRevisionsPanel({
                                         || value === 'medium'
                                         || value === 'hard'
                                     ) {
-                                        setDifficulty(
-                                            value,
-                                        );
+                                        setDifficulty(value);
                                     }
                                 }}
                             >
@@ -545,206 +488,79 @@ export function AssessmentItemRevisionsPanel({
                             </select>
                         </label>
 
-                        <label>
-                            Content Schema Version
-
-                            <input
-                                aria-label="إصدار مخطط محتوى عنصر التقييم"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                value={
-                                    contentSchemaVersion
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setContentSchemaVersion(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            Content Payload
-
-                            <textarea
-                                aria-label="محتوى عنصر التقييم"
-                                rows={8}
-                                value={
-                                    contentJson
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setContentJson(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            Scoring Schema Version
-
-                            <input
-                                aria-label="إصدار مخطط تصحيح عنصر التقييم"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                value={
-                                    scoringSchemaVersion
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setScoringSchemaVersion(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        <label>
-                            Scoring Payload
-
-                            <textarea
-                                aria-label="بيانات تصحيح عنصر التقييم"
-                                rows={8}
-                                value={
-                                    scoringJson
-                                }
-                                onChange={(
-                                    event,
-                                ) =>
-                                    setScoringJson(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
-                            />
-                        </label>
-
-                        {payloadError ? (
+                        {formError ? (
                             <Feedback tone="danger">
-                                {
-                                    payloadError
-                                }
+                                {formError}
                             </Feedback>
                         ) : null}
 
                         <Button
                             type="submit"
                             disabled={
-                                createMutation
-                                    .isPending
+                                createMutation.isPending
+                                || revisionsQuery.isPending
                             }
                         >
-                            إنشاء Revision
+                            حفظ محتوى السؤال
                         </Button>
                     </form>
                 ) : (
                     <Feedback>
-                        إنشاء Revisions متاح
-                        فقط لعنصر تقييم draft
-                        داخل CurriculumVersion
-                        draft.
+                        هذا السؤال للقراءة فقط ولا يمكن إضافة تعديلات جديدة إليه.
                     </Feedback>
                 )}
 
                 {createMutation.isError ? (
                     <RevisionFailure
-                        error={
-                            createMutation.error
-                        }
+                        error={createMutation.error}
                     >
-                        تعذر إنشاء مراجعة عنصر التقييم.
+                        تعذر حفظ محتوى السؤال.
                     </RevisionFailure>
                 ) : null}
 
                 {topicsQuery.isError ? (
                     <RevisionFailure
-                        error={
-                            topicsQuery.error
-                        }
+                        error={topicsQuery.error}
                     >
-                        تعذر تحميل Topics.
+                        تعذر تحميل الوحدات.
                     </RevisionFailure>
                 ) : null}
 
                 {revisionsQuery.isPending ? (
-                    <p>
-                        جار تحميل المراجعات…
-                    </p>
+                    <p>جار تحميل محتوى السؤال…</p>
                 ) : revisionsQuery.isError ? (
                     <RevisionFailure
-                        error={
-                            revisionsQuery.error
-                        }
+                        error={revisionsQuery.error}
                     >
-                        تعذر تحميل مراجعات عنصر التقييم.
+                        تعذر تحميل محتوى السؤال.
                     </RevisionFailure>
-                ) : revisionsQuery.data
-                    .length === 0 ? (
+                ) : revisionsQuery.data.length === 0 ? (
                     <Feedback>
-                        لا توجد Revisions لهذا
-                        العنصر.
+                        لم تتم إضافة محتوى لهذا السؤال حتى الآن.
                     </Feedback>
                 ) : (
                     <div className="admin-content-list">
                         {revisionsQuery.data.map(
-                            (
-                                revision,
-                            ) => (
+                            (revision, index) => (
                                 <article
-                                    key={
-                                        revision.id
-                                    }
+                                    key={revision.id}
                                     className="admin-content-list__item"
                                 >
                                     <div>
                                         <strong>
-                                            Revision{' '}
-                                            {
-                                                revision.revision_number
-                                            }
+                                            {questionStem(revision)
+                                                ?? `محتوى محفوظ ${index + 1}`}
                                         </strong>
 
                                         <p className="admin-content-list__meta">
                                             الصعوبة:{' '}
-                                            {
-                                                difficultyLabel(
-                                                    revision.difficulty,
-                                                )
-                                            }
+                                            {difficultyLabel(
+                                                revision.difficulty,
+                                            )}
                                             {' · '}
-                                            Content Schema{' '}
-                                            {
-                                                revision.content_schema_version
-                                            }
-                                            {' · '}
-                                            Scoring Schema{' '}
-                                            {
-                                                revision.scoring_schema_version
-                                            }
-                                        </p>
-
-                                        <p className="admin-content-list__meta">
-                                            {
-                                                revision.released_at
-                                                    ? 'محررة'
-                                                    : 'غير محررة'
-                                            }
+                                            {revision.released_at
+                                                ? 'معتمد'
+                                                : 'مسودة'}
                                         </p>
                                     </div>
 
@@ -758,7 +574,7 @@ export function AssessmentItemRevisionsPanel({
                                             )
                                         }
                                     >
-                                        تصنيف المهارات
+                                        ربط المهارات
                                     </Button>
                                 </article>
                             ),
@@ -770,13 +586,9 @@ export function AssessmentItemRevisionsPanel({
             {classifyingRevision ? (
                 <AssessmentRevisionSkillsPanel
                     version={version}
-                    revision={
-                        classifyingRevision
-                    }
+                    revision={classifyingRevision}
                     onClose={() =>
-                        setClassifyingRevision(
-                            null,
-                        )
+                        setClassifyingRevision(null)
                     }
                 />
             ) : null}
