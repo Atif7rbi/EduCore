@@ -68,7 +68,7 @@ describe('AssessmentItemsPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('lists questions for the selected curriculum version', async () => {
+    it('lists questions using user-facing question type labels', async () => {
         apiRequestMock.mockResolvedValueOnce([
             {
                 id: 'item-1',
@@ -88,31 +88,18 @@ describe('AssessmentItemsPanel', () => {
             await screen.findByText('سؤال النسب 1'),
         ).toBeInTheDocument();
         expect(
-            screen.getByRole('heading', { name: 'بنك الأسئلة' }),
+            screen.getByText(/اختيار من متعدد/),
         ).toBeInTheDocument();
-
-        expect(apiRequestMock).toHaveBeenCalledWith({
-            method: 'GET',
-            url: '/api/admin/curriculum-versions/version-1/assessment-items',
-        });
+        expect(
+            screen.queryByText('multiple_choice'),
+        ).not.toBeInTheDocument();
     });
 
-    it('creates a draft question', async () => {
+    it('creates a multiple-choice question without exposing item type', async () => {
         apiRequestMock
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce({ id: 'item-1' })
-            .mockResolvedValueOnce([
-                {
-                    id: 'item-1',
-                    curriculum_version_id: 'version-1',
-                    item_type: 'multiple_choice',
-                    internal_label: null,
-                    status: 'draft',
-                    published_revision_id: null,
-                    created_at: null,
-                    updated_at: null,
-                },
-            ]);
+            .mockResolvedValueOnce([]);
 
         renderPanel();
 
@@ -120,13 +107,23 @@ describe('AssessmentItemsPanel', () => {
             'لا توجد أسئلة في هذا المنهج حتى الآن.',
         );
 
+        expect(
+            screen.queryByLabelText('نوع السؤال الجديد'),
+        ).not.toBeInTheDocument();
+
         fireEvent.change(
-            screen.getByLabelText('نوع السؤال الجديد'),
-            { target: { value: 'multiple_choice' } },
+            screen.getByLabelText('عنوان السؤال في البنك'),
+            {
+                target: {
+                    value: 'تبسيط النسبة',
+                },
+            },
         );
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'إضافة سؤال' }),
+            screen.getByRole('button', {
+                name: 'إضافة سؤال',
+            }),
         );
 
         await waitFor(() => {
@@ -135,13 +132,13 @@ describe('AssessmentItemsPanel', () => {
                 url: '/api/admin/curriculum-versions/version-1/assessment-items',
                 data: {
                     item_type: 'multiple_choice',
-                    internal_label: null,
+                    internal_label: 'تبسيط النسبة',
                 },
             });
         });
     });
 
-    it('updates a draft question', async () => {
+    it('updates only the visible question title', async () => {
         apiRequestMock
             .mockResolvedValueOnce([
                 {
@@ -156,35 +153,35 @@ describe('AssessmentItemsPanel', () => {
                 },
             ])
             .mockResolvedValueOnce({ id: 'item-1' })
-            .mockResolvedValueOnce([
-                {
-                    id: 'item-1',
-                    curriculum_version_id: 'version-1',
-                    item_type: 'numeric',
-                    internal_label: 'سؤال محدث',
-                    status: 'draft',
-                    published_revision_id: null,
-                    created_at: null,
-                    updated_at: null,
-                },
-            ]);
+            .mockResolvedValueOnce([]);
 
         renderPanel();
         await screen.findByText('سؤال قديم');
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'تعديل' }),
+            screen.getByRole('button', {
+                name: 'تعديل العنوان',
+            }),
         );
+
+        expect(
+            screen.queryByLabelText('تعديل نوع السؤال'),
+        ).not.toBeInTheDocument();
+
         fireEvent.change(
-            screen.getByLabelText('تعديل نوع السؤال'),
-            { target: { value: 'numeric' } },
-        );
-        fireEvent.change(
-            screen.getByLabelText('تعديل عنوان السؤال في البنك'),
-            { target: { value: 'سؤال محدث' } },
+            screen.getByLabelText(
+                'تعديل عنوان السؤال في البنك',
+            ),
+            {
+                target: {
+                    value: 'سؤال محدث',
+                },
+            },
         );
         fireEvent.click(
-            screen.getByRole('button', { name: 'حفظ' }),
+            screen.getByRole('button', {
+                name: 'حفظ',
+            }),
         );
 
         await waitFor(() => {
@@ -192,7 +189,7 @@ describe('AssessmentItemsPanel', () => {
                 method: 'PUT',
                 url: '/api/admin/assessment-items/item-1',
                 data: {
-                    item_type: 'numeric',
+                    item_type: 'multiple_choice',
                     internal_label: 'سؤال محدث',
                 },
             });
@@ -227,7 +224,9 @@ describe('AssessmentItemsPanel', () => {
             ),
         ).toBeInTheDocument();
         expect(
-            screen.queryByRole('button', { name: 'إضافة سؤال' }),
+            screen.queryByRole('button', {
+                name: 'إضافة سؤال',
+            }),
         ).not.toBeInTheDocument();
     });
 });
