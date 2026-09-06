@@ -152,6 +152,24 @@ describe('LessonRevisionsPanel', () => {
         expect(screen.queryByText('revision-1')).not.toBeInTheDocument();
     });
 
+    it('opens content authoring in a wide modal dialog', async () => {
+        installReads([]);
+        renderPanel();
+
+        await screen.findByText('لم يُضف محتوى لهذا الدرس بعد.');
+        fireEvent.click(screen.getByRole('button', { name: 'إضافة محتوى الدرس' }));
+
+        const dialog = screen.getByRole('dialog', {
+            name: 'تحرير محتوى الدرس',
+        });
+        expect(dialog).toBeInTheDocument();
+        expect(screen.getByLabelText('محتوى الدرس')).toBeInTheDocument();
+        expect(screen.getByLabelText('الوحدة الرئيسية للدرس')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'إغلاق محرر محتوى الدرس' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
     it('creates unpublished edits for a published lesson using teacher copy', async () => {
         let revisions = [
             revision(1, '2026-09-04T00:00:00Z'),
@@ -160,7 +178,6 @@ describe('LessonRevisionsPanel', () => {
         apiRequestMock.mockImplementation(({
             method,
             url,
-            data,
         }: RequestConfig) => {
             if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
                 return Promise.resolve(revisions);
@@ -180,6 +197,8 @@ describe('LessonRevisionsPanel', () => {
         await screen.findByRole('heading', { name: 'المحتوى المنشور' });
         fireEvent.click(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }));
 
+        expect(screen.getByRole('dialog', { name: 'تحرير محتوى الدرس' }))
+            .toBeInTheDocument();
         expect(screen.getByLabelText('الوحدة الرئيسية للدرس')).toHaveValue('topic-1');
         fireEvent.change(screen.getByLabelText('محتوى الدرس'), {
             target: { value: 'المحتوى المعدل' },
@@ -205,6 +224,7 @@ describe('LessonRevisionsPanel', () => {
 
         expect(await screen.findByText('تعديلات غير منشورة')).toBeInTheDocument();
         expect(screen.queryByText('النسخة 2')).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('offers skill linking and approval for unpublished edits', async () => {
