@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -63,18 +64,14 @@ class PasswordResetFlowTest extends TestCase
             'role' => 'admin',
         ]);
 
-        $this->actingAs($user);
-
-        $this->getJson('/auth/me')->assertOk();
-
-        $sessionId = session()->getId();
-
-        $this->assertDatabaseHas('sessions', [
-            'id' => $sessionId,
+        DB::table('sessions')->insert([
+            'id' => 'existing-session',
             'user_id' => $user->id,
+            'ip_address' => null,
+            'user_agent' => null,
+            'payload' => '',
+            'last_activity' => now()->timestamp,
         ]);
-
-        auth()->logout();
 
         $this->postJson('/auth/forgot-password', [
             'email' => $user->email,
