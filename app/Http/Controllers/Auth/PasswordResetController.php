@@ -23,15 +23,17 @@ class PasswordResetController extends Controller
 
     public function requestResetLink(Request $request): JsonResponse
     {
+        $request->merge([
+            'email' => $this->normalizedEmail($request),
+        ]);
+
         $validated = $request->validate([
             'email' => ['required', 'string', 'email'],
         ]);
 
-        $email = Str::lower(trim($validated['email']));
-
         try {
             Password::broker()->sendResetLink([
-                'email' => $email,
+                'email' => $validated['email'],
             ]);
         } catch (Throwable $exception) {
             Log::warning('Password reset delivery failed.', [
@@ -46,6 +48,10 @@ class PasswordResetController extends Controller
 
     public function reset(Request $request): JsonResponse
     {
+        $request->merge([
+            'email' => $this->normalizedEmail($request),
+        ]);
+
         $validated = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'string', 'email'],
@@ -62,7 +68,7 @@ class PasswordResetController extends Controller
 
         $status = Password::broker()->reset(
             [
-                'email' => Str::lower(trim($validated['email'])),
+                'email' => $validated['email'],
                 'password' => $validated['password'],
                 'password_confirmation' => $validated['password_confirmation'],
                 'token' => $validated['token'],
@@ -93,6 +99,13 @@ class PasswordResetController extends Controller
             'invalid_password_reset',
             'The password reset link is invalid or has expired.',
             422,
+        );
+    }
+
+    private function normalizedEmail(Request $request): string
+    {
+        return Str::lower(
+            trim((string) $request->input('email', ''))
         );
     }
 }
