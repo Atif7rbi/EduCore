@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import '../css/app.css';
+import '../css/admin-dashboard.css';
 
 import {
     AppProviders,
