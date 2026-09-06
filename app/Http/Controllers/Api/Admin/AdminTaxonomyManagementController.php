@@ -17,6 +17,7 @@ use App\Models\SkillHomeTopic;
 use App\Models\SkillVersionPlacement;
 use App\Models\Topic;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class AdminTaxonomyManagementController extends Controller
 {
@@ -251,9 +252,57 @@ class AdminTaxonomyManagementController extends Controller
             );
         }
 
-        $this->transactions->run(
-            fn (): bool => (bool) $placement->delete()
+        $result = $this->transactions->run(
+            function () use ($placementId): array {
+                $lockedPlacement = SkillVersionPlacement::query()
+                    ->whereKey($placementId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $usedByLesson = DB::table('lesson_revision_skills')
+                    ->where(
+                        'skill_version_placement_id',
+                        $lockedPlacement->id,
+                    )
+                    ->exists();
+
+                $usedByAssessment = DB::table(
+                    'assessment_item_revision_skills'
+                )
+                    ->where(
+                        'skill_version_placement_id',
+                        $lockedPlacement->id,
+                    )
+                    ->exists();
+
+                if ($usedByLesson || $usedByAssessment) {
+                    return [
+                        'blocked' => true,
+                    ];
+                }
+
+                SkillHomeTopic::query()
+                    ->where(
+                        'placement_id',
+                        $lockedPlacement->id,
+                    )
+                    ->delete();
+
+                $lockedPlacement->delete();
+
+                return [
+                    'blocked' => false,
+                ];
+            }
         );
+
+        if ($result['blocked']) {
+            return ApiResponse::error(
+                'skill_placement_in_use',
+                'This skill is used by lesson or assessment content in this curriculum version.',
+                409,
+            );
+        }
 
         return ApiResponse::success([
             'id' => $placementId,
