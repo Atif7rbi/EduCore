@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\SessionController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,11 @@ Route::prefix('auth')->group(function (): void {
         Route::get('/me', [SessionController::class, 'me']);
     });
 });
+
+Route::get(
+    '/api/admin/dashboard',
+    AdminDashboardController::class,
+)->middleware(['auth:web', 'active', 'management']);
 
 Route::view('/login', 'app')
     ->name('login');
