@@ -8,34 +8,39 @@ use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
-use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class PasswordResetController extends Controller
 {
+    private const GENERIC_RESET_LINK_MESSAGE =
+        'If an account exists for this email, a password reset link has been sent.';
+
     public function requestResetLink(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'email' => ['required', 'string', 'email'],
         ]);
 
-        $status = Password::broker()->sendResetLink([
-            'email' => $validated['email'],
-        ]);
+        $email = Str::lower(trim($validated['email']));
 
-        if ($status !== Password::RESET_LINK_SENT && $status !== Password::INVALID_USER) {
-            return ApiResponse::error(
-                'password_reset_unavailable',
-                'Unable to send a password reset link right now.',
-                Response::HTTP_SERVICE_UNAVAILABLE,
-            );
+        try {
+            Password::broker()->sendResetLink([
+                'email' => $email,
+            ]);
+        } catch (Throwable $exception) {
+            Log::warning('Password reset delivery failed.', [
+                'exception' => $exception::class,
+            ]);
         }
 
         return ApiResponse::success([
-            'message' => 'If an account exists for this email, a password reset link has been sent.',
+            'message' => self::GENERIC_RESET_LINK_MESSAGE,
         ]);
     }
 
@@ -57,16 +62,22 @@ class PasswordResetController extends Controller
 
         $status = Password::broker()->reset(
             [
-                'email' => $validated['email'],
+                'email' => Str::lower(trim($validated['email'])),
                 'password' => $validated['password'],
                 'password_confirmation' => $validated['password_confirmation'],
                 'token' => $validated['token'],
             ],
             function (User $user, string $password): void {
-                $user->forceFill([
-                    'password' => Hash::make($password),
-                    'remember_token' => Str::random(60),
-                ])->save();
+                DB::transaction(function () use ($user, $password): void {
+                    $user->forceFill([
+                        'password' => Hash::make($password),
+                        'remember_token' => Str::random(60),
+                    ])->save();
+
+                    DB::table('sessions')
+                        ->where('user_id', $user->id)
+                        ->delete();
+                });
 
                 event(new PasswordReset($user));
             },
@@ -81,7 +92,7 @@ class PasswordResetController extends Controller
         return ApiResponse::error(
             'invalid_password_reset',
             'The password reset link is invalid or has expired.',
-            Response::HTTP_UNPROCESSABLE_ENTITY,
+            422,
         );
     }
 }
