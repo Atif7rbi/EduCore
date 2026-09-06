@@ -184,6 +184,107 @@ class AdminTaxonomyManagementApiTest extends TestCase
             );
     }
 
+    public function test_skill_placement_removal_also_removes_its_home_topics(): void
+    {
+        $this->actingAs($this->admin());
+
+        $versionId = $this->curriculumVersion('draft');
+        $topicId = $this->topic($versionId);
+
+        $skillId = $this->postJson('/api/admin/skills', [
+            'name' => 'Ratio Skill '.Str::random(6),
+            'description' => null,
+        ])->assertCreated()->json('data.id');
+
+        $placementId = $this->postJson(
+            "/api/admin/curriculum-versions/{$versionId}/skill-placements",
+            ['skill_id' => $skillId]
+        )->assertCreated()->json('data.id');
+
+        $homeTopicId = $this->postJson(
+            "/api/admin/skill-placements/{$placementId}/home-topics",
+            ['topic_id' => $topicId]
+        )->assertCreated()->json('data.id');
+
+        $this->deleteJson(
+            "/api/admin/skill-placements/{$placementId}"
+        )
+            ->assertOk()
+            ->assertJsonPath('data.id', $placementId)
+            ->assertJsonPath('data.deleted', true);
+
+        $this->assertDatabaseMissing('skill_home_topics', [
+            'id' => $homeTopicId,
+        ]);
+        $this->assertDatabaseMissing('skill_version_placements', [
+            'id' => $placementId,
+        ]);
+    }
+
+    public function test_skill_placement_removal_is_blocked_when_lesson_content_uses_it(): void
+    {
+        $this->actingAs($this->admin());
+
+        $versionId = $this->curriculumVersion('draft');
+        $topicId = $this->topic($versionId);
+
+        $skillId = $this->postJson('/api/admin/skills', [
+            'name' => 'Used Skill '.Str::random(6),
+            'description' => null,
+        ])->assertCreated()->json('data.id');
+
+        $placementId = $this->postJson(
+            "/api/admin/curriculum-versions/{$versionId}/skill-placements",
+            ['skill_id' => $skillId]
+        )->assertCreated()->json('data.id');
+
+        $lessonId = $this->postJson(
+            "/api/admin/curriculum-versions/{$versionId}/lessons",
+            [
+                'title' => 'Ratios lesson',
+                'description' => null,
+                'display_order' => 1,
+            ]
+        )->assertCreated()->json('data.id');
+
+        $revisionId = $this->postJson(
+            "/api/admin/lessons/{$lessonId}/revisions",
+            [
+                'revision_number' => 1,
+                'primary_topic_id' => $topicId,
+                'content_payload' => [
+                    'blocks' => [
+                        [
+                            'type' => 'text',
+                            'value' => 'Lesson content',
+                        ],
+                    ],
+                ],
+                'content_schema_version' => 1,
+            ]
+        )->assertCreated()->json('data.id');
+
+        $this->postJson(
+            "/api/admin/lesson-revisions/{$revisionId}/skills",
+            [
+                'skill_version_placement_id' => $placementId,
+            ]
+        )->assertCreated();
+
+        $this->deleteJson(
+            "/api/admin/skill-placements/{$placementId}"
+        )
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'error.code',
+                'skill_placement_in_use'
+            );
+
+        $this->assertDatabaseHas('skill_version_placements', [
+            'id' => $placementId,
+        ]);
+    }
+
     public function test_topic_validation_rejects_negative_display_order(): void
     {
         $this->actingAs($this->admin());
