@@ -236,243 +236,269 @@ export function LessonRevisionsPanel({
     const pendingText = contentText(pendingRevision);
 
     return (
-        <Surface className="admin-content-revisions" elevated>
-            <div className="foundation-stack admin-content-panel">
-                <div className="admin-content-revisions__heading">
-                    <div>
-                        <h2 className="foundation-card__title">
-                            محتوى الدرس
-                        </h2>
-                        <p className="foundation-page__description">
-                            حرر المحتوى واربط المهارات ثم انشر التعديلات عندما تصبح جاهزة للطلاب.
-                        </p>
+        <>
+            <Surface className="admin-content-revisions" elevated>
+                <div className="foundation-stack admin-content-panel">
+                    <div className="admin-content-revisions__heading">
+                        <div>
+                            <h2 className="foundation-card__title">
+                                محتوى الدرس
+                            </h2>
+                            <p className="foundation-page__description">
+                                حرر المحتوى واربط المهارات ثم انشر التعديلات عندما تصبح جاهزة للطلاب.
+                            </p>
+                        </div>
+
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            type="button"
+                            onClick={onClose}
+                        >
+                            العودة إلى الدروس
+                        </Button>
                     </div>
 
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        type="button"
-                        onClick={onClose}
-                    >
-                        العودة إلى الدروس
-                    </Button>
-                </div>
-
-                {revisionsQuery.isPending ? (
-                    <p>جار تحميل محتوى الدرس…</p>
-                ) : revisionsQuery.isError ? (
-                    <RevisionFailure error={revisionsQuery.error}>
-                        تعذر تحميل محتوى الدرس.
-                    </RevisionFailure>
-                ) : (
-                    <>
-                        {lesson.status === 'published' && publishedRevision ? (
-                            <section className="foundation-stack">
-                                <div>
-                                    <h3 className="foundation-card__title">
-                                        المحتوى المنشور
-                                    </h3>
-                                    <p className="admin-content-list__meta">
-                                        هذا هو المحتوى الذي يراه الطلاب حاليًا.
-                                    </p>
-                                </div>
-                                <div className="admin-lesson-content-preview">
-                                    {publishedText || 'لا يوجد نص قابل للعرض.'}
-                                </div>
-                            </section>
-                        ) : null}
-
-                        {lesson.status === 'draft'
-                        && !pendingRevision
-                        && !publishedRevision ? (
-                            <Feedback>
-                                لم يُضف محتوى لهذا الدرس بعد.
-                            </Feedback>
-                        ) : null}
-
-                        {pendingRevision ? (
-                            <section className="foundation-stack admin-lesson-pending-content">
-                                <div>
-                                    <h3 className="foundation-card__title">
-                                        تعديلات غير منشورة
-                                    </h3>
-                                    <p className="admin-content-list__meta">
-                                        {pendingRevision.released_at
-                                            ? 'التعديلات معتمدة وجاهزة للنشر.'
-                                            : 'التعديلات محفوظة ويمكن مراجعتها وربط المهارات قبل اعتمادها.'}
-                                    </p>
-                                </div>
-
-                                {pendingText ? (
-                                    <div className="admin-lesson-content-preview">
-                                        {pendingText}
+                    {revisionsQuery.isPending ? (
+                        <p>جار تحميل محتوى الدرس…</p>
+                    ) : revisionsQuery.isError ? (
+                        <RevisionFailure error={revisionsQuery.error}>
+                            تعذر تحميل محتوى الدرس.
+                        </RevisionFailure>
+                    ) : (
+                        <>
+                            {lesson.status === 'published' && publishedRevision ? (
+                                <section className="foundation-stack">
+                                    <div>
+                                        <h3 className="foundation-card__title">
+                                            المحتوى المنشور
+                                        </h3>
+                                        <p className="admin-content-list__meta">
+                                            هذا هو المحتوى الذي يراه الطلاب حاليًا.
+                                        </p>
                                     </div>
-                                ) : null}
+                                    <div className="admin-lesson-content-preview">
+                                        {publishedText || 'لا يوجد نص قابل للعرض.'}
+                                    </div>
+                                </section>
+                            ) : null}
 
+                            {lesson.status === 'draft'
+                            && !pendingRevision
+                            && !publishedRevision ? (
+                                <Feedback>
+                                    لم يُضف محتوى لهذا الدرس بعد.
+                                </Feedback>
+                            ) : null}
+
+                            {pendingRevision ? (
+                                <section className="foundation-stack admin-lesson-pending-content">
+                                    <div>
+                                        <h3 className="foundation-card__title">
+                                            تعديلات غير منشورة
+                                        </h3>
+                                        <p className="admin-content-list__meta">
+                                            {pendingRevision.released_at
+                                                ? 'التعديلات معتمدة وجاهزة للنشر.'
+                                                : 'التعديلات محفوظة ويمكن مراجعتها وربط المهارات قبل اعتمادها.'}
+                                        </p>
+                                    </div>
+
+                                    {pendingText ? (
+                                        <div className="admin-lesson-content-preview">
+                                            {pendingText}
+                                        </div>
+                                    ) : null}
+
+                                    <div className="admin-content-actions">
+                                        {pendingRevision.released_at === null ? (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    type="button"
+                                                    disabled={lifecyclePending}
+                                                    onClick={() => setClassifyingRevision(pendingRevision)}
+                                                >
+                                                    ربط المهارات
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    type="button"
+                                                    disabled={lifecyclePending}
+                                                    onClick={() => releaseMutation.mutate(pendingRevision.id)}
+                                                >
+                                                    اعتماد التعديلات
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                disabled={lifecyclePending}
+                                                onClick={() => publishMutation.mutate(pendingRevision.id)}
+                                            >
+                                                {lesson.status === 'published'
+                                                    ? 'نشر التعديلات'
+                                                    : 'نشر الدرس'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </section>
+                            ) : null}
+
+                            {authoringAllowed ? (
                                 <div className="admin-content-actions">
-                                    {pendingRevision.released_at === null ? (
-                                        <>
-                                            <Button
-                                                size="sm"
-                                                variant="secondary"
-                                                type="button"
-                                                disabled={lifecyclePending}
-                                                onClick={() => setClassifyingRevision(pendingRevision)}
-                                            >
-                                                ربط المهارات
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                type="button"
-                                                disabled={lifecyclePending}
-                                                onClick={() => releaseMutation.mutate(pendingRevision.id)}
-                                            >
-                                                اعتماد التعديلات
-                                            </Button>
-                                        </>
-                                    ) : (
-                                        <Button
-                                            size="sm"
-                                            type="button"
-                                            disabled={lifecyclePending}
-                                            onClick={() => publishMutation.mutate(pendingRevision.id)}
-                                        >
-                                            {lesson.status === 'published'
-                                                ? 'نشر التعديلات'
-                                                : 'نشر الدرس'}
-                                        </Button>
-                                    )}
+                                    <Button type="button" onClick={startEditing}>
+                                        {publishedRevision || pendingRevision
+                                            ? 'تعديل محتوى الدرس'
+                                            : 'إضافة محتوى الدرس'}
+                                    </Button>
                                 </div>
-                            </section>
-                        ) : null}
+                            ) : null}
+                        </>
+                    )}
 
-                        {authoringAllowed && !showEditor ? (
+                    {topicsQuery.isError ? (
+                        <RevisionFailure error={topicsQuery.error}>
+                            تعذر تحميل الوحدات.
+                        </RevisionFailure>
+                    ) : null}
+                    {createMutation.isError ? (
+                        <RevisionFailure error={createMutation.error}>
+                            تعذر حفظ تعديلات المحتوى.
+                        </RevisionFailure>
+                    ) : null}
+                    {releaseMutation.isError ? (
+                        <RevisionFailure error={releaseMutation.error}>
+                            تعذر اعتماد التعديلات.
+                        </RevisionFailure>
+                    ) : null}
+                    {publishMutation.isError ? (
+                        <RevisionFailure error={publishMutation.error}>
+                            تعذر نشر التعديلات.
+                        </RevisionFailure>
+                    ) : null}
+                    {retireMutation.isError ? (
+                        <RevisionFailure error={retireMutation.error}>
+                            تعذر إيقاف النشر.
+                        </RevisionFailure>
+                    ) : null}
+
+                    {lesson.status === 'published' ? (
+                        <div className="foundation-stack">
+                            <Feedback tone="success">
+                                الدرس منشور حاليًا للطلاب.
+                            </Feedback>
                             <div className="admin-content-actions">
-                                <Button type="button" onClick={startEditing}>
-                                    {publishedRevision || pendingRevision
-                                        ? 'تعديل محتوى الدرس'
-                                        : 'إضافة محتوى الدرس'}
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    type="button"
+                                    disabled={lifecyclePending}
+                                    onClick={() => retireMutation.mutate()}
+                                >
+                                    إيقاف النشر
                                 </Button>
                             </div>
-                        ) : null}
-
-                        {showEditor && authoringAllowed ? (
-                            <form className="admin-content-form" onSubmit={submitRevision}>
-                                <h3 className="foundation-card__title">
-                                    تحرير محتوى الدرس
-                                </h3>
-                                <label>
-                                    الوحدة الرئيسية
-                                    <select
-                                        aria-label="الوحدة الرئيسية للدرس"
-                                        required
-                                        value={primaryTopicId}
-                                        onChange={(event) => setPrimaryTopicId(event.target.value)}
-                                    >
-                                        <option value="">اختر الوحدة</option>
-                                        {topicsQuery.data?.map((topic) => (
-                                            <option key={topic.id} value={topic.id}>
-                                                {topic.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                <label>
-                                    محتوى الدرس
-                                    <textarea
-                                        aria-label="محتوى الدرس"
-                                        rows={12}
-                                        required
-                                        placeholder="اكتب محتوى الدرس هنا. افصل بين الفقرات بسطر فارغ."
-                                        value={contentTextValue}
-                                        onChange={(event) => setContentTextValue(event.target.value)}
-                                    />
-                                </label>
-
-                                <div className="admin-content-actions">
-                                    <Button
-                                        type="submit"
-                                        disabled={
-                                            createMutation.isPending
-                                            || primaryTopicId === ''
-                                            || contentTextValue.trim() === ''
-                                        }
-                                    >
-                                        حفظ التعديلات
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={() => setShowEditor(false)}
-                                    >
-                                        إلغاء
-                                    </Button>
-                                </div>
-                            </form>
-                        ) : null}
-                    </>
-                )}
-
-                {topicsQuery.isError ? (
-                    <RevisionFailure error={topicsQuery.error}>
-                        تعذر تحميل الوحدات.
-                    </RevisionFailure>
-                ) : null}
-                {createMutation.isError ? (
-                    <RevisionFailure error={createMutation.error}>
-                        تعذر حفظ تعديلات المحتوى.
-                    </RevisionFailure>
-                ) : null}
-                {releaseMutation.isError ? (
-                    <RevisionFailure error={releaseMutation.error}>
-                        تعذر اعتماد التعديلات.
-                    </RevisionFailure>
-                ) : null}
-                {publishMutation.isError ? (
-                    <RevisionFailure error={publishMutation.error}>
-                        تعذر نشر التعديلات.
-                    </RevisionFailure>
-                ) : null}
-                {retireMutation.isError ? (
-                    <RevisionFailure error={retireMutation.error}>
-                        تعذر إيقاف النشر.
-                    </RevisionFailure>
-                ) : null}
-
-                {lesson.status === 'published' ? (
-                    <div className="foundation-stack">
-                        <Feedback tone="success">
-                            الدرس منشور حاليًا للطلاب.
-                        </Feedback>
-                        <div className="admin-content-actions">
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                type="button"
-                                disabled={lifecyclePending}
-                                onClick={() => retireMutation.mutate()}
-                            >
-                                إيقاف النشر
-                            </Button>
                         </div>
-                    </div>
-                ) : null}
+                    ) : null}
 
-                {lesson.status === 'retired' ? (
-                    <Feedback>
-                        هذا الدرس موقوف ولا يمكن تعديل محتواه.
-                    </Feedback>
-                ) : null}
+                    {lesson.status === 'retired' ? (
+                        <Feedback>
+                            هذا الدرس موقوف ولا يمكن تعديل محتواه.
+                        </Feedback>
+                    ) : null}
 
-                {classifyingRevision ? (
-                    <RevisionSkillsPanel
-                        version={version}
-                        revision={classifyingRevision}
-                        onClose={() => setClassifyingRevision(null)}
-                    />
-                ) : null}
-            </div>
-        </Surface>
+                    {classifyingRevision ? (
+                        <RevisionSkillsPanel
+                            version={version}
+                            revision={classifyingRevision}
+                            onClose={() => setClassifyingRevision(null)}
+                        />
+                    ) : null}
+                </div>
+            </Surface>
+
+            {showEditor && authoringAllowed ? (
+                <div
+                    className="admin-lesson-editor-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="admin-lesson-editor-title"
+                >
+                    <div className="admin-lesson-editor-dialog__backdrop" aria-hidden="true" />
+                    <Surface className="admin-lesson-editor-dialog__panel" elevated>
+                        <div className="admin-lesson-editor-dialog__header">
+                            <div>
+                                <span>تحرير الدرس</span>
+                                <h3 id="admin-lesson-editor-title">تحرير محتوى الدرس</h3>
+                                <p>
+                                    {lesson.title} — احفظ التعديلات هنا، ولن تظهر للطلاب حتى يتم اعتمادها ونشرها.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="إغلاق محرر محتوى الدرس"
+                                onClick={() => setShowEditor(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form className="admin-lesson-editor-dialog__form" onSubmit={submitRevision}>
+                            <label>
+                                الوحدة الرئيسية
+                                <select
+                                    aria-label="الوحدة الرئيسية للدرس"
+                                    required
+                                    value={primaryTopicId}
+                                    onChange={(event) => setPrimaryTopicId(event.target.value)}
+                                >
+                                    <option value="">اختر الوحدة</option>
+                                    {topicsQuery.data?.map((topic) => (
+                                        <option key={topic.id} value={topic.id}>
+                                            {topic.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className="admin-lesson-editor-dialog__content-field">
+                                محتوى الدرس
+                                <textarea
+                                    aria-label="محتوى الدرس"
+                                    rows={18}
+                                    required
+                                    placeholder="اكتب محتوى الدرس هنا. افصل بين الفقرات بسطر فارغ."
+                                    value={contentTextValue}
+                                    onChange={(event) => setContentTextValue(event.target.value)}
+                                />
+                            </label>
+
+                            <div className="admin-lesson-editor-dialog__actions">
+                                <Button
+                                    type="submit"
+                                    disabled={
+                                        createMutation.isPending
+                                        || primaryTopicId === ''
+                                        || contentTextValue.trim() === ''
+                                    }
+                                >
+                                    حفظ التعديلات
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => setShowEditor(false)}
+                                >
+                                    إلغاء
+                                </Button>
+                            </div>
+                        </form>
+                    </Surface>
+                </div>
+            ) : null}
+        </>
     );
 }
