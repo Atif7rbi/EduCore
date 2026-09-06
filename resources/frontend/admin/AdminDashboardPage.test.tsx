@@ -79,7 +79,7 @@ describe('AdminDashboardPage', () => {
 
         renderPage();
 
-        expect(await screen.findByRole('heading', { name: 'نظرة عامة على EduCore' }))
+        expect(await screen.findByRole('heading', { name: 'المؤشرات الرئيسية' }))
             .toBeInTheDocument();
         expect(screen.getByText('الطلاب')).toBeInTheDocument();
         expect(screen.getByText('الدروس')).toBeInTheDocument();
