@@ -41,6 +41,9 @@ import {
     AdminContentPage,
 } from '../admin/AdminContentPage';
 import {
+    AdminDashboardPage,
+} from '../admin/AdminDashboardPage';
+import {
     PracticeActivityPage,
 } from '../learner/PracticeActivityPage';
 import {
@@ -48,7 +51,6 @@ import {
 } from '../learner/AttemptPage';
 
 import {
-    AdminFoundationPage,
     AdminProductShell,
     App,
     ForbiddenFoundationPage,
@@ -169,7 +171,7 @@ export const router = createBrowserRouter([
                     {
                         index: true,
                         element: (
-                            <AdminFoundationPage />
+                            <AdminDashboardPage />
                         ),
                     },
                     {
