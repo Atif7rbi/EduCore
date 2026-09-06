@@ -43,6 +43,17 @@ function requestId(error: unknown) {
         : null;
 }
 
+function placementDeleteMessage(error: unknown) {
+    if (
+        error instanceof EduCoreApiError
+        && error.code === 'skill_placement_in_use'
+    ) {
+        return 'لا يمكن إزالة المهارة لأنها مستخدمة في محتوى درس أو سؤال داخل هذا المنهج. أزل هذه الارتباطات أولًا ثم أعد المحاولة.';
+    }
+
+    return 'تعذر إزالة ربط المهارة.';
+}
+
 function PlacementFailure({
     children,
     error,
@@ -177,7 +188,11 @@ export function SkillPlacementsPanel({ version }: SkillPlacementsPanelProps) {
                 )}
 
                 {createPlacementMutation.isError ? <PlacementFailure error={createPlacementMutation.error}>تعذر ربط المهارة.</PlacementFailure> : null}
-                {deletePlacementMutation.isError ? <PlacementFailure error={deletePlacementMutation.error}>تعذر إزالة ربط المهارة.</PlacementFailure> : null}
+                {deletePlacementMutation.isError ? (
+                    <PlacementFailure error={deletePlacementMutation.error}>
+                        {placementDeleteMessage(deletePlacementMutation.error)}
+                    </PlacementFailure>
+                ) : null}
                 {createHomeTopicMutation.isError ? <PlacementFailure error={createHomeTopicMutation.error}>تعذر إضافة الموضوع الرئيسي.</PlacementFailure> : null}
                 {deleteHomeTopicMutation.isError ? <PlacementFailure error={deleteHomeTopicMutation.error}>تعذر إزالة الموضوع الرئيسي.</PlacementFailure> : null}
 
