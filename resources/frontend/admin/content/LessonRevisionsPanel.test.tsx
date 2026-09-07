@@ -179,7 +179,7 @@ describe('LessonRevisionsPanel', () => {
         expect(await screen.findByText(
             'الدرس غير منشور حاليًا ولا يظهر للطلاب. يمكنك تعديل محتواه أو إعادة نشره.',
         )).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'آخر محتوى منشور' }))
+        expect(await screen.findByRole('heading', { name: 'آخر محتوى منشور' }))
             .toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'إعادة نشر الدرس' }));
