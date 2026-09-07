@@ -6,6 +6,9 @@ import {
     useCallback,
     useState,
 } from 'react';
+import {
+    useSearchParams,
+} from 'react-router-dom';
 
 import {
     Feedback,
@@ -78,6 +81,16 @@ const workspaceSections: Array<{
     },
 ];
 
+function workspaceSectionFromSearch(
+    value: string | null,
+): WorkspaceSection {
+    return workspaceSections.some(
+        (section) => section.id === value,
+    )
+        ? value as WorkspaceSection
+        : 'lessons';
+}
+
 function WorkspaceIcon({
     section,
 }: {
@@ -144,6 +157,8 @@ function WorkspaceIcon({
 }
 
 export function AdminContentPage() {
+    const [searchParams, setSearchParams] =
+        useSearchParams();
     const [subjectId, setSubjectId] =
         useState<string | null>(null);
     const [curriculumId, setCurriculumId] =
@@ -153,7 +168,11 @@ export function AdminContentPage() {
     const [selectedVersion, setSelectedVersion] =
         useState<CurriculumVersion | null>(null);
     const [activeSection, setActiveSection] =
-        useState<WorkspaceSection>('lessons');
+        useState<WorkspaceSection>(() =>
+            workspaceSectionFromSearch(
+                searchParams.get('section'),
+            )
+        );
 
     const resolveVersion = useCallback(
         (version: CurriculumVersion | null) => {
@@ -161,6 +180,21 @@ export function AdminContentPage() {
         },
         [],
     );
+
+    function selectSection(
+        section: WorkspaceSection,
+    ) {
+        setActiveSection(section);
+        setSearchParams(
+            (current) => {
+                const next =
+                    new URLSearchParams(current);
+                next.set('section', section);
+                return next;
+            },
+            { replace: true },
+        );
+    }
 
     function renderWorkspace(
         version: CurriculumVersion,
@@ -239,7 +273,7 @@ export function AdminContentPage() {
                                             : 'admin-authoring-tabs__item'
                                     }
                                     onClick={() =>
-                                        setActiveSection(section.id)
+                                        selectSection(section.id)
                                     }
                                 >
                                     <WorkspaceIcon section={section.id} />
