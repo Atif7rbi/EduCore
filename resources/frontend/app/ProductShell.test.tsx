@@ -57,6 +57,7 @@ vi.mock('react-router-dom', async () => {
 function renderShell(
     navigation = learnerNavigation,
     initialEntry = '/app',
+    areaLabel = 'مساحة التعلم',
 ) {
     render(
         <MemoryRouter
@@ -65,7 +66,7 @@ function renderShell(
             ]}
         >
             <ProductShell
-                areaLabel="مساحة التعلم"
+                areaLabel={areaLabel}
                 navigation={navigation}
             >
                 <div>
@@ -80,6 +81,7 @@ describe('ProductShell', () => {
     beforeEach(() => {
         logoutMock.mockReset();
         navigateMock.mockReset();
+        window.localStorage.clear();
     });
 
     it('renders authenticated user identity and role', () => {
@@ -156,6 +158,7 @@ describe('ProductShell', () => {
         renderShell(
             adminNavigation,
             '/admin',
+            'الإدارة',
         );
 
         expect(
@@ -187,6 +190,51 @@ describe('ProductShell', () => {
                 },
             ),
         ).not.toBeInTheDocument();
+    });
+
+    it('persists the collapsed sidebar preference for the user and area', () => {
+        renderShell(
+            adminNavigation,
+            '/admin',
+            'الإدارة',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'طي القائمة الجانبية',
+            }),
+        );
+
+        expect(
+            screen.getByRole('button', {
+                name: 'فتح القائمة الجانبية',
+            }),
+        ).toHaveAttribute('aria-expanded', 'false');
+
+        expect(
+            window.localStorage.getItem(
+                'educore.sidebar.user-1.الإدارة',
+            ),
+        ).toBe('collapsed');
+    });
+
+    it('restores a previously collapsed sidebar preference', () => {
+        window.localStorage.setItem(
+            'educore.sidebar.user-1.الإدارة',
+            'collapsed',
+        );
+
+        renderShell(
+            adminNavigation,
+            '/admin',
+            'الإدارة',
+        );
+
+        expect(
+            screen.getByRole('button', {
+                name: 'فتح القائمة الجانبية',
+            }),
+        ).toHaveAttribute('aria-expanded', 'false');
     });
 
     it('logs out and returns to login', async () => {
