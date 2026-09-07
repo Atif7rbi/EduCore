@@ -115,7 +115,7 @@ class LearningApiTest extends TestCase
             ]);
     }
 
-    public function test_published_lesson_can_be_retired_via_api(): void
+    public function test_published_lesson_can_be_unpublished_via_api(): void
     {
         [$lessonId, $revisionId] = $this->createLessonFixture();
 
@@ -131,24 +131,29 @@ class LearningApiTest extends TestCase
         )->assertOk();
 
         $this->postJson(
-            "/api/lessons/{$lessonId}/retire"
+            "/api/lessons/{$lessonId}/unpublish"
         )
             ->assertOk()
             ->assertJsonPath('data.id', $lessonId)
-            ->assertJsonPath('data.status', 'retired');
+            ->assertJsonPath('data.status', 'unpublished')
+            ->assertJsonPath(
+                'data.published_revision_id',
+                $revisionId
+            );
 
         $this->assertDatabaseHas('lessons', [
             'id' => $lessonId,
-            'status' => 'retired',
+            'status' => 'unpublished',
+            'published_revision_id' => $revisionId,
         ]);
     }
 
-    public function test_draft_lesson_cannot_be_retired_via_api(): void
+    public function test_draft_lesson_cannot_be_unpublished_via_api(): void
     {
         [$lessonId] = $this->createLessonFixture();
 
         $this->postJson(
-            "/api/lessons/{$lessonId}/retire"
+            "/api/lessons/{$lessonId}/unpublish"
         )
             ->assertStatus(409)
             ->assertExactJson([
@@ -164,7 +169,7 @@ class LearningApiTest extends TestCase
         $lessonId = (string) Str::uuid();
 
         $this->postJson(
-            "/api/lessons/{$lessonId}/retire"
+            "/api/lessons/{$lessonId}/unpublish"
         )
             ->assertStatus(404)
             ->assertJsonPath(
