@@ -16,64 +16,41 @@ class RuntimeObservabilityTest extends TestCase
 {
     public function test_api_response_has_generated_request_id(): void
     {
-        $response =
-            $this->getJson('/api/health');
+        $response = $this->getJson('/api/health');
 
         $response->assertOk();
 
-        $requestId =
-            $response->headers->get(
-                'X-Request-ID'
-            );
+        $requestId = $response->headers->get('X-Request-ID');
 
-        $this->assertNotNull(
-            $requestId
-        );
-
-        $this->assertTrue(
-            Str::isUuid($requestId)
-        );
+        $this->assertNotNull($requestId);
+        $this->assertTrue(Str::isUuid($requestId));
     }
 
     public function test_web_response_has_generated_request_id(): void
     {
         $response = $this->get('/');
 
-        $response->assertOk();
+        $response->assertRedirect('/login');
 
-        $requestId =
-            $response->headers->get(
-                'X-Request-ID'
-            );
+        $requestId = $response->headers->get('X-Request-ID');
 
-        $this->assertNotNull(
-            $requestId
-        );
-
-        $this->assertTrue(
-            Str::isUuid($requestId)
-        );
+        $this->assertNotNull($requestId);
+        $this->assertTrue(Str::isUuid($requestId));
     }
 
     public function test_each_request_gets_distinct_request_id(): void
     {
-        $first =
-            $this->getJson('/api/health')
-                ->headers
-                ->get('X-Request-ID');
+        $first = $this->getJson('/api/health')
+            ->headers
+            ->get('X-Request-ID');
 
-        $second =
-            $this->getJson('/api/health')
-                ->headers
-                ->get('X-Request-ID');
+        $second = $this->getJson('/api/health')
+            ->headers
+            ->get('X-Request-ID');
 
         $this->assertNotNull($first);
         $this->assertNotNull($second);
-
-        $this->assertNotSame(
-            $first,
-            $second
-        );
+        $this->assertNotSame($first, $second);
     }
 
     public function test_request_id_is_added_to_log_context(): void
@@ -83,9 +60,7 @@ class RuntimeObservabilityTest extends TestCase
         Route::get(
             '/api/test-observability-log',
             function () {
-                Log::info(
-                    'A8.4 observability probe'
-                );
+                Log::info('A8.4 observability probe');
 
                 return response()->json([
                     'ok' => true,
@@ -93,63 +68,40 @@ class RuntimeObservabilityTest extends TestCase
             }
         );
 
-        $response = $this->getJson(
-            '/api/test-observability-log'
-        );
+        $response = $this->getJson('/api/test-observability-log');
 
         $response->assertOk();
 
-        $requestId =
-            $response->headers->get(
-                'X-Request-ID'
-            );
+        $requestId = $response->headers->get('X-Request-ID');
 
-        $this->assertNotNull(
-            $requestId
-        );
+        $this->assertNotNull($requestId);
 
-        Log::shouldHaveReceived(
-            'withContext'
-        )
+        Log::shouldHaveReceived('withContext')
             ->atLeast()
             ->once()
             ->withArgs(
-                function (
-                    array $context
-                ) use (
-                    $requestId
-                ): bool {
-                    return (
-                        $context[
-                            'request_id'
-                        ] ?? null
-                    ) === $requestId;
+                function (array $context) use ($requestId): bool {
+                    return ($context['request_id'] ?? null) === $requestId;
                 }
             );
     }
 
     public function test_authentication_exception_keeps_401_contract(): void
     {
-        $response = $this->getJson(
-            '/api/progress/overview'
-        );
+        $response = $this->getJson('/api/progress/overview');
 
         $response
             ->assertStatus(401)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'unauthenticated',
-                    'message' =>
-                        'Authentication is required.',
+                    'code' => 'unauthenticated',
+                    'message' => 'Authentication is required.',
                 ],
             ]);
 
         $this->assertTrue(
             Str::isUuid(
-                (string) $response
-                    ->headers
-                    ->get('X-Request-ID')
+                (string) $response->headers->get('X-Request-ID')
             )
         );
     }
@@ -165,18 +117,14 @@ class RuntimeObservabilityTest extends TestCase
             }
         );
 
-        $response = $this->getJson(
-            '/api/test-unexpected-error'
-        );
+        $response = $this->getJson('/api/test-unexpected-error');
 
         $response
             ->assertStatus(500)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'internal_error',
-                    'message' =>
-                        'An unexpected server error occurred.',
+                    'code' => 'internal_error',
+                    'message' => 'An unexpected server error occurred.',
                 ],
             ]);
 
@@ -187,9 +135,7 @@ class RuntimeObservabilityTest extends TestCase
 
         $this->assertTrue(
             Str::isUuid(
-                (string) $response
-                    ->headers
-                    ->get('X-Request-ID')
+                (string) $response->headers->get('X-Request-ID')
             )
         );
     }
@@ -210,8 +156,7 @@ class RuntimeObservabilityTest extends TestCase
             ->assertExactJson([
                 'error' => [
                     'code' => 'forbidden',
-                    'message' =>
-                        'You are not authorized to perform this action.',
+                    'message' => 'You are not authorized to perform this action.',
                 ],
             ]);
     }
@@ -225,16 +170,12 @@ class RuntimeObservabilityTest extends TestCase
             ])
         );
 
-        $this->postJson(
-            '/api/test-method-only'
-        )
+        $this->postJson('/api/test-method-only')
             ->assertStatus(405)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'method_not_allowed',
-                    'message' =>
-                        'The HTTP method is not allowed for this resource.',
+                    'code' => 'method_not_allowed',
+                    'message' => 'The HTTP method is not allowed for this resource.',
                 ],
             ]);
     }
@@ -254,10 +195,8 @@ class RuntimeObservabilityTest extends TestCase
             ->assertStatus(419)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'csrf_token_mismatch',
-                    'message' =>
-                        'The session security token has expired or is invalid.',
+                    'code' => 'csrf_token_mismatch',
+                    'message' => 'The session security token has expired or is invalid.',
                 ],
             ]);
     }
@@ -274,47 +213,32 @@ class RuntimeObservabilityTest extends TestCase
             }
         );
 
-        $this->getJson(
-            '/api/test-throttled-http'
-        )
+        $this->getJson('/api/test-throttled-http')
             ->assertStatus(429)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'too_many_requests',
-                    'message' =>
-                        'Too many requests. Please retry later.',
+                    'code' => 'too_many_requests',
+                    'message' => 'Too many requests. Please retry later.',
                 ],
             ])
-            ->assertHeader(
-                'Retry-After',
-                '7'
-            );
+            ->assertHeader('Retry-After', '7');
     }
 
     public function test_known_api_errors_keep_existing_contract(): void
     {
-        $this->getJson(
-            '/api/route-that-does-not-exist'
-        )
+        $this->getJson('/api/route-that-does-not-exist')
             ->assertStatus(404)
             ->assertExactJson([
                 'error' => [
-                    'code' =>
-                        'not_found',
-                    'message' =>
-                        'The requested resource was not found.',
+                    'code' => 'not_found',
+                    'message' => 'The requested resource was not found.',
                 ],
             ])
-            ->assertHeader(
-                'X-Content-Type-Options',
-                'nosniff'
-            );
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
 
         $this->assertTrue(
             Str::isUuid(
-                (string) $this
-                    ->getJson('/api/health')
+                (string) $this->getJson('/api/health')
                     ->headers
                     ->get('X-Request-ID')
             )
