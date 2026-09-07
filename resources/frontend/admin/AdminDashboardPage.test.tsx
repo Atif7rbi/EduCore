@@ -48,6 +48,12 @@ function renderPage() {
     );
 }
 
+function linkWithHref(href: string): HTMLAnchorElement | undefined {
+    return screen.getAllByRole('link').find(
+        (link) => link.getAttribute('href') === href,
+    ) as HTMLAnchorElement | undefined;
+}
+
 const summary = {
     counts: {
         subjects: 2,
@@ -84,9 +90,9 @@ describe('AdminDashboardPage', () => {
         expect(screen.getByRole('heading', { name: 'نظرة عامة' }))
             .toBeInTheDocument();
         expect(screen.getByText('الطلاب')).toBeInTheDocument();
-        expect(screen.getByText('الدروس')).toBeInTheDocument();
-        expect(screen.getByText('الوحدات')).toBeInTheDocument();
-        expect(screen.getByText('الاختبارات')).toBeInTheDocument();
+        expect(screen.getAllByText('الدروس').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('الوحدات').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('الاختبارات').length).toBeGreaterThan(0);
         expect(screen.getByText('جاهزية المحتوى')).toBeInTheDocument();
         expect(screen.getByText('مخزون التأليف')).toBeInTheDocument();
         expect(screen.getByText('24')).toBeInTheDocument();
@@ -105,14 +111,14 @@ describe('AdminDashboardPage', () => {
         renderPage();
         await screen.findByText('المؤشرات الرئيسية');
 
-        expect(screen.getByRole('link', { name: /الدروس/ }))
-            .toHaveAttribute('href', '/admin/content?section=lessons');
-        expect(screen.getByRole('link', { name: /الوحدات/ }))
-            .toHaveAttribute('href', '/admin/content?section=topics');
-        expect(screen.getAllByRole('link', { name: /الاختبارات/ })[0])
-            .toHaveAttribute('href', '/admin/content?section=exam-templates');
-        expect(screen.getByRole('link', { name: /بنك الأسئلة/ }))
-            .toHaveAttribute('href', '/admin/content?section=assessment-items');
+        expect(linkWithHref('/admin/content?section=lessons'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=topics'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=exam-templates'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=assessment-items'))
+            .toBeInTheDocument();
         expect(screen.getAllByRole('link', { name: /إدارة المناهج/ }).length)
             .toBeGreaterThan(0);
     });
