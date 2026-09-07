@@ -99,15 +99,21 @@ describe('AdminDashboardPage', () => {
         });
     });
 
-    it('keeps the main management destinations available as quick actions', async () => {
+    it('routes dashboard cards and quick actions to matching content tabs', async () => {
         apiRequestMock.mockResolvedValue(summary);
 
         renderPage();
         await screen.findByText('المؤشرات الرئيسية');
 
+        expect(screen.getByRole('link', { name: /الدروس/ }))
+            .toHaveAttribute('href', '/admin/content?section=lessons');
+        expect(screen.getByRole('link', { name: /الوحدات/ }))
+            .toHaveAttribute('href', '/admin/content?section=topics');
+        expect(screen.getAllByRole('link', { name: /الاختبارات/ })[0])
+            .toHaveAttribute('href', '/admin/content?section=exam-templates');
+        expect(screen.getByRole('link', { name: /بنك الأسئلة/ }))
+            .toHaveAttribute('href', '/admin/content?section=assessment-items');
         expect(screen.getAllByRole('link', { name: /إدارة المناهج/ }).length)
-            .toBeGreaterThan(0);
-        expect(screen.getAllByRole('link', { name: /إدارة المحتوى/ }).length)
             .toBeGreaterThan(0);
     });
 });
