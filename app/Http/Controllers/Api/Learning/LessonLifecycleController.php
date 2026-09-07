@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\Learning;
 
 use App\Application\Learning\PublishLesson;
-use App\Application\Learning\RetireLesson;
+use App\Application\Learning\UnpublishLesson;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Learning\PublishLessonRequest;
 use App\Http\Responses\ApiResponse;
@@ -34,7 +34,7 @@ class LessonLifecycleController extends Controller
 
     public function retire(
         string $lessonId,
-        RetireLesson $service,
+        UnpublishLesson $service,
     ): JsonResponse {
         $lesson = $service->execute($lessonId);
 
