@@ -186,7 +186,7 @@ class AuthorizationBoundaryTest extends TestCase
             ['postJson', "/api/lessons/{$id}/publish", [
                 'published_revision_id' => $id,
             ]],
-            ['postJson', "/api/lessons/{$id}/retire", []],
+            ['postJson', "/api/lessons/{$id}/unpublish", []],
             ['postJson', "/api/assessment-item-revisions/{$id}/release", []],
             ['postJson', "/api/assessment-items/{$id}/publish", [
                 'published_revision_id' => $id,
