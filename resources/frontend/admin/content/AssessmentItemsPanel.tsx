@@ -124,6 +124,14 @@ export function AssessmentItemsPanel({
             fetchAssessmentItems(version.id),
     });
 
+    const currentAuthoringItem =
+        authoringItem
+            ? itemsQuery.data?.find(
+                (item) =>
+                    item.id === authoringItem.id,
+            ) ?? authoringItem
+            : null;
+
     async function invalidate() {
         await queryClient.invalidateQueries({
             queryKey: adminAssessmentItemsKey(
@@ -419,10 +427,10 @@ export function AssessmentItemsPanel({
                 )}
             </div>
 
-            {authoringItem ? (
+            {currentAuthoringItem ? (
                 <AssessmentItemRevisionsPanel
                     version={version}
-                    item={authoringItem}
+                    item={currentAuthoringItem}
                     onClose={() =>
                         setAuthoringItem(null)
                     }

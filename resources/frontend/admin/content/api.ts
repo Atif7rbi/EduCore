@@ -543,6 +543,31 @@ export function createAssessmentItemRevision(
     });
 }
 
+export function releaseAssessmentItemRevision(
+    assessmentItemRevisionId: string,
+): Promise<AssessmentItemRevision> {
+    return apiRequest<AssessmentItemRevision>({
+        method: 'POST',
+        url:
+            `/api/assessment-item-revisions/${assessmentItemRevisionId}/release`,
+    });
+}
+
+export function publishAssessmentItem(
+    assessmentItemId: string,
+    publishedRevisionId: string,
+): Promise<AssessmentItem> {
+    return apiRequest<AssessmentItem>({
+        method: 'POST',
+        url:
+            `/api/assessment-items/${assessmentItemId}/publish`,
+        data: {
+            published_revision_id:
+                publishedRevisionId,
+        },
+    });
+}
+
 import type {
     AssessmentRevisionSkill,
     AssessmentRevisionSkillRole,

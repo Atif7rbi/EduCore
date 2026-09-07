@@ -20,10 +20,13 @@ import {
 
 import {
     adminAssessmentItemRevisionsKey,
+    adminAssessmentItemsKey,
     adminTopicsKey,
     createAssessmentItemRevision,
     fetchAssessmentItemRevisions,
     fetchTopics,
+    publishAssessmentItem,
+    releaseAssessmentItemRevision,
 } from './api';
 
 import {
@@ -186,6 +189,15 @@ export function AssessmentItemRevisionsPanel({
         });
     }
 
+    async function invalidateItems() {
+        await queryClient.invalidateQueries({
+            queryKey:
+                adminAssessmentItemsKey(
+                    version.id,
+                ),
+        });
+    }
+
     const createMutation = useMutation({
         mutationFn: ({
             revisionNumber,
@@ -236,6 +248,31 @@ export function AssessmentItemRevisionsPanel({
             setFormError(null);
 
             await invalidate();
+        },
+    });
+
+    const releaseMutation = useMutation({
+        mutationFn: (revisionId: string) =>
+            releaseAssessmentItemRevision(
+                revisionId,
+            ),
+        onSuccess: async () => {
+            setClassifyingRevision(null);
+            await invalidate();
+        },
+    });
+
+    const publishMutation = useMutation({
+        mutationFn: (revisionId: string) =>
+            publishAssessmentItem(
+                item.id,
+                revisionId,
+            ),
+        onSuccess: async () => {
+            await Promise.all([
+                invalidate(),
+                invalidateItems(),
+            ]);
         },
     });
 
@@ -518,6 +555,22 @@ export function AssessmentItemRevisionsPanel({
                     </RevisionFailure>
                 ) : null}
 
+                {releaseMutation.isError ? (
+                    <RevisionFailure
+                        error={releaseMutation.error}
+                    >
+                        تعذر اعتماد محتوى السؤال.
+                    </RevisionFailure>
+                ) : null}
+
+                {publishMutation.isError ? (
+                    <RevisionFailure
+                        error={publishMutation.error}
+                    >
+                        تعذر نشر السؤال.
+                    </RevisionFailure>
+                ) : null}
+
                 {topicsQuery.isError ? (
                     <RevisionFailure
                         error={topicsQuery.error}
@@ -564,18 +617,75 @@ export function AssessmentItemRevisionsPanel({
                                         </p>
                                     </div>
 
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        type="button"
-                                        onClick={() =>
-                                            setClassifyingRevision(
-                                                revision,
-                                            )
-                                        }
-                                    >
-                                        ربط المهارات
-                                    </Button>
+                                    <div className="admin-content-actions">
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            type="button"
+                                            disabled={
+                                                releaseMutation.isPending
+                                                || publishMutation.isPending
+                                            }
+                                            onClick={() =>
+                                                setClassifyingRevision(
+                                                    revision,
+                                                )
+                                            }
+                                        >
+                                            {revision.released_at === null
+                                                ? 'ربط المهارات'
+                                                : 'عرض المهارات'}
+                                        </Button>
+
+                                        {editable
+                                        && revision.released_at
+                                            === null ? (
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                disabled={
+                                                    releaseMutation.isPending
+                                                    || publishMutation.isPending
+                                                }
+                                                onClick={() =>
+                                                    releaseMutation.mutate(
+                                                        revision.id,
+                                                    )
+                                                }
+                                            >
+                                                اعتماد محتوى السؤال
+                                            </Button>
+                                        ) : null}
+
+                                        {editable
+                                        && revision.released_at
+                                            !== null ? (
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                disabled={
+                                                    releaseMutation.isPending
+                                                    || publishMutation.isPending
+                                                }
+                                                onClick={() =>
+                                                    publishMutation.mutate(
+                                                        revision.id,
+                                                    )
+                                                }
+                                            >
+                                                نشر السؤال
+                                            </Button>
+                                        ) : null}
+
+                                        {item.status
+                                            === 'published'
+                                        && item.published_revision_id
+                                            === revision.id ? (
+                                            <span className="admin-content-list__meta">
+                                                منشور حاليًا
+                                            </span>
+                                        ) : null}
+                                    </div>
                                 </article>
                             ),
                         )}
