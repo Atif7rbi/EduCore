@@ -74,12 +74,14 @@ describe('AdminDashboardPage', () => {
         apiRequestMock.mockReset();
     });
 
-    it('renders live platform counts and readiness indicators', async () => {
+    it('renders live platform counts with western numerals', async () => {
         apiRequestMock.mockResolvedValue(summary);
 
         renderPage();
 
-        expect(await screen.findByRole('heading', { name: 'المؤشرات الرئيسية' }))
+        expect(await screen.findByText('المؤشرات الرئيسية'))
+            .toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'نظرة عامة' }))
             .toBeInTheDocument();
         expect(screen.getByText('الطلاب')).toBeInTheDocument();
         expect(screen.getByText('الدروس')).toBeInTheDocument();
@@ -87,9 +89,9 @@ describe('AdminDashboardPage', () => {
         expect(screen.getByText('الاختبارات')).toBeInTheDocument();
         expect(screen.getByText('جاهزية المحتوى')).toBeInTheDocument();
         expect(screen.getByText('مخزون التأليف')).toBeInTheDocument();
-        expect(screen.getByText('٢٤')).toBeInTheDocument();
-        expect(screen.getByText('١٢')).toBeInTheDocument();
-        expect(screen.getByText('٧')).toBeInTheDocument();
+        expect(screen.getByText('24')).toBeInTheDocument();
+        expect(screen.getByText('12')).toBeInTheDocument();
+        expect(screen.getByText('7')).toBeInTheDocument();
 
         expect(apiRequestMock).toHaveBeenCalledWith({
             method: 'GET',
