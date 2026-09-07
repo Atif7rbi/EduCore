@@ -14,6 +14,11 @@
         >
 
         <title>EduCore</title>
+        <link
+            rel="icon"
+            href="/favicon.svg"
+            type="image/svg+xml"
+        >
 
         @vite('resources/frontend/main.tsx')
     </head>
