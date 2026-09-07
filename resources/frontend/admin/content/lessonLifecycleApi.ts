@@ -12,6 +12,6 @@ export function unpublishLesson(
     return apiRequest<Lesson>({
         method: 'POST',
         url:
-            `/api/lessons/${lessonId}/retire`,
+            `/api/lessons/${lessonId}/unpublish`,
     });
 }
