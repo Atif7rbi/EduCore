@@ -106,7 +106,7 @@ class LessonUnpublishLifecycleTest extends TestCase
             ->assertJsonPath('data.published_revision_id', $revisionId);
 
         $this->postJson(
-            "/api/lessons/{$lessonId}/retire"
+            "/api/lessons/{$lessonId}/unpublish"
         )
             ->assertOk()
             ->assertJsonPath('data.status', 'unpublished')
