@@ -32,7 +32,7 @@ class LessonLifecycleController extends Controller
         ]);
     }
 
-    public function retire(
+    public function unpublish(
         string $lessonId,
         UnpublishLesson $service,
     ): JsonResponse {
