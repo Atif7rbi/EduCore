@@ -24,6 +24,10 @@ function requestId(error: unknown) {
         : null;
 }
 
+function formatCount(value: number): string {
+    return value.toLocaleString('en-US');
+}
+
 function DashboardIcon({ name }: { name: string }) {
     const paths: Record<string, React.ReactNode> = {
         subjects: <path d="M5 4.75h11a2 2 0 0 1 2 2v11H7a2 2 0 0 0-2 2V4.75Zm0 0a2 2 0 0 0-2 2v11a2 2 0 0 1 2-2h13" />,
@@ -76,7 +80,7 @@ function StatCard({
                 </span>
                 {to ? <span className="admin-dashboard-card__arrow" aria-hidden="true">↗</span> : null}
             </div>
-            <strong className="admin-dashboard-card__value">{value.toLocaleString('ar-SA')}</strong>
+            <strong className="admin-dashboard-card__value">{formatCount(value)}</strong>
             <span className="admin-dashboard-card__label">{label}</span>
             {hint ? <span className="admin-dashboard-card__hint">{hint}</span> : null}
         </>
@@ -107,7 +111,7 @@ export function AdminDashboardPage() {
             <header className="admin-dashboard__hero">
                 <div>
                     <p className="admin-dashboard__eyebrow">لوحة الإدارة</p>
-                    <h1 id="admin-dashboard-title">نظرة عامة على EduCore</h1>
+                    <h1 id="admin-dashboard-title">نظرة عامة</h1>
                     <p>
                         تابع حجم المحتوى التعليمي وجاهزية النشر، وانتقل بسرعة إلى أهم أدوات الإدارة.
                     </p>
@@ -165,19 +169,19 @@ export function AdminDashboardPage() {
                             <div className="admin-dashboard__readiness-grid">
                                 <div>
                                     <span>الدروس المنشورة</span>
-                                    <strong>{data.readiness.published_lessons.toLocaleString('ar-SA')}</strong>
+                                    <strong>{formatCount(data.readiness.published_lessons)}</strong>
                                 </div>
                                 <div>
                                     <span>المناهج المنشورة</span>
-                                    <strong>{data.readiness.published_curriculum_versions.toLocaleString('ar-SA')}</strong>
+                                    <strong>{formatCount(data.readiness.published_curriculum_versions)}</strong>
                                 </div>
                                 <div>
                                     <span>التدريبات النشطة</span>
-                                    <strong>{data.readiness.active_practice_activities.toLocaleString('ar-SA')}</strong>
+                                    <strong>{formatCount(data.readiness.active_practice_activities)}</strong>
                                 </div>
                                 <div>
                                     <span>الاختبارات النشطة</span>
-                                    <strong>{data.readiness.active_exam_templates.toLocaleString('ar-SA')}</strong>
+                                    <strong>{formatCount(data.readiness.active_exam_templates)}</strong>
                                 </div>
                             </div>
                         </Surface>
@@ -191,10 +195,10 @@ export function AdminDashboardPage() {
                             </div>
 
                             <div className="admin-dashboard__inventory-list">
-                                <div><span><DashboardIcon name="skills" /> المهارات</span><strong>{data.counts.skills.toLocaleString('ar-SA')}</strong></div>
-                                <div><span><DashboardIcon name="questions" /> بنك الأسئلة</span><strong>{data.counts.assessment_items.toLocaleString('ar-SA')}</strong></div>
-                                <div><span><DashboardIcon name="practice" /> التدريبات</span><strong>{data.counts.practice_activities.toLocaleString('ar-SA')}</strong></div>
-                                <div><span><DashboardIcon name="curricula" /> إصدارات المناهج</span><strong>{data.counts.curriculum_versions.toLocaleString('ar-SA')}</strong></div>
+                                <div><span><DashboardIcon name="skills" /> المهارات</span><strong>{formatCount(data.counts.skills)}</strong></div>
+                                <div><span><DashboardIcon name="questions" /> بنك الأسئلة</span><strong>{formatCount(data.counts.assessment_items)}</strong></div>
+                                <div><span><DashboardIcon name="practice" /> التدريبات</span><strong>{formatCount(data.counts.practice_activities)}</strong></div>
+                                <div><span><DashboardIcon name="curricula" /> إصدارات المناهج</span><strong>{formatCount(data.counts.curriculum_versions)}</strong></div>
                             </div>
                         </Surface>
                     </div>
@@ -209,22 +213,22 @@ export function AdminDashboardPage() {
 
                         <div className="admin-dashboard__quick-actions">
                             <Link to="/admin/curricula">
-                                <span>01</span>
+                                <span><DashboardIcon name="curricula" /></span>
                                 <strong>إدارة المناهج</strong>
                                 <small>المواد، المناهج، والإصدارات</small>
                             </Link>
                             <Link to="/admin/content">
-                                <span>02</span>
+                                <span><DashboardIcon name="lessons" /></span>
                                 <strong>إدارة المحتوى</strong>
                                 <small>الوحدات، الدروس، والمهارات</small>
                             </Link>
                             <Link to="/admin/content">
-                                <span>03</span>
+                                <span><DashboardIcon name="questions" /></span>
                                 <strong>بنك الأسئلة</strong>
                                 <small>بناء وتصنيف أسئلة التقييم</small>
                             </Link>
                             <Link to="/admin/content">
-                                <span>04</span>
+                                <span><DashboardIcon name="exams" /></span>
                                 <strong>التدريبات والاختبارات</strong>
                                 <small>إدارة الأنشطة وقوالب الاختبارات</small>
                             </Link>
