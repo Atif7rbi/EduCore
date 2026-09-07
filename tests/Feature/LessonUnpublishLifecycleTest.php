@@ -87,9 +87,15 @@ class LessonUnpublishLifecycleTest extends TestCase
                 ],
             ], JSON_THROW_ON_ERROR),
             'content_schema_version' => 1,
-            'released_at' => now(),
+            'released_at' => null,
             'created_at' => now(),
         ]);
+
+        $this->postJson(
+            "/api/lesson-revisions/{$revisionId}/release"
+        )
+            ->assertOk()
+            ->assertJsonPath('data.id', $revisionId);
 
         $this->postJson(
             "/api/lessons/{$lessonId}/publish",
