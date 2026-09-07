@@ -117,7 +117,7 @@ export function AdminDashboardPage() {
                     </p>
                 </div>
                 <div className="admin-dashboard__hero-actions">
-                    <Link className="admin-dashboard__primary-action" to="/admin/content">
+                    <Link className="admin-dashboard__primary-action" to="/admin/content?section=lessons">
                         فتح إدارة المحتوى
                     </Link>
                     <Link className="admin-dashboard__secondary-action" to="/admin/curricula">
@@ -149,9 +149,9 @@ export function AdminDashboardPage() {
 
                         <div className="admin-dashboard__stats-grid">
                             <StatCard icon="learners" label="الطلاب" value={data.counts.learners} />
-                            <StatCard icon="lessons" label="الدروس" value={data.counts.lessons} to="/admin/content" />
-                            <StatCard icon="topics" label="الوحدات" value={data.counts.topics} to="/admin/content" />
-                            <StatCard icon="exams" label="الاختبارات" value={data.counts.exam_templates} to="/admin/content" />
+                            <StatCard icon="lessons" label="الدروس" value={data.counts.lessons} to="/admin/content?section=lessons" />
+                            <StatCard icon="topics" label="الوحدات" value={data.counts.topics} to="/admin/content?section=topics" />
+                            <StatCard icon="exams" label="الاختبارات" value={data.counts.exam_templates} to="/admin/content?section=exam-templates" />
                             <StatCard icon="curricula" label="المناهج" value={data.counts.curricula} to="/admin/curricula" />
                             <StatCard icon="subjects" label="المواد" value={data.counts.subjects} to="/admin/curricula" />
                         </div>
@@ -217,20 +217,20 @@ export function AdminDashboardPage() {
                                 <strong>إدارة المناهج</strong>
                                 <small>المواد، المناهج، والإصدارات</small>
                             </Link>
-                            <Link to="/admin/content">
+                            <Link to="/admin/content?section=lessons">
                                 <span><DashboardIcon name="lessons" /></span>
                                 <strong>إدارة المحتوى</strong>
                                 <small>الوحدات، الدروس، والمهارات</small>
                             </Link>
-                            <Link to="/admin/content">
+                            <Link to="/admin/content?section=assessment-items">
                                 <span><DashboardIcon name="questions" /></span>
                                 <strong>بنك الأسئلة</strong>
                                 <small>بناء وتصنيف أسئلة التقييم</small>
                             </Link>
-                            <Link to="/admin/content">
+                            <Link to="/admin/content?section=exam-templates">
                                 <span><DashboardIcon name="exams" /></span>
-                                <strong>التدريبات والاختبارات</strong>
-                                <small>إدارة الأنشطة وقوالب الاختبارات</small>
+                                <strong>الاختبارات</strong>
+                                <small>إدارة قوالب الاختبارات وإعداداتها</small>
                             </Link>
                         </div>
                     </section>
