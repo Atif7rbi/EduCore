@@ -72,7 +72,7 @@ export interface SkillPlacement {
 export type LessonStatus =
     | 'draft'
     | 'published'
-    | 'retired';
+    | 'unpublished';
 
 export interface Lesson {
     id: string;
