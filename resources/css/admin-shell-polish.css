@@ -55,8 +55,48 @@
 
 .authenticated-shell__sidebar {
     display: grid;
+    min-width: 0;
     align-content: start;
     gap: 0.75rem;
+    transition: width 180ms ease;
+}
+
+.authenticated-shell__layout {
+    transition: grid-template-columns 180ms ease;
+}
+
+.authenticated-shell__layout--sidebar-collapsed {
+    grid-template-columns: 4.75rem minmax(0, 1fr) !important;
+}
+
+.authenticated-shell__sidebar-toggle {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.55rem;
+    padding: 0.5rem 0.7rem;
+    color: var(--color-neutral-600);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-md);
+    background: var(--color-neutral-0);
+    cursor: pointer;
+}
+
+.authenticated-shell__sidebar-toggle:hover {
+    color: var(--color-brand-700);
+    border-color: var(--color-brand-100);
+    background: var(--color-brand-50);
+}
+
+.authenticated-shell__sidebar--collapsed .authenticated-shell__sidebar-toggle {
+    justify-content: center;
+    padding-inline: 0;
+}
+
+.authenticated-shell__sidebar--collapsed .authenticated-shell__sidebar-toggle span,
+.authenticated-shell__sidebar--collapsed .authenticated-shell__nav-link span {
+    display: none;
 }
 
 .authenticated-shell__nav-heading,
@@ -66,8 +106,14 @@
 
 .authenticated-shell__nav-link {
     display: flex !important;
+    min-height: 2.9rem;
     align-items: center;
     gap: 0.7rem;
+}
+
+.authenticated-shell__sidebar--collapsed .authenticated-shell__nav-link {
+    justify-content: center;
+    padding-inline: 0 !important;
 }
 
 .authenticated-shell__nav-link svg {
@@ -84,7 +130,25 @@
         display: none;
     }
 
-    .authenticated-shell__sidebar {
+    .authenticated-shell__sidebar-toggle {
+        display: none;
+    }
+
+    .authenticated-shell__sidebar,
+    .authenticated-shell__sidebar--collapsed {
         min-width: 0;
+    }
+
+    .authenticated-shell__sidebar--collapsed .authenticated-shell__nav-link span {
+        display: inline;
+    }
+
+    .authenticated-shell__sidebar--collapsed .authenticated-shell__nav-link {
+        justify-content: flex-start;
+        padding-inline: 1rem !important;
+    }
+
+    .authenticated-shell__layout--sidebar-collapsed {
+        grid-template-columns: 1fr !important;
     }
 }
