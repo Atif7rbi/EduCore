@@ -27,8 +27,10 @@ import {
     fetchTopics,
     publishLesson,
     releaseLessonRevision,
-    retireLesson,
 } from './api';
+import {
+    unpublishLesson,
+} from './lessonLifecycleApi';
 import {
     RevisionSkillsPanel,
 } from './RevisionSkillsPanel';
@@ -115,9 +117,7 @@ export function LessonRevisionsPanel({
     onClose,
 }: LessonRevisionsPanelProps) {
     const queryClient = useQueryClient();
-    const authoringAllowed =
-        version.status === 'draft'
-        && lesson.status !== 'retired';
+    const authoringAllowed = version.status === 'draft';
 
     const [showEditor, setShowEditor] = useState(false);
     const [primaryTopicId, setPrimaryTopicId] = useState('');
@@ -202,15 +202,15 @@ export function LessonRevisionsPanel({
         },
     });
 
-    const retireMutation = useMutation({
-        mutationFn: () => retireLesson(lesson.id),
+    const unpublishMutation = useMutation({
+        mutationFn: () => unpublishLesson(lesson.id),
         onSuccess: invalidateLessons,
     });
 
     const lifecyclePending =
         releaseMutation.isPending
         || publishMutation.isPending
-        || retireMutation.isPending;
+        || unpublishMutation.isPending;
 
     function startEditing() {
         const source = pendingRevision ?? publishedRevision;
@@ -267,14 +267,20 @@ export function LessonRevisionsPanel({
                         </RevisionFailure>
                     ) : (
                         <>
-                            {lesson.status === 'published' && publishedRevision ? (
+                            {(lesson.status === 'published'
+                                || lesson.status === 'unpublished')
+                            && publishedRevision ? (
                                 <section className="foundation-stack">
                                     <div>
                                         <h3 className="foundation-card__title">
-                                            المحتوى المنشور
+                                            {lesson.status === 'published'
+                                                ? 'المحتوى المنشور'
+                                                : 'آخر محتوى منشور'}
                                         </h3>
                                         <p className="admin-content-list__meta">
-                                            هذا هو المحتوى الذي يراه الطلاب حاليًا.
+                                            {lesson.status === 'published'
+                                                ? 'هذا هو المحتوى الذي يراه الطلاب حاليًا.'
+                                                : 'هذا المحتوى محفوظ ويمكن إعادة نشره للطلاب في أي وقت.'}
                                         </p>
                                     </div>
                                     <div className="admin-lesson-content-preview">
@@ -340,7 +346,9 @@ export function LessonRevisionsPanel({
                                             >
                                                 {lesson.status === 'published'
                                                     ? 'نشر التعديلات'
-                                                    : 'نشر الدرس'}
+                                                    : lesson.status === 'unpublished'
+                                                        ? 'إعادة نشر الدرس بالتعديلات'
+                                                        : 'نشر الدرس'}
                                             </Button>
                                         )}
                                     </div>
@@ -379,9 +387,9 @@ export function LessonRevisionsPanel({
                             تعذر نشر التعديلات.
                         </RevisionFailure>
                     ) : null}
-                    {retireMutation.isError ? (
-                        <RevisionFailure error={retireMutation.error}>
-                            تعذر إيقاف النشر.
+                    {unpublishMutation.isError ? (
+                        <RevisionFailure error={unpublishMutation.error}>
+                            تعذر إلغاء نشر الدرس.
                         </RevisionFailure>
                     ) : null}
 
@@ -396,18 +404,32 @@ export function LessonRevisionsPanel({
                                     variant="secondary"
                                     type="button"
                                     disabled={lifecyclePending}
-                                    onClick={() => retireMutation.mutate()}
+                                    onClick={() => unpublishMutation.mutate()}
                                 >
-                                    إيقاف النشر
+                                    إلغاء النشر
                                 </Button>
                             </div>
                         </div>
                     ) : null}
 
-                    {lesson.status === 'retired' ? (
-                        <Feedback>
-                            هذا الدرس موقوف ولا يمكن تعديل محتواه.
-                        </Feedback>
+                    {lesson.status === 'unpublished' ? (
+                        <div className="foundation-stack">
+                            <Feedback>
+                                الدرس غير منشور حاليًا ولا يظهر للطلاب. يمكنك تعديل محتواه أو إعادة نشره.
+                            </Feedback>
+                            {publishedRevision ? (
+                                <div className="admin-content-actions">
+                                    <Button
+                                        size="sm"
+                                        type="button"
+                                        disabled={lifecyclePending}
+                                        onClick={() => publishMutation.mutate(publishedRevision.id)}
+                                    >
+                                        إعادة نشر الدرس
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </div>
                     ) : null}
 
                     {classifyingRevision ? (
