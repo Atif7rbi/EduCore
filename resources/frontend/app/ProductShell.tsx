@@ -114,6 +114,28 @@ function NavigationIcon({
     );
 }
 
+function CollapseIcon({ collapsed }: { collapsed: boolean }) {
+    return (
+        <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            {collapsed ? (
+                <path d="m9 6 6 6-6 6" />
+            ) : (
+                <path d="m15 6-6 6 6 6" />
+            )}
+        </svg>
+    );
+}
+
 export function ProductShell({
     areaLabel,
     children,
@@ -126,10 +148,35 @@ export function ProductShell({
 
     const navigate = useNavigate();
 
+    const sidebarStorageKey = user
+        ? `educore.sidebar.${user.id}.${areaLabel}`
+        : null;
+
+    const [isSidebarCollapsed, setIsSidebarCollapsed] =
+        useState(() => {
+            if (!sidebarStorageKey || typeof window === 'undefined') {
+                return false;
+            }
+
+            return window.localStorage.getItem(sidebarStorageKey) === 'collapsed';
+        });
+
     const [isLoggingOut, setIsLoggingOut] =
         useState(false);
     const [logoutError, setLogoutError] =
         useState(false);
+
+    function toggleSidebar() {
+        const next = !isSidebarCollapsed;
+        setIsSidebarCollapsed(next);
+
+        if (sidebarStorageKey) {
+            window.localStorage.setItem(
+                sidebarStorageKey,
+                next ? 'collapsed' : 'expanded',
+            );
+        }
+    }
 
     async function handleLogout() {
         setLogoutError(false);
@@ -189,12 +236,30 @@ export function ProductShell({
                 </Container>
             </header>
 
-            <Container className="authenticated-shell__layout">
-                <aside className="authenticated-shell__sidebar">
-                    <div className="authenticated-shell__nav-heading">
-                        <span>{areaLabel}</span>
-                        <small>مساحة العمل</small>
-                    </div>
+            <Container
+                className={
+                    isSidebarCollapsed
+                        ? 'authenticated-shell__layout authenticated-shell__layout--sidebar-collapsed'
+                        : 'authenticated-shell__layout'
+                }
+            >
+                <aside
+                    className={
+                        isSidebarCollapsed
+                            ? 'authenticated-shell__sidebar authenticated-shell__sidebar--collapsed'
+                            : 'authenticated-shell__sidebar'
+                    }
+                >
+                    <button
+                        type="button"
+                        className="authenticated-shell__sidebar-toggle"
+                        aria-label={isSidebarCollapsed ? 'فتح القائمة الجانبية' : 'طي القائمة الجانبية'}
+                        aria-expanded={!isSidebarCollapsed}
+                        onClick={toggleSidebar}
+                    >
+                        <CollapseIcon collapsed={isSidebarCollapsed} />
+                        <span>{isSidebarCollapsed ? 'فتح' : 'طي القائمة'}</span>
+                    </button>
 
                     <nav
                         className="authenticated-shell__navigation"
@@ -205,6 +270,8 @@ export function ProductShell({
                                 key={to}
                                 to={to}
                                 end={end}
+                                title={isSidebarCollapsed ? label : undefined}
+                                aria-label={isSidebarCollapsed ? label : undefined}
                                 className={({ isActive }) =>
                                     isActive
                                         ? 'authenticated-shell__nav-link authenticated-shell__nav-link--active'
@@ -216,11 +283,6 @@ export function ProductShell({
                             </NavLink>
                         ))}
                     </nav>
-
-                    <div className="authenticated-shell__sidebar-footer">
-                        <strong>EduCore</strong>
-                        <span>منصة تعليمية متكاملة</span>
-                    </div>
                 </aside>
 
                 <main className="authenticated-shell__content">
