@@ -486,10 +486,10 @@ Route::middleware(['web', 'management'])->group(function (): void {
         )->whereUuid('lessonId');
 
         Route::post(
-            '/{lessonId}/unpublish',
+            '/{lessonId}/retire',
             [
                 \App\Http\Controllers\Api\Learning\LessonLifecycleController::class,
-                'unpublish',
+                'retire',
             ]
         )->whereUuid('lessonId');
     });
@@ -569,44 +569,88 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     )->whereUuid('practiceActivityId');
 
     Route::put(
-        '/attempts/{attemptId}/items/{attemptItemId}/response',
+        '/attempt-items/{attemptItemId}/response',
         [
             \App\Http\Controllers\Api\Attempt\AttemptResponseController::class,
             'update',
         ]
-    )
-        ->whereUuid('attemptId')
-        ->whereUuid('attemptItemId');
+    )->whereUuid('attemptItemId');
+
 
     Route::post(
         '/attempts/{attemptId}/finalize',
         [
             \App\Http\Controllers\Api\Attempt\AttemptFinalizationController::class,
-            'store',
+            'update',
         ]
     )->whereUuid('attemptId');
+});
 
+Route::middleware(['web', 'management'])->group(function (): void {
+    Route::post(
+        '/attempt-responses/{attemptResponseId}/regrade-corrections',
+        [
+            \App\Http\Controllers\Api\Attempt\RegradeCorrectionController::class,
+            'store',
+        ]
+    )->whereUuid('attemptResponseId');
+});
+
+Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
     Route::get(
         '/curricula',
         [
             \App\Http\Controllers\Api\Read\CurriculumReadController::class,
-            'curricula',
+            'index',
         ]
     );
 
     Route::get(
-        '/curricula/{curriculumId}/versions',
+        '/exam-generations',
         [
-            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
-            'versions',
+            \App\Http\Controllers\Api\Read\ExamReadController::class,
+            'index',
         ]
-    )->whereUuid('curriculumId');
+    );
+
 
     Route::get(
-        '/curriculum-versions/{curriculumVersionId}/topics',
+        '/lessons/{lessonId}/progress',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'show',
+        ]
+    )->whereUuid('lessonId');
+
+    Route::post(
+        '/lessons/{lessonId}/progress',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'start',
+        ]
+    )->whereUuid('lessonId');
+
+    Route::post(
+        '/lessons/{lessonId}/complete',
+        [
+            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            'complete',
+        ]
+    )->whereUuid('lessonId');
+
+    Route::get(
+        '/curriculum-versions/{curriculumVersionId}',
         [
             \App\Http\Controllers\Api\Read\CurriculumReadController::class,
-            'topics',
+            'showVersion',
+        ]
+    )->whereUuid('curriculumVersionId');
+
+    Route::get(
+        '/curriculum-versions/{curriculumVersionId}/lessons',
+        [
+            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            'lessons',
         ]
     )->whereUuid('curriculumVersionId');
 
@@ -621,37 +665,15 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/practice-activities/{practiceActivityId}',
         [
-            \App\Http\Controllers\Api\Read\AttemptReadController::class,
+            \App\Http\Controllers\Api\Read\LearningReadController::class,
             'practiceActivity',
         ]
     )->whereUuid('practiceActivityId');
+});
 
+Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
     Route::get(
-        '/exam-generations/{examGenerationId}',
-        [
-            \App\Http\Controllers\Api\Read\ExamReadController::class,
-            'generation',
-        ]
-    )->whereUuid('examGenerationId');
-
-    Route::get(
-        '/attempts/{attemptId}',
-        [
-            \App\Http\Controllers\Api\Read\AttemptReadController::class,
-            'attempt',
-        ]
-    )->whereUuid('attemptId');
-
-    Route::get(
-        '/attempts/{attemptId}/result',
-        [
-            \App\Http\Controllers\Api\Read\AttemptReadController::class,
-            'result',
-        ]
-    )->whereUuid('attemptId');
-
-    Route::get(
-        '/me/progress',
+        '/progress/overview',
         [
             \App\Http\Controllers\Api\Read\ProgressReadController::class,
             'overview',
@@ -659,18 +681,34 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     );
 
     Route::get(
-        '/me/skills',
+        '/analytics/evidence-scopes',
+        [
+            \App\Http\Controllers\Api\Read\EvidenceScopeReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/analytics/skills',
         [
             \App\Http\Controllers\Api\Read\SkillAnalyticsReadController::class,
             'index',
         ]
     );
 
-    Route::post(
-        '/lessons/{lessonId}/progress',
+    Route::get(
+        '/attempts',
         [
-            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
-            'store',
+            \App\Http\Controllers\Api\Read\AttemptReadController::class,
+            'index',
         ]
-    )->whereUuid('lessonId');
+    );
+
+    Route::get(
+        '/attempts/{attemptId}',
+        [
+            \App\Http\Controllers\Api\Read\AttemptReadController::class,
+            'show',
+        ]
+    )->whereUuid('attemptId');
 });
