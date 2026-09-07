@@ -131,7 +131,18 @@ class LessonUnpublishLifecycleTest extends TestCase
             ->assertJsonPath('data.status', 'published')
             ->assertJsonPath('data.published_revision_id', $revisionId);
 
-        $this->assertDatabaseCount('lessons', 1);
-        $this->assertDatabaseCount('lesson_revisions', 1);
+        $this->assertSame(
+            1,
+            DB::table('lessons')
+                ->where('id', $lessonId)
+                ->count()
+        );
+        $this->assertSame(
+            1,
+            DB::table('lesson_revisions')
+                ->where('id', $revisionId)
+                ->where('lesson_id', $lessonId)
+                ->count()
+        );
     }
 }
