@@ -74,8 +74,8 @@ function lessonStatusLabel(status: Lesson['status']) {
             return 'مسودة';
         case 'published':
             return 'منشور';
-        case 'retired':
-            return 'موقوف';
+        case 'unpublished':
+            return 'غير منشور';
     }
 }
 
@@ -211,10 +211,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
     }
 
     function beginEdit(lesson: Lesson) {
-        if (
-            !curriculumEditable
-            || lesson.status === 'retired'
-        ) return;
+        if (!curriculumEditable) return;
 
         setShowCreate(false);
         setAuthoringLessonId(lesson.id);
@@ -228,7 +225,6 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
         if (
             !curriculumEditable
             || !editingLesson
-            || editingLesson.status === 'retired'
             || updateMutation.isPending
             || editTitle.trim() === ''
         ) return;
@@ -310,14 +306,14 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                     value === 'all'
                                     || value === 'draft'
                                     || value === 'published'
-                                    || value === 'retired'
+                                    || value === 'unpublished'
                                 ) setStatusFilter(value);
                             }}
                         >
                             <option value="all">جميع الحالات</option>
                             <option value="draft">مسودة</option>
                             <option value="published">منشور</option>
-                            <option value="retired">موقوف</option>
+                            <option value="unpublished">غير منشور</option>
                         </select>
                     </label>
                 </div>
@@ -513,7 +509,7 @@ export function LessonsPanel({ version }: LessonsPanelProps) {
                                     </Button>
                                 </div>
                             </form>
-                        ) : curriculumEditable && authoringLesson.status !== 'retired' ? (
+                        ) : curriculumEditable ? (
                             <Button
                                 variant="secondary"
                                 type="button"
