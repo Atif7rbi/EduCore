@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AdminDashboardApiTest extends TestCase
@@ -19,25 +20,44 @@ class AdminDashboardApiTest extends TestCase
             ])
         );
 
-        $this->getJson('/api/admin/dashboard')
-            ->assertOk()
-            ->assertJsonPath('data.counts.subjects', 0)
-            ->assertJsonPath('data.counts.curricula', 0)
-            ->assertJsonPath('data.counts.curriculum_versions', 0)
-            ->assertJsonPath('data.counts.topics', 0)
-            ->assertJsonPath('data.counts.lessons', 0)
-            ->assertJsonPath('data.counts.skills', 0)
-            ->assertJsonPath('data.counts.assessment_items', 0)
-            ->assertJsonPath('data.counts.practice_activities', 0)
-            ->assertJsonPath('data.counts.exam_templates', 0)
-            ->assertJsonPath('data.counts.learners', 0)
-            ->assertJsonPath(
-                'data.readiness.published_curriculum_versions',
-                0,
-            )
-            ->assertJsonPath('data.readiness.published_lessons', 0)
-            ->assertJsonPath('data.readiness.active_practice_activities', 0)
-            ->assertJsonPath('data.readiness.active_exam_templates', 0);
+        $expectedCounts = [
+            'subjects' => DB::table('subjects')->count(),
+            'curricula' => DB::table('curricula')->count(),
+            'curriculum_versions' => DB::table('curriculum_versions')->count(),
+            'topics' => DB::table('topics')->count(),
+            'lessons' => DB::table('lessons')->count(),
+            'skills' => DB::table('skills')->count(),
+            'assessment_items' => DB::table('assessment_items')->count(),
+            'practice_activities' => DB::table('practice_activities')->count(),
+            'exam_templates' => DB::table('exam_templates')->count(),
+            'learners' => DB::table('users')->where('role', 'learner')->count(),
+        ];
+
+        $expectedReadiness = [
+            'published_curriculum_versions' => DB::table('curriculum_versions')
+                ->where('status', 'published')
+                ->count(),
+            'published_lessons' => DB::table('lessons')
+                ->where('status', 'published')
+                ->count(),
+            'active_practice_activities' => DB::table('practice_activities')
+                ->where('status', 'active')
+                ->count(),
+            'active_exam_templates' => DB::table('exam_templates')
+                ->where('status', 'active')
+                ->count(),
+        ];
+
+        $response = $this->getJson('/api/admin/dashboard')
+            ->assertOk();
+
+        foreach ($expectedCounts as $key => $value) {
+            $response->assertJsonPath("data.counts.{$key}", $value);
+        }
+
+        foreach ($expectedReadiness as $key => $value) {
+            $response->assertJsonPath("data.readiness.{$key}", $value);
+        }
     }
 
     public function test_dashboard_rejects_guest(): void
