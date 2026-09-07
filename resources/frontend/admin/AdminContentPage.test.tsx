@@ -9,6 +9,9 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
     beforeEach,
     describe,
     expect,
@@ -69,7 +72,7 @@ vi.mock('./content/ExamTemplatesPanel', () => ({
     ExamTemplatesPanel: () => <div data-testid="exam-templates-panel">لوحة الاختبارات</div>,
 }));
 
-function renderPage() {
+function renderPage(initialEntry = '/admin/content') {
     const client = new QueryClient({
         defaultOptions: {
             queries: { retry: false },
@@ -78,9 +81,11 @@ function renderPage() {
     });
 
     render(
-        <QueryClientProvider client={client}>
-            <AdminContentPage />
-        </QueryClientProvider>,
+        <MemoryRouter initialEntries={[initialEntry]}>
+            <QueryClientProvider client={client}>
+                <AdminContentPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
@@ -144,6 +149,17 @@ describe('AdminContentPage', () => {
         expect(screen.getByLabelText('المنهج')).toHaveValue('curriculum-1');
         expect(screen.getByText('مسودة')).toBeInTheDocument();
         expect(screen.queryByText('الإصدار الأول')).not.toBeInTheDocument();
+    });
+
+    it('opens the requested content tab from a deep link', async () => {
+        installContext();
+        renderPage('/admin/content?section=exam-templates');
+
+        expect(await screen.findByTestId('exam-templates-panel'))
+            .toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'الاختبارات' }))
+            .toHaveAttribute('aria-selected', 'true');
+        expect(screen.queryByTestId('lessons-panel')).not.toBeInTheDocument();
     });
 
     it('orders authoring tabs by user workflow and keeps placements inside skills', async () => {
