@@ -213,7 +213,7 @@ class AdminExamTemplateController extends Controller
                             ),
                         'status' => 'draft',
                         'rules_payload' =>
-                            $request->validated(
+                            (object) $request->validated(
                                 'rules_payload'
                             ),
                         'rules_schema_version' =>
@@ -275,10 +275,14 @@ class AdminExamTemplateController extends Controller
             );
         }
 
+        $payload = $request->validated();
+
+        $payload['rules_payload'] =
+            (object) $payload['rules_payload'];
+
         $this->transactions->run(
-            fn (): bool => $version->update(
-                $request->validated()
-            )
+            fn (): bool =>
+                $version->update($payload)
         );
 
         return ApiResponse::success(
@@ -651,7 +655,7 @@ class AdminExamTemplateController extends Controller
             'label' => $version->label,
             'status' => $version->status,
             'rules_payload' =>
-                $version->rules_payload,
+                (object) $version->rules_payload,
             'rules_schema_version' =>
                 $version
                     ->rules_schema_version,

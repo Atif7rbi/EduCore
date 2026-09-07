@@ -65,7 +65,7 @@ const draftSettings = {
     version_number: 1,
     label: 'الإعدادات الأساسية',
     status: 'draft',
-    rules_payload: [],
+    rules_payload: {},
     rules_schema_version: 1,
     created_at: null,
     updated_at: null,
@@ -167,7 +167,7 @@ describe('ExamTemplateVersionsPanel', () => {
                     expect(data).toEqual({
                         version_number: 3,
                         label: 'إعدادات جديدة',
-                        rules_payload: [],
+                        rules_payload: {},
                         rules_schema_version: 1,
                     });
 
@@ -214,7 +214,7 @@ describe('ExamTemplateVersionsPanel', () => {
                 data: {
                     version_number: 3,
                     label: 'إعدادات جديدة',
-                    rules_payload: [],
+                    rules_payload: {},
                     rules_schema_version: 1,
                 },
             });

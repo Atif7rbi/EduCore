@@ -230,9 +230,7 @@ export interface ExamTemplateVersion {
     version_number: number;
     label: string | null;
     status: ExamTemplateVersionStatus;
-    rules_payload:
-        | unknown[]
-        | Record<string, unknown>;
+    rules_payload: Record<string, unknown>;
     rules_schema_version: number;
     created_at: string | null;
     updated_at: string | null;
