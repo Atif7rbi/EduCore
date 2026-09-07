@@ -77,33 +77,40 @@ class AdminPublishedLessonAuthoringApiTest extends TestCase
         ]);
     }
 
-    public function test_retired_lesson_remains_frozen(): void
+    public function test_unpublished_lesson_in_draft_curriculum_remains_editable(): void
     {
         $this->actingAs(User::factory()->create([
             'role' => 'admin',
             'status' => 'active',
         ]));
 
-        [$versionId, $lessonId, $topicId] =
+        [$versionId, $lessonId, $topicId, $publishedRevisionId] =
             $this->publishedLessonFixture();
 
-        DB::table('lessons')
-            ->where('id', $lessonId)
-            ->update([
-                'status' => 'retired',
-                'updated_at' => now(),
-            ]);
+        $this->postJson(
+            "/api/lessons/{$lessonId}/unpublish"
+        )
+            ->assertOk()
+            ->assertJsonPath('data.status', 'unpublished')
+            ->assertJsonPath(
+                'data.published_revision_id',
+                $publishedRevisionId
+            );
 
         $this->putJson(
             "/api/admin/lessons/{$lessonId}",
             [
-                'title' => 'Forbidden',
+                'title' => 'Edited while unpublished',
                 'description' => null,
                 'display_order' => 1,
             ]
         )
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'lesson_retired');
+            ->assertOk()
+            ->assertJsonPath('data.status', 'unpublished')
+            ->assertJsonPath(
+                'data.title',
+                'Edited while unpublished'
+            );
 
         $this->postJson(
             "/api/admin/lessons/{$lessonId}/revisions",
@@ -111,13 +118,26 @@ class AdminPublishedLessonAuthoringApiTest extends TestCase
                 'revision_number' => 2,
                 'primary_topic_id' => $topicId,
                 'content_payload' => [
-                    'blocks' => [],
+                    'blocks' => [
+                        [
+                            'type' => 'text',
+                            'value' => 'New unpublished content',
+                        ],
+                    ],
                 ],
                 'content_schema_version' => 1,
             ]
         )
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'lesson_retired');
+            ->assertCreated()
+            ->assertJsonPath('data.lesson_id', $lessonId)
+            ->assertJsonPath('data.revision_number', 2)
+            ->assertJsonPath('data.released_at', null);
+
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lessonId,
+            'status' => 'unpublished',
+            'published_revision_id' => $publishedRevisionId,
+        ]);
     }
 
     private function publishedLessonFixture(): array
