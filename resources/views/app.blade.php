@@ -16,7 +16,13 @@
         <title>EduCore</title>
         <link
             rel="icon"
-            href="/favicon.svg"
+            href="/favicon.svg?v=2"
+            type="image/svg+xml"
+            sizes="any"
+        >
+        <link
+            rel="shortcut icon"
+            href="/favicon.svg?v=2"
             type="image/svg+xml"
         >
 
