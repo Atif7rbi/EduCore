@@ -8,6 +8,9 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
     beforeEach,
     describe,
     expect,
@@ -95,9 +98,11 @@ function queryClient() {
 
 function renderAdminContent() {
     render(
-        <QueryClientProvider client={queryClient()}>
-            <AdminContentPage />
-        </QueryClientProvider>,
+        <MemoryRouter initialEntries={['/admin/content']}>
+            <QueryClientProvider client={queryClient()}>
+                <AdminContentPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
