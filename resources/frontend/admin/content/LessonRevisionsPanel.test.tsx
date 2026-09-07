@@ -67,6 +67,12 @@ const publishedLesson: Lesson = {
     published_revision_id: 'revision-1',
 };
 
+const unpublishedLesson: Lesson = {
+    ...draftLesson,
+    status: 'unpublished',
+    published_revision_id: 'revision-1',
+};
+
 const topic = {
     id: 'topic-1',
     curriculum_version_id: 'version-1',
@@ -145,11 +151,46 @@ describe('LessonRevisionsPanel', () => {
             .toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'تعديل محتوى الدرس' }))
             .toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'إيقاف النشر' }))
+        expect(screen.getByRole('button', { name: 'إلغاء النشر' }))
             .toBeInTheDocument();
         expect(screen.queryByText('نسخ المحتوى')).not.toBeInTheDocument();
         expect(screen.queryByText('النسخة 1')).not.toBeInTheDocument();
         expect(screen.queryByText('revision-1')).not.toBeInTheDocument();
+    });
+
+    it('re-publishes an unpublished lesson without recreating its content', async () => {
+        apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
+            if (method === 'GET' && url === '/api/admin/lessons/lesson-1/revisions') {
+                return Promise.resolve([
+                    revision(1, '2026-09-04T00:00:00Z'),
+                ]);
+            }
+            if (method === 'GET' && url === '/api/admin/curriculum-versions/version-1/topics') {
+                return Promise.resolve([topic]);
+            }
+            if (method === 'POST' && url === '/api/lessons/lesson-1/publish') {
+                return Promise.resolve(publishedLesson);
+            }
+            throw new Error(`Unexpected request ${method} ${url}`);
+        });
+
+        renderPanel(unpublishedLesson);
+
+        expect(await screen.findByText(
+            'الدرس غير منشور حاليًا ولا يظهر للطلاب. يمكنك تعديل محتواه أو إعادة نشره.',
+        )).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'آخر محتوى منشور' }))
+            .toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'إعادة نشر الدرس' }));
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith({
+                method: 'POST',
+                url: '/api/lessons/lesson-1/publish',
+                data: { published_revision_id: 'revision-1' },
+            });
+        });
     });
 
     it('opens content authoring in a wide modal dialog', async () => {
