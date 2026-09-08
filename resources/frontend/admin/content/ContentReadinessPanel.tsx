@@ -180,7 +180,7 @@ export function ContentReadinessPanel({
 
     if (readiness.isPending) {
         return (
-            <Surface aria-busy="true">
+            <Surface className="admin-readiness admin-readiness--loading" aria-busy="true">
                 جار فحص جاهزية المحتوى…
             </Surface>
         );
@@ -188,7 +188,7 @@ export function ContentReadinessPanel({
 
     if (readiness.isError) {
         return (
-            <div className="foundation-stack">
+            <div className="foundation-stack admin-readiness admin-readiness--error">
                 <Feedback tone="danger">
                     تعذر فحص جاهزية المحتوى.
                 </Feedback>
@@ -218,8 +218,8 @@ export function ContentReadinessPanel({
 
     if (isPublished) {
         return (
-            <div className="foundation-stack">
-                <Surface elevated>
+            <div className="foundation-stack admin-readiness admin-readiness--published">
+                <Surface className="admin-readiness__hero" elevated>
                     <div className="foundation-stack">
                         <div>
                             <h2>
@@ -259,8 +259,8 @@ export function ContentReadinessPanel({
     }
 
     return (
-        <div className="foundation-stack">
-            <Surface elevated>
+        <div className="foundation-stack admin-readiness">
+            <Surface className="admin-readiness__hero" elevated>
                 <div className="foundation-stack">
                     <div>
                         <h2>
@@ -287,7 +287,7 @@ export function ContentReadinessPanel({
                 </div>
             </Surface>
 
-            <Surface>
+            <Surface className="admin-readiness__section admin-readiness__checks">
                 <div className="foundation-stack">
                     <h3>
                         متطلبات النشر
@@ -295,7 +295,7 @@ export function ContentReadinessPanel({
 
                     <ul>
                         {data.checks.map((check) => (
-                            <li key={check.code}>
+                            <li key={check.code} className="admin-readiness__check">
                                 <strong>
                                     {check.passed
                                         ? '✓ '
@@ -319,7 +319,7 @@ export function ContentReadinessPanel({
             </Surface>
 
             {data.blockers.length > 0 ? (
-                <Surface>
+                <Surface className="admin-readiness__section admin-readiness__blockers">
                     <div className="foundation-stack">
                         <h3>
                             الموانع
@@ -345,7 +345,7 @@ export function ContentReadinessPanel({
             ) : null}
 
             {data.warnings.length > 0 ? (
-                <Surface>
+                <Surface className="admin-readiness__section admin-readiness__warnings">
                     <div className="foundation-stack">
                         <h3>
                             تنبيهات
@@ -381,7 +381,7 @@ export function ContentReadinessPanel({
             ) : null}
 
             {canPublish ? (
-                <Surface elevated>
+                <Surface className="admin-readiness__publish-card" elevated>
                     <div className="foundation-stack">
                         <Feedback tone="warning">
                             النشر إجراء نهائي لهذه
