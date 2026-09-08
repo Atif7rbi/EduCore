@@ -12,7 +12,7 @@ use Tests\TestCase;
 
 class PublishCurriculumVersionTest extends TestCase
 {
-    public function test_draft_curriculum_version_can_be_published(): void
+    public function test_incomplete_draft_curriculum_version_cannot_be_published(): void
     {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
@@ -49,15 +49,38 @@ class PublishCurriculumVersionTest extends TestCase
             )
         );
 
-        $result = $service->execute($versionId);
+        try {
+            $service->execute($versionId);
 
-        $this->assertSame($versionId, $result->id);
-        $this->assertSame('published', $result->status);
+            $this->fail(
+                'Expected CurriculumVersionNotReady was not thrown.'
+            );
+        } catch (
+            \App\Application\Exceptions\CurriculumVersionNotReady $exception
+        ) {
+            $this->assertSame(
+                [
+                    'has_topic',
+                    'has_skill_placement',
+                    'has_published_lesson',
+                    'has_published_assessment_item',
+                    'has_learner_usable_practice',
+                    'has_usable_exam_template',
+                ],
+                array_column(
+                    $exception->blockers,
+                    'code'
+                )
+            );
+        }
 
-        $this->assertDatabaseHas('curriculum_versions', [
-            'id' => $versionId,
-            'status' => 'published',
-        ]);
+        $this->assertDatabaseHas(
+            'curriculum_versions',
+            [
+                'id' => $versionId,
+                'status' => 'draft',
+            ]
+        );
     }
 
     public function test_invalid_lifecycle_transition_is_translated(): void

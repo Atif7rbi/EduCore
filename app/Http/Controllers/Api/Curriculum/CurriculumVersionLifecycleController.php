@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Curriculum;
 
 use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Curriculum\RetireCurriculumVersion;
+use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -14,7 +15,32 @@ class CurriculumVersionLifecycleController extends Controller
         string $curriculumVersionId,
         PublishCurriculumVersion $service,
     ): JsonResponse {
-        $version = $service->execute($curriculumVersionId);
+        try {
+            $version =
+                $service->execute(
+                    $curriculumVersionId
+                );
+        } catch (
+            CurriculumVersionNotReady $exception
+        ) {
+            return ApiResponse::error(
+                'curriculum_version_not_ready',
+                'The curriculum version does not satisfy the publishing requirements.',
+                409,
+                [
+                    'blockers' =>
+                        array_values(
+                            array_map(
+                                static fn (
+                                    array $blocker
+                                ): string =>
+                                    $blocker['code'],
+                                $exception->blockers,
+                            )
+                        ),
+                ],
+            );
+        }
 
         return ApiResponse::success([
             'id' => $version->id,

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
-use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -66,7 +65,7 @@ class ReadApiTest extends TestCase
             1,
         );
 
-        $this->publishCurriculumVersion($versionId);
+        $this->markCurriculumPublishedForFixture($versionId);
 
         $this->getJson(
             "/api/curriculum-versions/{$versionId}"
@@ -143,7 +142,7 @@ class ReadApiTest extends TestCase
             0,
         );
 
-        $this->publishCurriculumVersion($versionId);
+        $this->markCurriculumPublishedForFixture($versionId);
 
         $response = $this->getJson(
             "/api/curriculum-versions/{$versionId}/lessons"
@@ -196,7 +195,7 @@ class ReadApiTest extends TestCase
             false,
         );
 
-        $this->publishCurriculumVersion($versionId);
+        $this->markCurriculumPublishedForFixture($versionId);
 
         $response = $this->getJson(
             "/api/lessons/{$lessonId}"
@@ -238,7 +237,7 @@ class ReadApiTest extends TestCase
             0,
         );
 
-        $this->publishCurriculumVersion(
+        $this->markCurriculumPublishedForFixture(
             $publishedVersionId
         );
 
@@ -297,7 +296,7 @@ class ReadApiTest extends TestCase
             true,
         );
 
-        $this->publishCurriculumVersion(
+        $this->markCurriculumPublishedForFixture(
             $publishedVersionId
         );
 
@@ -363,7 +362,7 @@ class ReadApiTest extends TestCase
             false,
         );
 
-        $this->publishCurriculumVersion($versionId);
+        $this->markCurriculumPublishedForFixture($versionId);
 
         $this->getJson(
             "/api/practice-activities/{$activityId}"
@@ -447,14 +446,20 @@ class ReadApiTest extends TestCase
         return $versionId;
     }
 
-    private function publishCurriculumVersion(
+    private function markCurriculumPublishedForFixture(
         string $versionId,
     ): void {
-        (new PublishCurriculumVersion(
-            new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
-        ))->execute($versionId);
+        /*
+         * Catalog-read tests intentionally construct only the
+         * rows relevant to each read contract. Publishing-gate
+         * completeness is verified in its dedicated suite.
+         */
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
     }
 
     private function createTopic(

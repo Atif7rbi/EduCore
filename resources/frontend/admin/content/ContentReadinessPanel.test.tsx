@@ -1,12 +1,15 @@
 import {
+    fireEvent,
     render,
     screen,
+    waitFor,
 } from '@testing-library/react';
 import {
     QueryClient,
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    afterEach,
     beforeEach,
     describe,
     expect,
@@ -14,6 +17,9 @@ import {
     vi,
 } from 'vitest';
 
+import {
+    EduCoreApiError,
+} from '../../api/errors';
 import {
     ContentReadinessPanel,
 } from './ContentReadinessPanel';
@@ -44,6 +50,9 @@ function renderPanel() {
             queries: {
                 retry: false,
             },
+            mutations: {
+                retry: false,
+            },
         },
     });
 
@@ -58,19 +67,50 @@ function renderPanel() {
 
 function response({
     ready,
+    status = 'draft',
 }: {
     ready: boolean;
+    status?: 'draft' | 'published';
 }) {
+    const lessonReady =
+        status === 'published'
+            ? true
+            : ready;
+
+    const blockers =
+        status === 'published'
+            ? [
+                {
+                    code:
+                        'curriculum_version_is_draft',
+                    message: 'Draft.',
+                    value: 'published',
+                },
+            ]
+            : ready
+                ? []
+                : [
+                    {
+                        code:
+                            'has_published_lesson',
+                        message: 'Lesson.',
+                        value: 0,
+                    },
+                ];
+
     return {
-        curriculum_version: version,
+        curriculum_version: {
+            ...version,
+            status,
+        },
         ready_to_publish: ready,
         checks: [
             {
                 code:
                     'curriculum_version_is_draft',
                 message: 'Draft.',
-                passed: true,
-                value: 'draft',
+                passed: status === 'draft',
+                value: status,
             },
             {
                 code: 'has_topic',
@@ -89,8 +129,8 @@ function response({
                 code:
                     'has_published_lesson',
                 message: 'Lesson.',
-                passed: ready,
-                value: ready ? 1 : 0,
+                passed: lessonReady,
+                value: lessonReady ? 1 : 0,
             },
             {
                 code:
@@ -115,16 +155,7 @@ function response({
             },
         ],
         counts: {},
-        blockers: ready
-            ? []
-            : [
-                {
-                    code:
-                        'has_published_lesson',
-                    message: 'Lesson.',
-                    value: 0,
-                },
-            ],
+        blockers,
         warnings: [
             {
                 code: 'draft_lessons',
@@ -140,9 +171,15 @@ describe('ContentReadinessPanel', () => {
         apiRequestMock.mockReset();
     });
 
-    it('shows publishing blockers without exposing a publish action', async () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('shows blockers without exposing the publish action', async () => {
         apiRequestMock.mockResolvedValue(
-            response({ ready: false })
+            response({
+                ready: false,
+            })
         );
 
         renderPanel();
@@ -168,7 +205,7 @@ describe('ContentReadinessPanel', () => {
         expect(
             screen.queryByRole(
                 'button',
-                { name: /نشر/ }
+                { name: 'نشر المنهج' }
             )
         ).not.toBeInTheDocument();
 
@@ -181,9 +218,11 @@ describe('ContentReadinessPanel', () => {
         });
     });
 
-    it('shows ready state as review-only', async () => {
+    it('exposes publish only for a ready draft', async () => {
         apiRequestMock.mockResolvedValue(
-            response({ ready: true })
+            response({
+                ready: true,
+            })
         );
 
         renderPanel();
@@ -199,16 +238,153 @@ describe('ContentReadinessPanel', () => {
         ).not.toBeInTheDocument();
 
         expect(
-            screen.getByText(
-                'هذه الصفحة للمراجعة فقط. لا يتم نشر المنهج من هنا.'
+            screen.getByRole(
+                'button',
+                { name: 'نشر المنهج' }
             )
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole(
-                'button',
-                { name: 'تحديث المراجعة' }
+            screen.getByText(
+                'النشر إجراء نهائي لهذه النسخة وسيوقف التأليف عليها.'
             )
         ).toBeInTheDocument();
+    });
+
+    it('publishes a ready curriculum and switches to published state', async () => {
+        apiRequestMock
+            .mockResolvedValueOnce(
+                response({
+                    ready: true,
+                })
+            )
+            .mockResolvedValueOnce({
+                ...version,
+                status: 'published',
+            })
+            .mockResolvedValueOnce(
+                response({
+                    ready: false,
+                    status: 'published',
+                })
+            );
+
+        vi.spyOn(
+            window,
+            'confirm'
+        ).mockReturnValue(true);
+
+        renderPanel();
+
+        const publishButton =
+            await screen.findByRole(
+                'button',
+                { name: 'نشر المنهج' }
+            );
+
+        fireEvent.click(
+            publishButton
+        );
+
+        await waitFor(() => {
+            expect(
+                apiRequestMock
+            ).toHaveBeenCalledWith({
+                method: 'POST',
+                url:
+                    '/api/curriculum-versions/version-1/publish',
+            });
+        });
+
+        expect(
+            await screen.findByText(
+                'تم نشر النسخة'
+            )
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /تم نشر المنهج بنجاح/
+            )
+        ).toBeInTheDocument();
+
+        expect(
+            screen.queryByRole(
+                'button',
+                { name: 'نشر المنهج' }
+            )
+        ).not.toBeInTheDocument();
+
+        expect(
+            apiRequestMock
+        ).toHaveBeenCalledTimes(3);
+    });
+
+    it('refreshes readiness when authoritative publishing rejects stale readiness', async () => {
+        apiRequestMock
+            .mockResolvedValueOnce(
+                response({
+                    ready: true,
+                })
+            )
+            .mockRejectedValueOnce(
+                new EduCoreApiError({
+                    code:
+                        'curriculum_version_not_ready',
+                    message:
+                        'Publishing requirements changed.',
+                    status: 409,
+                    details: {
+                        blockers: [
+                            'has_published_lesson',
+                        ],
+                    },
+                    requestId: null,
+                })
+            )
+            .mockResolvedValueOnce(
+                response({
+                    ready: false,
+                })
+            );
+
+        vi.spyOn(
+            window,
+            'confirm'
+        ).mockReturnValue(true);
+
+        renderPanel();
+
+        fireEvent.click(
+            await screen.findByRole(
+                'button',
+                { name: 'نشر المنهج' }
+            )
+        );
+
+        expect(
+            await screen.findByText(
+                'تعذر نشر المنهج لأن متطلبات النشر تغيرت. تم تحديث المراجعة.'
+            )
+        ).toBeInTheDocument();
+
+        expect(
+            await screen.findByText(
+                'غير جاهز للنشر'
+            )
+        ).toBeInTheDocument();
+
+        expect(
+            screen.queryByRole(
+                'button',
+                { name: 'نشر المنهج' }
+            )
+        ).not.toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(
+                apiRequestMock
+            ).toHaveBeenCalledTimes(3);
+        });
     });
 });

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildPracticeAttempt;
-use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Curriculum\RetireCurriculumVersion;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
@@ -124,14 +123,10 @@ class BuildPracticeAttemptTest extends TestCase
         [
             $learnerId,
             $activityId,
-        ] = $this->createPracticeFixture();
-
-        DB::table('practice_activities')
-            ->where('id', $activityId)
-            ->update([
-                'status' => 'archived',
-                'updated_at' => now(),
-            ]);
+        ] = $this->createPracticeFixture(
+            archiveBeforeCurriculumPublish:
+                true,
+        );
 
         try {
             $this->service()->execute(
@@ -431,8 +426,9 @@ PHP,
     /**
      * @return array{string, string, string, string, string, string}
      */
-    private function createPracticeFixture(): array
-    {
+    private function createPracticeFixture(
+        bool $archiveBeforeCurriculumPublish = false,
+    ): array {
         $userId = (string) Str::uuid();
         $learnerId = (string) Str::uuid();
         $subjectId = (string) Str::uuid();
@@ -585,11 +581,28 @@ PHP,
                 'updated_at' => now(),
             ]);
 
-        (new PublishCurriculumVersion(
-            new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
-        ))->execute($versionId);
+        /*
+         * Fixture-only state construction.
+         *
+         * Curriculum publishing readiness is covered separately.
+         * This suite exercises PracticeAttempt source and snapshot
+         * semantics against an already-published curriculum.
+         */
+        if ($archiveBeforeCurriculumPublish) {
+            DB::table('practice_activities')
+                ->where('id', $activityId)
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+        }
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
 
         return [
             $learnerId,

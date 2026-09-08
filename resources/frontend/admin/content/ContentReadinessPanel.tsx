@@ -1,10 +1,14 @@
 import {
+    useMutation,
     useQuery,
 } from '@tanstack/react-query';
 
 import {
     apiRequest,
 } from '../../api/client';
+import {
+    EduCoreApiError,
+} from '../../api/errors';
 import {
     Button,
     Feedback,
@@ -105,12 +109,43 @@ function fetchReadiness(
     });
 }
 
+function publishCurriculum(
+    curriculumVersionId: string,
+): Promise<CurriculumVersion> {
+    return apiRequest<CurriculumVersion>({
+        method: 'POST',
+        url:
+            `/api/curriculum-versions/${curriculumVersionId}/publish`,
+    });
+}
+
 function checkLabel(code: string): string {
     return checkLabels[code] ?? code;
 }
 
 function warningLabel(code: string): string {
     return warningLabels[code] ?? code;
+}
+
+function publishErrorMessage(
+    error: unknown,
+): string {
+    if (
+        error instanceof EduCoreApiError
+        && error.code
+            === 'curriculum_version_not_ready'
+    ) {
+        return (
+            'تعذر نشر المنهج لأن متطلبات النشر '
+            + 'تغيرت. تم تحديث المراجعة.'
+        );
+    }
+
+    if (error instanceof EduCoreApiError) {
+        return error.message;
+    }
+
+    return 'تعذر نشر المنهج.';
 }
 
 export function ContentReadinessPanel({
@@ -122,6 +157,25 @@ export function ContentReadinessPanel({
         queryKey: readinessKey(version.id),
         queryFn: () =>
             fetchReadiness(version.id),
+    });
+
+    const publishMutation = useMutation({
+        mutationFn: () =>
+            publishCurriculum(version.id),
+
+        onSuccess: async () => {
+            await readiness.refetch();
+        },
+
+        onError: async (error: unknown) => {
+            if (
+                error instanceof EduCoreApiError
+                && error.code
+                    === 'curriculum_version_not_ready'
+            ) {
+                await readiness.refetch();
+            }
+        },
     });
 
     if (readiness.isPending) {
@@ -154,6 +208,56 @@ export function ContentReadinessPanel({
 
     const data = readiness.data;
 
+    const isPublished =
+        data.curriculum_version.status
+        === 'published';
+
+    const canPublish =
+        data.curriculum_version.status === 'draft'
+        && data.ready_to_publish;
+
+    if (isPublished) {
+        return (
+            <div className="foundation-stack">
+                <Surface elevated>
+                    <div className="foundation-stack">
+                        <div>
+                            <h2>
+                                مراجعة النشر
+                            </h2>
+
+                            <p>
+                                حالة النسخة بعد اعتماد
+                                المحتوى للمتعلمين.
+                            </p>
+                        </div>
+
+                        <Feedback tone="success">
+                            تم نشر النسخة
+                        </Feedback>
+                    </div>
+                </Surface>
+
+                <Feedback tone="success">
+                    تم نشر المنهج بنجاح. أصبح
+                    التأليف على هذه النسخة مجمدًا،
+                    والمحتوى المنشور هو المرجع
+                    المعتمد للمتعلمين.
+                </Feedback>
+
+                <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                        void readiness.refetch();
+                    }}
+                >
+                    تحديث الحالة
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="foundation-stack">
             <Surface elevated>
@@ -162,6 +266,7 @@ export function ContentReadinessPanel({
                         <h2>
                             مراجعة النشر
                         </h2>
+
                         <p>
                             تحقق من اكتمال المحتوى قبل
                             إتاحة النسخة للمتعلمين.
@@ -267,14 +372,62 @@ export function ContentReadinessPanel({
                 </Surface>
             ) : null}
 
-            <Feedback>
-                هذه الصفحة للمراجعة فقط. لا يتم
-                نشر المنهج من هنا.
-            </Feedback>
+            {publishMutation.isError ? (
+                <Feedback tone="danger">
+                    {publishErrorMessage(
+                        publishMutation.error
+                    )}
+                </Feedback>
+            ) : null}
+
+            {canPublish ? (
+                <Surface elevated>
+                    <div className="foundation-stack">
+                        <Feedback tone="warning">
+                            النشر إجراء نهائي لهذه
+                            النسخة وسيوقف التأليف
+                            عليها.
+                        </Feedback>
+
+                        <Button
+                            type="button"
+                            disabled={
+                                publishMutation
+                                    .isPending
+                            }
+                            onClick={() => {
+                                const confirmed =
+                                    window.confirm(
+                                        'سيتم نشر المنهج وتجميد التأليف على هذه النسخة. هل تريد المتابعة؟'
+                                    );
+
+                                if (! confirmed) {
+                                    return;
+                                }
+
+                                publishMutation
+                                    .mutate();
+                            }}
+                        >
+                            {publishMutation.isPending
+                                ? 'جار النشر…'
+                                : 'نشر المنهج'}
+                        </Button>
+                    </div>
+                </Surface>
+            ) : (
+                <Feedback>
+                    أكمل الموانع أعلاه ثم حدّث
+                    المراجعة قبل النشر.
+                </Feedback>
+            )}
 
             <Button
                 type="button"
                 variant="secondary"
+                disabled={
+                    publishMutation.isPending
+                }
                 onClick={() => {
                     void readiness.refetch();
                 }}
