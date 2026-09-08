@@ -72,6 +72,21 @@ vi.mock('./content/ExamTemplatesPanel', () => ({
     ExamTemplatesPanel: () => <div data-testid="exam-templates-panel">لوحة الاختبارات</div>,
 }));
 
+vi.mock('./content/ContentReadinessPanel', () => ({
+    ContentReadinessPanel: ({ version }: {
+        version: {
+            status: 'draft' | 'published' | 'retired';
+        };
+    }) => (
+        <div
+            data-testid="readiness-panel"
+            data-version-status={version.status}
+        >
+            مراجعة النشر
+        </div>
+    ),
+}));
+
 function renderPage(initialEntry = '/admin/content') {
     const client = new QueryClient({
         defaultOptions: {
@@ -162,6 +177,30 @@ describe('AdminContentPage', () => {
         expect(screen.queryByTestId('lessons-panel')).not.toBeInTheDocument();
     });
 
+    it('opens publishing readiness from a deep link as review-only workspace', async () => {
+        installContext();
+        renderPage('/admin/content?section=readiness');
+
+        expect(
+            await screen.findByTestId(
+                'readiness-panel'
+            )
+        ).toHaveAttribute(
+            'data-version-status',
+            'draft',
+        );
+
+        expect(
+            screen.getByRole(
+                'tab',
+                { name: 'مراجعة النشر' }
+            )
+        ).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    });
+
     it('orders authoring tabs by user workflow and keeps placements inside skills', async () => {
         installContext();
         renderPage();
@@ -176,6 +215,7 @@ describe('AdminContentPage', () => {
             'التدريبات',
             'الاختبارات',
             'المهارات',
+            'مراجعة النشر',
         ]);
 
         fireEvent.click(screen.getByRole('tab', { name: 'المهارات' }));

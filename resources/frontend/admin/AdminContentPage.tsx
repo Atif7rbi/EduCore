@@ -38,6 +38,9 @@ import {
 import {
     ExamTemplatesPanel,
 } from './content/ExamTemplatesPanel';
+import {
+    ContentReadinessPanel,
+} from './content/ContentReadinessPanel';
 
 import type {
     CurriculumVersion,
@@ -49,7 +52,8 @@ type WorkspaceSection =
     | 'lessons'
     | 'assessment-items'
     | 'practice-activities'
-    | 'exam-templates';
+    | 'exam-templates'
+    | 'readiness';
 
 const workspaceSections: Array<{
     id: WorkspaceSection;
@@ -78,6 +82,10 @@ const workspaceSections: Array<{
     {
         id: 'skills',
         label: 'المهارات',
+    },
+    {
+        id: 'readiness',
+        label: 'مراجعة النشر',
     },
 ];
 
@@ -153,6 +161,16 @@ function WorkspaceIcon({
                     <path d="M15 3v5h5M10 12h6M10 16h6" />
                 </svg>
             );
+        case 'readiness':
+            return (
+                <svg {...common}>
+                    <path d="M5 4h14v16H5z" />
+                    <path d="m8 9 1.5 1.5L12 8" />
+                    <path d="M13.5 10H16" />
+                    <path d="m8 15 1.5 1.5L12 14" />
+                    <path d="M13.5 16H16" />
+                </svg>
+            );
     }
 }
 
@@ -217,6 +235,8 @@ export function AdminContentPage() {
                 return <PracticeActivitiesPanel version={version} />;
             case 'exam-templates':
                 return <ExamTemplatesPanel version={version} />;
+            case 'readiness':
+                return <ContentReadinessPanel version={version} />;
         }
     }
 

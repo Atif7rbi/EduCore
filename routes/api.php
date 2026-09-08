@@ -62,6 +62,11 @@ Route::middleware(['web', 'management'])->group(function (): void {
         )->whereUuid('curriculumVersionId');
 
         Route::get(
+            '/curriculum-versions/{curriculumVersionId}/readiness',
+            \App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController::class
+        )->whereUuid('curriculumVersionId');
+
+        Route::get(
             '/subjects',
             [
                 \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
