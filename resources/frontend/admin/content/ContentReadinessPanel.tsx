@@ -1,4 +1,7 @@
 import {
+    useState,
+} from 'react';
+import {
     useMutation,
     useQuery,
 } from '@tanstack/react-query';
@@ -19,20 +22,20 @@ import type {
     CurriculumVersion,
 } from './types';
 
-interface ReadinessCheck {
+export interface ReadinessCheck {
     code: string;
     message: string;
     passed: boolean;
     value: string | number;
 }
 
-interface ReadinessIssue {
+export interface ReadinessIssue {
     code: string;
     message: string;
     value: string | number;
 }
 
-interface CurriculumReadiness {
+export interface CurriculumReadiness {
     curriculum_version: {
         id: string;
         curriculum_id: string;
@@ -64,6 +67,77 @@ const checkLabels: Record<string, string> = {
         'يوجد اختبار نشط بنسخة منشورة',
 };
 
+const failedCheckLabels: Record<string, string> = {
+    curriculum_version_is_draft:
+        'النسخة ليست في حالة مسودة',
+    has_topic:
+        'لا توجد وحدة في نسخة المنهج',
+    has_skill_placement:
+        'لا توجد مهارة مرتبطة بالنسخة',
+    has_published_lesson:
+        'لا يوجد درس منشور',
+    has_published_assessment_item:
+        'لا يوجد سؤال منشور',
+    has_learner_usable_practice:
+        'لا يوجد تدريب نشط قابل للعرض للمتعلم',
+    has_usable_exam_template:
+        'لا يوجد اختبار نشط بنسخة منشورة',
+};
+
+export type ReadinessTargetSection =
+    | 'topics'
+    | 'lessons'
+    | 'assessment-items'
+    | 'practice-activities'
+    | 'exam-templates'
+    | 'skills';
+
+interface ReadinessGuidance {
+    section: ReadinessTargetSection;
+    sectionLabel: string;
+    explanation: string;
+}
+
+const checkGuidance:
+Record<string, ReadinessGuidance> = {
+    has_topic: {
+        section: 'topics',
+        sectionLabel: 'الوحدات',
+        explanation:
+            'يجب إضافة وحدة واحدة على الأقل حتى تصبح نسخة المنهج جاهزة للنشر.',
+    },
+    has_skill_placement: {
+        section: 'skills',
+        sectionLabel: 'المهارات',
+        explanation:
+            'يجب ربط مهارة واحدة على الأقل بنسخة المنهج حتى تصبح جاهزة للنشر.',
+    },
+    has_published_lesson: {
+        section: 'lessons',
+        sectionLabel: 'الدروس',
+        explanation:
+            'يجب نشر درس واحد على الأقل حتى تصبح نسخة المنهج جاهزة للنشر.',
+    },
+    has_published_assessment_item: {
+        section: 'assessment-items',
+        sectionLabel: 'بنك الأسئلة',
+        explanation:
+            'يجب نشر سؤال واحد على الأقل حتى تصبح نسخة المنهج جاهزة للنشر.',
+    },
+    has_learner_usable_practice: {
+        section: 'practice-activities',
+        sectionLabel: 'التدريبات',
+        explanation:
+            'يجب إتاحة تدريب واحد على الأقل للطلاب حتى تصبح نسخة المنهج جاهزة للنشر.',
+    },
+    has_usable_exam_template: {
+        section: 'exam-templates',
+        sectionLabel: 'الاختبارات',
+        explanation:
+            'يجب أن يوجد اختبار نشط بنسخة منشورة حتى تصبح نسخة المنهج جاهزة للنشر.',
+    },
+};
+
 const warningLabels: Record<string, string> = {
     draft_lessons:
         'دروس ما زالت مسودة',
@@ -87,7 +161,7 @@ const warningLabels: Record<string, string> = {
         'نسخ اختبار موقوفة محفوظة تاريخيًا',
 };
 
-function readinessKey(
+export function contentReadinessKey(
     curriculumVersionId: string,
 ) {
     return [
@@ -99,7 +173,7 @@ function readinessKey(
     ] as const;
 }
 
-function fetchReadiness(
+export function fetchContentReadiness(
     curriculumVersionId: string,
 ): Promise<CurriculumReadiness> {
     return apiRequest<CurriculumReadiness>({
@@ -121,6 +195,13 @@ function publishCurriculum(
 
 function checkLabel(code: string): string {
     return checkLabels[code] ?? code;
+}
+
+function failedCheckLabel(
+    code: string,
+): string {
+    return failedCheckLabels[code]
+        ?? checkLabel(code);
 }
 
 function warningLabel(code: string): string {
@@ -150,13 +231,22 @@ function publishErrorMessage(
 
 export function ContentReadinessPanel({
     version,
+    onNavigateToSection,
 }: {
     version: CurriculumVersion;
+    onNavigateToSection?: (
+        section: ReadinessTargetSection,
+    ) => void;
 }) {
+    const [openHelpCode, setOpenHelpCode] =
+        useState<string | null>(null);
+    const [pinnedHelpCode, setPinnedHelpCode] =
+        useState<string | null>(null);
+
     const readiness = useQuery({
-        queryKey: readinessKey(version.id),
+        queryKey: contentReadinessKey(version.id),
         queryFn: () =>
-            fetchReadiness(version.id),
+            fetchContentReadiness(version.id),
     });
 
     const publishMutation = useMutation({
@@ -294,26 +384,211 @@ export function ContentReadinessPanel({
                     </h3>
 
                     <ul>
-                        {data.checks.map((check) => (
-                            <li key={check.code} className="admin-readiness__check">
-                                <strong>
-                                    {check.passed
-                                        ? '✓ '
-                                        : '✕ '}
-                                    {checkLabel(
+                        {data.checks.map((check) => {
+                            const label =
+                                check.passed
+                                    ? checkLabel(
                                         check.code
-                                    )}
-                                </strong>
+                                    )
+                                    : failedCheckLabel(
+                                        check.code
+                                    );
 
-                                {typeof check.value ===
-                                'number' ? (
-                                    <span>
-                                        {' '}
-                                        ({check.value})
-                                    </span>
-                                ) : null}
-                            </li>
-                        ))}
+                            const guidance =
+                                !check.passed
+                                    ? checkGuidance[
+                                        check.code
+                                    ]
+                                    : undefined;
+
+                            const helpOpen =
+                                openHelpCode
+                                === check.code;
+
+                            const helpId =
+                                `readiness-help-${check.code}`;
+
+                            return (
+                                <li
+                                    key={check.code}
+                                    className={
+                                        check.passed
+                                            ? 'admin-readiness__check admin-readiness__check--passed'
+                                            : 'admin-readiness__check admin-readiness__check--failed'
+                                    }
+                                >
+                                    <div className="admin-readiness__check-main">
+                                        <strong>
+                                            <span
+                                                className="admin-readiness__check-icon"
+                                                aria-hidden="true"
+                                            >
+                                                {check.passed
+                                                    ? '✓'
+                                                    : '✕'}
+                                            </span>
+
+                                            <span>
+                                                {label}
+                                            </span>
+                                        </strong>
+
+                                        {typeof check.value ===
+                                        'number' ? (
+                                            <span className="admin-readiness__check-value">
+                                                ({check.value})
+                                            </span>
+                                        ) : null}
+
+                                        {guidance ? (
+                                            <span
+                                                className="admin-readiness__issue-help"
+                                                onMouseEnter={() => {
+                                                    setOpenHelpCode(
+                                                        check.code
+                                                    );
+                                                }}
+                                                onMouseLeave={() => {
+                                                    if (
+                                                        pinnedHelpCode
+                                                        !== check.code
+                                                    ) {
+                                                        setOpenHelpCode(
+                                                            null
+                                                        );
+                                                    }
+                                                }}
+                                                onFocusCapture={() => {
+                                                    setOpenHelpCode(
+                                                        check.code
+                                                    );
+                                                }}
+                                                onBlurCapture={(event) => {
+                                                    const next =
+                                                        event.relatedTarget;
+
+                                                    if (
+                                                        pinnedHelpCode
+                                                        !== check.code
+                                                        && (
+                                                            !next
+                                                            || !event.currentTarget.contains(
+                                                                next as Node
+                                                            )
+                                                        )
+                                                    ) {
+                                                        setOpenHelpCode(
+                                                            null
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="admin-readiness__info-trigger"
+                                                    aria-label={`تفاصيل ${label}`}
+                                                    aria-expanded={
+                                                        helpOpen
+                                                    }
+                                                    aria-controls={
+                                                        helpId
+                                                    }
+                                                    onClick={() => {
+                                                        if (
+                                                            pinnedHelpCode
+                                                            === check.code
+                                                        ) {
+                                                            setPinnedHelpCode(
+                                                                null
+                                                            );
+                                                            setOpenHelpCode(
+                                                                null
+                                                            );
+                                                            return;
+                                                        }
+
+                                                        setPinnedHelpCode(
+                                                            check.code
+                                                        );
+                                                        setOpenHelpCode(
+                                                            check.code
+                                                        );
+                                                    }}
+                                                    onKeyDown={(event) => {
+                                                        if (
+                                                            event.key
+                                                            === 'Escape'
+                                                        ) {
+                                                            setPinnedHelpCode(
+                                                                null
+                                                            );
+                                                            setOpenHelpCode(
+                                                                null
+                                                            );
+                                                        }
+                                                    }}
+                                                >
+                                                    ⓘ
+                                                </button>
+
+                                                {helpOpen ? (
+                                                    <div
+                                                        id={
+                                                            helpId
+                                                        }
+                                                        role="dialog"
+                                                        aria-label={`تفاصيل ${label}`}
+                                                        className="admin-readiness__popover"
+                                                    >
+                                                        <p>
+                                                            {
+                                                                guidance
+                                                                    .explanation
+                                                            }
+                                                        </p>
+
+                                                        <p className="admin-readiness__popover-section">
+                                                            <strong>
+                                                                القسم المطلوب:
+                                                            </strong>{' '}
+                                                            {
+                                                                guidance
+                                                                    .sectionLabel
+                                                            }
+                                                        </p>
+
+                                                        {onNavigateToSection ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => {
+                                                                    setPinnedHelpCode(
+                                                                        null
+                                                                    );
+                                                                    setOpenHelpCode(
+                                                                        null
+                                                                    );
+                                                                    onNavigateToSection(
+                                                                        guidance
+                                                                            .section
+                                                                    );
+                                                                }}
+                                                            >
+                                                                الانتقال إلى {
+                                                                    guidance
+                                                                        .sectionLabel
+                                                                }
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                ) : null}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                </li>
+                            );
+                        })}
                     </ul>
                 </div>
             </Surface>
@@ -333,7 +608,7 @@ export function ContentReadinessPanel({
                                             blocker.code
                                         }
                                     >
-                                        {checkLabel(
+                                        {failedCheckLabel(
                                             blocker.code
                                         )}
                                     </li>
@@ -359,6 +634,12 @@ export function ContentReadinessPanel({
                                             warning.code
                                         }
                                     >
+                                        <span
+                                            className="admin-readiness__warning-icon"
+                                            aria-hidden="true"
+                                        >
+                                            ⚠
+                                        </span>{' '}
                                         {warningLabel(
                                             warning.code
                                         )}

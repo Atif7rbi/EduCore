@@ -44,7 +44,11 @@ const version = {
     status: 'draft' as const,
 };
 
-function renderPanel() {
+function renderPanel(
+    onNavigateToSection?: (
+        section: string,
+    ) => void,
+) {
     const client = new QueryClient({
         defaultOptions: {
             queries: {
@@ -60,6 +64,9 @@ function renderPanel() {
         <QueryClientProvider client={client}>
             <ContentReadinessPanel
                 version={version}
+                onNavigateToSection={
+                    onNavigateToSection
+                }
             />
         </QueryClientProvider>,
     );
@@ -192,7 +199,7 @@ describe('ContentReadinessPanel', () => {
 
         expect(
             screen.getAllByText(
-                'يوجد درس منشور واحد على الأقل'
+                'لا يوجد درس منشور'
             ).length
         ).toBeGreaterThan(0);
 
@@ -216,6 +223,96 @@ describe('ContentReadinessPanel', () => {
             url:
                 '/api/admin/curriculum-versions/version-1/readiness',
         });
+    });
+
+    it('explains a blocker and navigates directly to the responsible section', async () => {
+        const blocked = response({
+            ready: false,
+        });
+
+        blocked.checks = blocked.checks.map(
+            (check) => {
+                if (
+                    check.code
+                    === 'has_published_lesson'
+                ) {
+                    return {
+                        ...check,
+                        passed: true,
+                        value: 1,
+                    };
+                }
+
+                if (
+                    check.code
+                    === 'has_learner_usable_practice'
+                ) {
+                    return {
+                        ...check,
+                        passed: false,
+                        value: 0,
+                    };
+                }
+
+                return check;
+            }
+        );
+
+        blocked.blockers = [
+            {
+                code:
+                    'has_learner_usable_practice',
+                message: 'Practice.',
+                value: 0,
+            },
+        ];
+
+        apiRequestMock.mockResolvedValue(
+            blocked
+        );
+
+        const navigate = vi.fn();
+
+        renderPanel(navigate);
+
+        const infoButton =
+            await screen.findByRole(
+                'button',
+                {
+                    name:
+                        'تفاصيل لا يوجد تدريب نشط قابل للعرض للمتعلم',
+                }
+            );
+
+        fireEvent.click(infoButton);
+
+        expect(
+            screen.getByText(
+                'يجب إتاحة تدريب واحد على الأقل للطلاب حتى تصبح نسخة المنهج جاهزة للنشر.'
+            )
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                'القسم المطلوب:'
+            )
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole(
+                'button',
+                {
+                    name:
+                        'الانتقال إلى التدريبات',
+                }
+            )
+        );
+
+        expect(
+            navigate
+        ).toHaveBeenCalledWith(
+            'practice-activities'
+        );
     });
 
     it('exposes publish only for a ready draft', async () => {
