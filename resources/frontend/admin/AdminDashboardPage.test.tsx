@@ -89,6 +89,8 @@ describe('AdminDashboardPage', () => {
             .toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'نظرة عامة' }))
             .toBeInTheDocument();
+        expect(screen.queryByText('لوحة الإدارة'))
+            .not.toBeInTheDocument();
         expect(screen.getByText('الطلاب')).toBeInTheDocument();
         expect(screen.getAllByText('الدروس').length).toBeGreaterThan(0);
         expect(screen.getAllByText('الوحدات').length).toBeGreaterThan(0);
