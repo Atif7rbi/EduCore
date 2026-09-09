@@ -132,14 +132,6 @@ export function AdminDashboardPage() {
                         تابع حجم المحتوى التعليمي وجاهزية النشر، وانتقل بسرعة إلى أهم أدوات الإدارة.
                     </p>
                 </div>
-                <div className="admin-dashboard__hero-actions">
-                    <Link className="admin-dashboard__primary-action" to="/admin/content?section=lessons">
-                        فتح إدارة المحتوى
-                    </Link>
-                    <Link className="admin-dashboard__secondary-action" to="/admin/curricula">
-                        إدارة المناهج
-                    </Link>
-                </div>
             </header>
 
             {dashboardQuery.isPending ? (
