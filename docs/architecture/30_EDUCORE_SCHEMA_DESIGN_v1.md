@@ -29,10 +29,11 @@ Duplicated version/item/generation IDs may exist only to support composite refer
 ## Current pointers
 Lesson.published_revision_id, AssessmentItem.published_revision_id, ExamTemplate.published_version_id use same-parent composite FKs plus lifecycle triggers.
 
-## Table inventory (30 domain tables)
+## Table inventory (31 domain tables)
 users
 learner_profiles
 subjects
+education_stages
 curricula
 curriculum_versions
 topics
@@ -66,7 +67,13 @@ Exact columns, nullability, defaults, candidate keys, composite FK shapes, and p
 
 ## Key reconciled table rules
 
-subjects: name UNIQUE.
+subjects: name UNIQUE; code NULLABLE and UNIQUE when present; canonical code stable; icon_key NULLABLE; thumbnail_key NULLABLE; sort_order>=0; status active|inactive.
+
+education_stages: code UNIQUE and stable; name required; sort_order>=0; status active|inactive.
+
+curricula: subject_id required; education_stage_id NULLABLE; both relationships use restrictive FKs; education_stage_id is immutable after row creation through ordinary runtime mutation.
+
+Existing Subject and Curriculum identities are preserved. No canonical Subject or EducationStage mapping is inferred from names.
 
 curriculum_versions: UNIQUE(curriculum_id,version_number), version>=1, status draft|published|retired.
 

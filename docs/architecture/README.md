@@ -35,7 +35,7 @@ Implementation Approval: APPROVED
 00_identity: BASELINE IMPLEMENTED + VERIFIED; forward normalization REQUIRED before 10_curriculum.
 10_curriculum through 95_indexes: READY, not yet approved for execution.
 
-EduCore v1 contains 30 domain tables. Laravel infrastructure tables are separate.
+EduCore v1 contains 31 domain tables. Laravel infrastructure tables are separate.
 
 ## Core principles
 - Explicit historical truth.
@@ -56,9 +56,15 @@ CDA-004 Historical primary Skill completeness.
 CDA-005 Exact Attempt source-set completeness.
 CDA-006 Exact Classification Snapshot validation.
 CDA-007 Current ExamTemplateVersion retirement guard.
+CDA-008 Canonical Subjects and Education Stages.
+
+CDA-008 specification reconciliation: COMPLETE.
 
 Final reconciliation:
+- education_stages added by CDA-008 with stable UNIQUE code and active|inactive lifecycle.
 - subjects.name UNIQUE.
+- subjects.code nullable for legacy/non-canonical rows and UNIQUE when present.
+- curricula.education_stage_id nullable, RESTRICT-backed, and immutable after creation through ordinary runtime mutation.
 - lesson_revisions.primary_topic_id NOT NULL.
 - assessment_item_revisions.primary_topic_id nullable.
 

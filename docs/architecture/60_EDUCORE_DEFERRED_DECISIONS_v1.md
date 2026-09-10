@@ -210,3 +210,39 @@ Current PostgreSQL 10.23 accepted for development. Upgrade to supported release 
 ## Rule
 When a deferred decision becomes necessary:
 STOP → identify DD ID → propose options → resolve → amend specs → continue.
+
+## DD-033 GradeLevel classification
+
+CDA-008 establishes EducationStage but intentionally defers
+GradeLevel.
+
+The reserved conceptual hierarchy is:
+
+EducationStage → GradeLevel.
+
+Exact grade identity, naming, localization, and education-system
+semantics require a later approved amendment.
+
+## DD-034 University academic hierarchy
+
+University education is not modeled as another school EducationStage
+by CDA-008.
+
+Institution, College, Program/Major, Academic Level, Course, and
+related university structure remain deferred.
+
+A future university Subject may use the canonical Subject catalog when
+semantically appropriate, but university hierarchy requires a separate
+architecture decision.
+
+## DD-035 Subject catalog administration
+
+CDA-008 defines Subject as the canonical catalog entity and provides
+the initial six canonical Subjects.
+
+Product-facing arbitrary custom Subject creation, catalog-definition
+CRUD, automatic legacy canonicalization, and organization-specific
+Subject activation remain deferred.
+
+Organization-specific activation also depends on the separately
+deferred multi-organization model in DD-012.
