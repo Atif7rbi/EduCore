@@ -3,6 +3,7 @@ import {
     render,
     screen,
     waitFor,
+    within,
 } from '@testing-library/react';
 import {
     QueryClient,
@@ -48,7 +49,27 @@ function renderPage() {
     );
 }
 
-function installInventory() {
+function curriculum(index: number) {
+    return {
+        id: `curriculum-${index}`,
+        subject_id: 'subject-1',
+        name: `منهج ${String(index).padStart(2, '0')}`,
+        created_at: null,
+        updated_at: null,
+    };
+}
+
+function installInventory(
+    curricula = [
+        {
+            id: 'curriculum-1',
+            subject_id: 'subject-1',
+            name: 'القسم الكمي',
+            created_at: null,
+            updated_at: null,
+        },
+    ],
+) {
     apiRequestMock.mockImplementation(
         ({ method, url }: RequestConfig) => {
             if (
@@ -70,15 +91,7 @@ function installInventory() {
                 && url
                     === '/api/admin/subjects/subject-1/curricula'
             ) {
-                return Promise.resolve([
-                    {
-                        id: 'curriculum-1',
-                        subject_id: 'subject-1',
-                        name: 'القسم الكمي',
-                        created_at: null,
-                        updated_at: null,
-                    },
-                ]);
+                return Promise.resolve(curricula);
             }
 
             throw new Error(
@@ -140,6 +153,194 @@ describe('AdminCurriculaPage', () => {
         ).toBeInTheDocument();
         expect(
             await screen.findByText('القسم الكمي'),
+        ).toBeInTheDocument();
+    });
+
+    it('filters materials locally without another API request', async () => {
+        apiRequestMock.mockImplementation(
+            ({ method, url }: RequestConfig) => {
+                if (
+                    method === 'GET'
+                    && url === '/api/admin/subjects'
+                ) {
+                    return Promise.resolve([
+                        {
+                            id: 'subject-1',
+                            name: 'مادة كمية',
+                            created_at: null,
+                            updated_at: null,
+                        },
+                        {
+                            id: 'subject-2',
+                            name: 'مادة لفظية',
+                            created_at: null,
+                            updated_at: null,
+                        },
+                    ]);
+                }
+
+                if (
+                    method === 'GET'
+                    && url
+                        === '/api/admin/subjects/subject-1/curricula'
+                ) {
+                    return Promise.resolve([]);
+                }
+
+                throw new Error(
+                    `Unexpected request ${method} ${url}`,
+                );
+            },
+        );
+
+        renderPage();
+
+        expect(
+            await screen.findByText('مادة كمية'),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('مادة لفظية'),
+        ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledTimes(2);
+        });
+
+        fireEvent.change(
+            screen.getByRole('searchbox', {
+                name: 'بحث في المواد',
+            }),
+            {
+                target: { value: 'لفظية' },
+            },
+        );
+
+        const materialsList =
+            document.querySelector(
+                '[aria-label="قائمة المواد"]',
+            );
+
+        expect(materialsList).not.toBeNull();
+
+        expect(
+            within(
+                materialsList as HTMLElement,
+            ).queryByText('مادة كمية'),
+        ).not.toBeInTheDocument();
+
+        expect(
+            within(
+                materialsList as HTMLElement,
+            ).getByText('مادة لفظية'),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText('المادة الحالية'),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText('مادة كمية'),
+        ).toBeInTheDocument();
+
+        expect(apiRequestMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('filters curricula locally without another API request', async () => {
+        installInventory([
+            {
+                id: 'curriculum-1',
+                subject_id: 'subject-1',
+                name: 'القسم الكمي',
+                created_at: null,
+                updated_at: null,
+            },
+            {
+                id: 'curriculum-2',
+                subject_id: 'subject-1',
+                name: 'القسم اللفظي',
+                created_at: null,
+                updated_at: null,
+            },
+        ]);
+
+        renderPage();
+
+        await screen.findByText('القسم الكمي');
+        await screen.findByText('القسم اللفظي');
+
+        expect(apiRequestMock).toHaveBeenCalledTimes(2);
+
+        fireEvent.change(
+            screen.getByRole('searchbox', {
+                name: 'بحث في المناهج',
+            }),
+            {
+                target: { value: 'لفظي' },
+            },
+        );
+
+        expect(
+            screen.queryByText('القسم الكمي'),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getByText('القسم اللفظي'),
+        ).toBeInTheDocument();
+
+        expect(apiRequestMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('paginates curricula locally at twenty items per page', async () => {
+        installInventory(
+            Array.from(
+                { length: 25 },
+                (_, index) => curriculum(index + 1),
+            ),
+        );
+
+        renderPage();
+
+        expect(
+            await screen.findByText('منهج 01'),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('منهج 20'),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText('منهج 21'),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.getByText('صفحة 1 من 2'),
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'التالي',
+            }),
+        );
+
+        expect(
+            screen.getByText('منهج 21'),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('منهج 25'),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText('منهج 01'),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.getByText('صفحة 2 من 2'),
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'السابق',
+            }),
+        );
+
+        expect(
+            screen.getByText('منهج 01'),
         ).toBeInTheDocument();
     });
 
@@ -213,8 +414,21 @@ describe('AdminCurriculaPage', () => {
 
         renderPage();
 
+        const addCurriculum = await screen.findByRole(
+            'button',
+            {
+                name: '+ إضافة منهج',
+            },
+        );
+
+        await waitFor(() => {
+            expect(addCurriculum).toBeEnabled();
+        });
+
+        fireEvent.click(addCurriculum);
+
         fireEvent.change(
-            await screen.findByLabelText('اسم المنهج'),
+            screen.getByLabelText('اسم المنهج'),
             {
                 target: { value: 'القسم اللفظي' },
             },
@@ -222,7 +436,7 @@ describe('AdminCurriculaPage', () => {
 
         fireEvent.click(
             screen.getByRole('button', {
-                name: 'إضافة منهج',
+                name: 'إنشاء المنهج',
             }),
         );
 
@@ -237,6 +451,47 @@ describe('AdminCurriculaPage', () => {
                 },
             });
         });
+    });
+
+    it('keeps creation forms compact until requested', async () => {
+        installInventory();
+        renderPage();
+
+        await screen.findByText('القدرات العامة');
+
+        expect(
+            screen.queryByLabelText('اسم المادة'),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByLabelText('اسم المنهج'),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: '+ إضافة مادة',
+            }),
+        );
+
+        expect(
+            screen.getByLabelText('اسم المادة'),
+        ).toBeInTheDocument();
+
+        const addCurriculum = screen.getByRole(
+            'button',
+            {
+                name: '+ إضافة منهج',
+            },
+        );
+
+        await waitFor(() => {
+            expect(addCurriculum).toBeEnabled();
+        });
+
+        fireEvent.click(addCurriculum);
+
+        expect(
+            screen.getByLabelText('اسم المنهج'),
+        ).toBeInTheDocument();
     });
 
     it('keeps subject and curriculum editing in plain user language', async () => {

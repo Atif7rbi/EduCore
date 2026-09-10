@@ -44,6 +44,8 @@ interface CurriculumVersion {
     status: 'draft' | 'published' | 'retired';
 }
 
+const CURRICULA_PAGE_SIZE = 20;
+
 function subjectsKey() {
     return ['admin', 'subjects'] as const;
 }
@@ -107,10 +109,20 @@ export function AdminCurriculaPage() {
 
     const [selectedSubjectId, setSelectedSubjectId] =
         useState<string | null>(null);
+    const [subjectSearch, setSubjectSearch] =
+        useState('');
     const [newSubjectName, setNewSubjectName] =
         useState('');
     const [newCurriculumName, setNewCurriculumName] =
         useState('');
+    const [isSubjectFormOpen, setIsSubjectFormOpen] =
+        useState(false);
+    const [isCurriculumFormOpen, setIsCurriculumFormOpen] =
+        useState(false);
+    const [curriculumSearch, setCurriculumSearch] =
+        useState('');
+    const [curriculumPage, setCurriculumPage] =
+        useState(1);
     const [editingSubject, setEditingSubject] =
         useState<Subject | null>(null);
     const [editingCurriculum, setEditingCurriculum] =
@@ -139,6 +151,58 @@ export function AdminCurriculaPage() {
         }
     }, [selectedSubjectId, subjectsQuery.data]);
 
+    useEffect(() => {
+        setCurriculumSearch('');
+        setCurriculumPage(1);
+        setNewCurriculumName('');
+        setIsCurriculumFormOpen(false);
+    }, [selectedSubjectId]);
+
+    const selectedSubject =
+        subjectsQuery.data?.find(
+            (subject) => subject.id === selectedSubjectId,
+        ) ?? null;
+
+    const normalizedSubjectSearch =
+        subjectSearch.trim().toLocaleLowerCase('ar');
+
+    const filteredSubjects =
+        subjectsQuery.data?.filter((subject) =>
+            subject.name
+                .toLocaleLowerCase('ar')
+                .includes(normalizedSubjectSearch),
+        ) ?? [];
+
+    const normalizedCurriculumSearch =
+        curriculumSearch.trim().toLocaleLowerCase('ar');
+
+    const filteredCurricula =
+        curriculaQuery.data?.filter((curriculum) =>
+            curriculum.name
+                .toLocaleLowerCase('ar')
+                .includes(normalizedCurriculumSearch),
+        ) ?? [];
+
+    const curriculumPageCount = Math.max(
+        1,
+        Math.ceil(
+            filteredCurricula.length / CURRICULA_PAGE_SIZE,
+        ),
+    );
+
+    const safeCurriculumPage = Math.min(
+        curriculumPage,
+        curriculumPageCount,
+    );
+
+    const curriculumPageStart =
+        (safeCurriculumPage - 1) * CURRICULA_PAGE_SIZE;
+
+    const visibleCurricula = filteredCurricula.slice(
+        curriculumPageStart,
+        curriculumPageStart + CURRICULA_PAGE_SIZE,
+    );
+
     const createSubject = useMutation({
         mutationFn: (name: string) =>
             apiRequest<Subject>({
@@ -148,6 +212,8 @@ export function AdminCurriculaPage() {
             }),
         onSuccess: async (subject) => {
             setNewSubjectName('');
+            setSubjectSearch('');
+            setIsSubjectFormOpen(false);
             setSelectedSubjectId(subject.id);
 
             await queryClient.invalidateQueries({
@@ -206,6 +272,9 @@ export function AdminCurriculaPage() {
         },
         onSuccess: async (curriculum) => {
             setNewCurriculumName('');
+            setCurriculumSearch('');
+            setCurriculumPage(1);
+            setIsCurriculumFormOpen(false);
 
             await queryClient.invalidateQueries({
                 queryKey: curriculaKey(
@@ -319,44 +388,73 @@ export function AdminCurriculaPage() {
 
             <div className="admin-curricula__grid admin-curricula__grid--simple">
                 <Surface
-                    className="admin-curricula__panel"
+                    className="admin-curricula__panel admin-curricula__panel--subjects"
                     elevated
                 >
                     <div className="foundation-stack">
-                        <div>
-                            <h2 className="foundation-card__title">
-                                المواد
-                            </h2>
-                            <p className="foundation-card__text">
-                                أضف المادة الرئيسية مثل القدرات العامة.
-                            </p>
-                        </div>
-
-                        <form
-                            className="admin-inline-form"
-                            onSubmit={submitSubject}
-                        >
-                            <label>
-                                اسم المادة
-                                <input
-                                    value={newSubjectName}
-                                    maxLength={255}
-                                    required
-                                    onChange={(event) =>
-                                        setNewSubjectName(
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </label>
+                        <div className="admin-curricula__pane-header">
+                            <div>
+                                <div className="admin-curricula__pane-title-row">
+                                    <h2 className="foundation-card__title">
+                                        المواد
+                                    </h2>
+                                    <span className="admin-curricula__pane-total">
+                                        {subjectsQuery.data.length}
+                                    </span>
+                                </div>
+                                <p className="foundation-card__text">
+                                    اختر المادة التي تريد إدارة مناهجها.
+                                </p>
+                            </div>
 
                             <Button
-                                type="submit"
-                                disabled={createSubject.isPending}
+                                size="sm"
+                                type="button"
+                                variant="secondary"
+                                onClick={() => {
+                                    setIsSubjectFormOpen(
+                                        !isSubjectFormOpen,
+                                    );
+
+                                    if (isSubjectFormOpen) {
+                                        setNewSubjectName('');
+                                    }
+                                }}
                             >
-                                إضافة مادة
+                                {isSubjectFormOpen
+                                    ? 'إلغاء'
+                                    : '+ إضافة مادة'}
                             </Button>
-                        </form>
+                        </div>
+
+                        {isSubjectFormOpen ? (
+                            <form
+                                className="admin-inline-form admin-curricula__create-form"
+                                onSubmit={submitSubject}
+                            >
+                                <label>
+                                    اسم المادة
+                                    <input
+                                        value={newSubjectName}
+                                        maxLength={255}
+                                        required
+                                        autoFocus
+                                        onChange={(event) =>
+                                            setNewSubjectName(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+
+                                <Button
+                                    type="submit"
+                                    disabled={createSubject.isPending}
+                                >
+                                    إنشاء المادة
+                                </Button>
+                            </form>
+                        ) : null}
 
                         {createSubject.isError ? (
                             <AdminFailure
@@ -366,122 +464,198 @@ export function AdminCurriculaPage() {
                             </AdminFailure>
                         ) : null}
 
-                        <div className="admin-entity-list">
-                            {subjectsQuery.data.length === 0 ? (
-                                <Feedback>
-                                    لا توجد مواد حتى الآن.
-                                </Feedback>
-                            ) : (
-                                subjectsQuery.data.map((subject) => (
-                                    <div
-                                        key={subject.id}
-                                        className={
-                                            subject.id
-                                                === selectedSubjectId
-                                                ? 'admin-entity-list__item admin-entity-list__item--selected'
-                                                : 'admin-entity-list__item'
-                                        }
-                                    >
-                                        {editingSubject?.id
-                                        === subject.id ? (
-                                            <form
-                                                className="admin-edit-form"
-                                                onSubmit={(event) => {
-                                                    event.preventDefault();
-                                                    const name =
-                                                        editingSubject.name.trim();
+                        {subjectsQuery.data.length === 0 ? (
+                            <Feedback>
+                                لا توجد مواد حتى الآن.
+                            </Feedback>
+                        ) : (
+                            <div className="admin-curricula-browser">
+                                <div className="admin-curricula-browser__toolbar">
+                                    <label className="admin-curricula-browser__search">
+                                        <span className="sr-only">
+                                            بحث في المواد
+                                        </span>
+                                        <input
+                                            type="search"
+                                            aria-label="بحث في المواد"
+                                            placeholder="ابحث باسم المادة…"
+                                            value={subjectSearch}
+                                            onChange={(event) =>
+                                                setSubjectSearch(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </label>
 
-                                                    if (name) {
-                                                        updateSubject.mutate({
-                                                            id: subject.id,
-                                                            name,
-                                                        });
-                                                    }
-                                                }}
+                                    <span className="admin-curricula-browser__count">
+                                        {filteredSubjects.length}
+                                        {' '}
+                                        مادة
+                                    </span>
+                                </div>
+
+                                {filteredSubjects.length === 0 ? (
+                                    <Feedback>
+                                        لا توجد مواد مطابقة للبحث.
+                                    </Feedback>
+                                ) : (
+                                    <div
+                                        className="admin-entity-list admin-curricula-browser__list"
+                                        aria-label="قائمة المواد"
+                                    >
+                                        {filteredSubjects.map((subject) => (
+                                            <div
+                                                key={subject.id}
+                                                className={
+                                                    subject.id
+                                                        === selectedSubjectId
+                                                        ? 'admin-entity-list__item admin-entity-list__item--selected'
+                                                        : 'admin-entity-list__item'
+                                                }
                                             >
-                                                <label>
-                                                    <span className="sr-only">
-                                                        تعديل اسم المادة
-                                                    </span>
-                                                    <input
-                                                        aria-label="تعديل اسم المادة"
-                                                        value={editingSubject.name}
-                                                        onChange={(event) =>
-                                                            setEditingSubject({
-                                                                ...editingSubject,
-                                                                name: event.target.value,
-                                                            })
-                                                        }
-                                                    />
-                                                </label>
-                                                <div className="admin-version-actions">
-                                                    <Button
-                                                        size="sm"
-                                                        type="submit"
+                                                {editingSubject?.id
+                                                === subject.id ? (
+                                                    <form
+                                                        className="admin-edit-form"
+                                                        onSubmit={(event) => {
+                                                            event.preventDefault();
+                                                            const name =
+                                                                editingSubject.name.trim();
+
+                                                            if (name) {
+                                                                updateSubject.mutate({
+                                                                    id: subject.id,
+                                                                    name,
+                                                                });
+                                                            }
+                                                        }}
                                                     >
-                                                        حفظ
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        type="button"
-                                                        variant="secondary"
-                                                        onClick={() =>
-                                                            setEditingSubject(null)
-                                                        }
-                                                    >
-                                                        إلغاء
-                                                    </Button>
-                                                </div>
-                                            </form>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    className="admin-entity-select"
-                                                    onClick={() =>
-                                                        setSelectedSubjectId(
-                                                            subject.id,
-                                                        )
-                                                    }
-                                                >
-                                                    {subject.name}
-                                                </button>
-                                                <Button
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="secondary"
-                                                    onClick={() =>
-                                                        setEditingSubject(subject)
-                                                    }
-                                                >
-                                                    تعديل
-                                                </Button>
-                                            </>
-                                        )}
+                                                        <label>
+                                                            <span className="sr-only">
+                                                                تعديل اسم المادة
+                                                            </span>
+                                                            <input
+                                                                aria-label="تعديل اسم المادة"
+                                                                value={editingSubject.name}
+                                                                onChange={(event) =>
+                                                                    setEditingSubject({
+                                                                        ...editingSubject,
+                                                                        name:
+                                                                            event.target.value,
+                                                                    })
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <div className="admin-version-actions">
+                                                            <Button
+                                                                size="sm"
+                                                                type="submit"
+                                                            >
+                                                                حفظ
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                type="button"
+                                                                variant="secondary"
+                                                                onClick={() =>
+                                                                    setEditingSubject(null)
+                                                                }
+                                                            >
+                                                                إلغاء
+                                                            </Button>
+                                                        </div>
+                                                    </form>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className="admin-entity-select"
+                                                            onClick={() => {
+                                                                setSelectedSubjectId(
+                                                                    subject.id,
+                                                                );
+                                                                setEditingCurriculum(
+                                                                    null,
+                                                                );
+                                                            }}
+                                                        >
+                                                            {subject.name}
+                                                        </button>
+                                                        <Button
+                                                            size="sm"
+                                                            type="button"
+                                                            variant="secondary"
+                                                            onClick={() =>
+                                                                setEditingSubject(subject)
+                                                            }
+                                                        >
+                                                            تعديل
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </Surface>
 
                 <Surface
-                    className="admin-curricula__panel"
+                    className="admin-curricula__panel admin-curricula__panel--curricula"
                     elevated
                 >
                     <div className="foundation-stack">
-                        <div>
-                            <h2 className="foundation-card__title">
-                                المناهج
-                            </h2>
-                            <p className="foundation-card__text">
-                                اختر مادة ثم أضف المنهج أو القسم التابع لها.
-                            </p>
+                        <div className="admin-curricula__pane-header">
+                            <div>
+                                <div className="admin-curricula__pane-title-row">
+                                    <h2 className="foundation-card__title">
+                                        المناهج
+                                    </h2>
+                                    <span className="admin-curricula__pane-total">
+                                        {curriculaQuery.data?.length ?? 0}
+                                    </span>
+                                </div>
+
+                                <p className="foundation-card__text">
+                                    المناهج التابعة للمادة المحددة.
+                                </p>
+
+                                <p className="admin-curricula__current-context">
+                                    <span>المادة الحالية</span>
+                                    <strong>
+                                        {selectedSubject?.name ?? '—'}
+                                    </strong>
+                                </p>
+                            </div>
+
+                            <Button
+                                size="sm"
+                                type="button"
+                                variant="secondary"
+                                disabled={!selectedSubjectId}
+                                onClick={() => {
+                                    setIsCurriculumFormOpen(
+                                        !isCurriculumFormOpen,
+                                    );
+
+                                    if (isCurriculumFormOpen) {
+                                        setNewCurriculumName('');
+                                    }
+                                }}
+                            >
+                                {isCurriculumFormOpen
+                                    ? 'إلغاء'
+                                    : '+ إضافة منهج'}
+                            </Button>
                         </div>
 
-                        {selectedSubjectId ? (
+                        {selectedSubjectId
+                        && isCurriculumFormOpen ? (
                             <form
-                                className="admin-inline-form"
+                                className="admin-inline-form admin-curricula__create-form"
                                 onSubmit={submitCurriculum}
                             >
                                 <label>
@@ -490,6 +664,7 @@ export function AdminCurriculaPage() {
                                         value={newCurriculumName}
                                         maxLength={255}
                                         required
+                                        autoFocus
                                         onChange={(event) =>
                                             setNewCurriculumName(
                                                 event.target.value,
@@ -504,14 +679,10 @@ export function AdminCurriculaPage() {
                                         createCurriculum.isPending
                                     }
                                 >
-                                    إضافة منهج
+                                    إنشاء المنهج
                                 </Button>
                             </form>
-                        ) : (
-                            <Feedback>
-                                اختر مادة أولًا لإضافة منهج لها.
-                            </Feedback>
-                        )}
+                        ) : null}
 
                         {createCurriculum.isError ? (
                             <AdminFailure
@@ -535,92 +706,185 @@ export function AdminCurriculaPage() {
                                 لا توجد مناهج لهذه المادة حتى الآن.
                             </Feedback>
                         ) : (
-                            <div className="admin-entity-list">
-                                {curriculaQuery.data.map(
-                                    (curriculum) => (
-                                        <div
-                                            key={curriculum.id}
-                                            className="admin-entity-list__item"
-                                        >
-                                            {editingCurriculum?.id
-                                            === curriculum.id ? (
-                                                <form
-                                                    className="admin-edit-form"
-                                                    onSubmit={(event) => {
-                                                        event.preventDefault();
-                                                        const name =
-                                                            editingCurriculum.name.trim();
+                            <div className="admin-curricula-browser">
+                                <div className="admin-curricula-browser__toolbar">
+                                    <label className="admin-curricula-browser__search">
+                                        <span className="sr-only">
+                                            بحث في المناهج
+                                        </span>
+                                        <input
+                                            type="search"
+                                            aria-label="بحث في المناهج"
+                                            placeholder="ابحث باسم المنهج…"
+                                            value={curriculumSearch}
+                                            onChange={(event) => {
+                                                setCurriculumSearch(
+                                                    event.target.value,
+                                                );
+                                                setCurriculumPage(1);
+                                            }}
+                                        />
+                                    </label>
 
-                                                        if (
-                                                            name
-                                                            && selectedSubjectId
-                                                        ) {
-                                                            updateCurriculum.mutate({
-                                                                id: curriculum.id,
-                                                                subjectId:
-                                                                    selectedSubjectId,
-                                                                name,
-                                                            });
-                                                        }
-                                                    }}
-                                                >
-                                                    <label>
-                                                        <span className="sr-only">
-                                                            تعديل اسم المنهج
-                                                        </span>
-                                                        <input
-                                                            aria-label="تعديل اسم المنهج"
-                                                            value={
-                                                                editingCurriculum.name
-                                                            }
-                                                            onChange={(event) =>
-                                                                setEditingCurriculum({
-                                                                    ...editingCurriculum,
-                                                                    name: event.target.value,
-                                                                })
-                                                            }
-                                                        />
-                                                    </label>
-                                                    <div className="admin-version-actions">
-                                                        <Button
-                                                            size="sm"
-                                                            type="submit"
-                                                        >
-                                                            حفظ
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            type="button"
-                                                            variant="secondary"
-                                                            onClick={() =>
-                                                                setEditingCurriculum(null)
-                                                            }
-                                                        >
-                                                            إلغاء
-                                                        </Button>
-                                                    </div>
-                                                </form>
-                                            ) : (
-                                                <>
-                                                    <strong>
-                                                        {curriculum.name}
-                                                    </strong>
-                                                    <Button
-                                                        size="sm"
-                                                        type="button"
-                                                        variant="secondary"
-                                                        onClick={() =>
-                                                            setEditingCurriculum(
-                                                                curriculum,
-                                                            )
-                                                        }
+                                    <span className="admin-curricula-browser__count">
+                                        {filteredCurricula.length}
+                                        {' '}
+                                        منهج
+                                    </span>
+                                </div>
+
+                                {filteredCurricula.length === 0 ? (
+                                    <Feedback>
+                                        لا توجد مناهج مطابقة للبحث.
+                                    </Feedback>
+                                ) : (
+                                    <>
+                                        <div
+                                            className="admin-entity-list admin-curricula-browser__list"
+                                            aria-label="قائمة المناهج"
+                                        >
+                                            {visibleCurricula.map(
+                                                (curriculum) => (
+                                                    <div
+                                                        key={curriculum.id}
+                                                        className="admin-entity-list__item"
                                                     >
-                                                        تعديل
-                                                    </Button>
-                                                </>
+                                                        {editingCurriculum?.id
+                                                        === curriculum.id ? (
+                                                            <form
+                                                                className="admin-edit-form"
+                                                                onSubmit={(event) => {
+                                                                    event.preventDefault();
+                                                                    const name =
+                                                                        editingCurriculum.name.trim();
+
+                                                                    if (
+                                                                        name
+                                                                        && selectedSubjectId
+                                                                    ) {
+                                                                        updateCurriculum.mutate({
+                                                                            id: curriculum.id,
+                                                                            subjectId:
+                                                                                selectedSubjectId,
+                                                                            name,
+                                                                        });
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <label>
+                                                                    <span className="sr-only">
+                                                                        تعديل اسم المنهج
+                                                                    </span>
+                                                                    <input
+                                                                        aria-label="تعديل اسم المنهج"
+                                                                        value={
+                                                                            editingCurriculum.name
+                                                                        }
+                                                                        onChange={(event) =>
+                                                                            setEditingCurriculum({
+                                                                                ...editingCurriculum,
+                                                                                name: event.target.value,
+                                                                            })
+                                                                        }
+                                                                    />
+                                                                </label>
+                                                                <div className="admin-version-actions">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        type="submit"
+                                                                    >
+                                                                        حفظ
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        type="button"
+                                                                        variant="secondary"
+                                                                        onClick={() =>
+                                                                            setEditingCurriculum(null)
+                                                                        }
+                                                                    >
+                                                                        إلغاء
+                                                                    </Button>
+                                                                </div>
+                                                            </form>
+                                                        ) : (
+                                                            <>
+                                                                <strong>
+                                                                    {curriculum.name}
+                                                                </strong>
+                                                                <Button
+                                                                    size="sm"
+                                                                    type="button"
+                                                                    variant="secondary"
+                                                                    onClick={() =>
+                                                                        setEditingCurriculum(
+                                                                            curriculum,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    تعديل
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                ),
                                             )}
                                         </div>
-                                    ),
+
+                                        <div
+                                            className="admin-curricula-browser__pagination"
+                                            aria-label="تنقل صفحات المناهج"
+                                        >
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                variant="secondary"
+                                                disabled={
+                                                    safeCurriculumPage === 1
+                                                }
+                                                onClick={() =>
+                                                    setCurriculumPage(
+                                                        Math.max(
+                                                            1,
+                                                            safeCurriculumPage - 1,
+                                                        ),
+                                                    )
+                                                }
+                                            >
+                                                السابق
+                                            </Button>
+
+                                            <span>
+                                                صفحة
+                                                {' '}
+                                                {safeCurriculumPage}
+                                                {' '}
+                                                من
+                                                {' '}
+                                                {curriculumPageCount}
+                                            </span>
+
+                                            <Button
+                                                size="sm"
+                                                type="button"
+                                                variant="secondary"
+                                                disabled={
+                                                    safeCurriculumPage
+                                                    === curriculumPageCount
+                                                }
+                                                onClick={() =>
+                                                    setCurriculumPage(
+                                                        Math.min(
+                                                            curriculumPageCount,
+                                                            safeCurriculumPage + 1,
+                                                        ),
+                                                    )
+                                                }
+                                            >
+                                                التالي
+                                            </Button>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}
