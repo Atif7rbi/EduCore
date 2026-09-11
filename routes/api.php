@@ -75,6 +75,14 @@ Route::middleware(['web', 'management'])->group(function (): void {
         );
 
         Route::get(
+            '/education-stages',
+            [
+                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                'educationStages',
+            ]
+        );
+
+        Route::get(
             '/curriculum-versions/{curriculumVersionId}/topics',
             [
                 \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,

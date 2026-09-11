@@ -19,6 +19,9 @@ class UpdateCurriculumRequest extends FormRequest
                 'string',
                 'max:255',
             ],
+            'education_stage_id' => [
+                'prohibited',
+            ],
         ];
     }
 }

@@ -6,12 +6,18 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Subject extends Model
+class EducationStage extends Model
 {
     use HasUuids;
 
-    protected $fillable = [
+    protected $guarded = [
+        'id',
+        'code',
         'name',
+        'sort_order',
+        'status',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array
@@ -26,14 +32,8 @@ class Subject extends Model
         return $this->hasMany(Curriculum::class);
     }
 
-    public function isCanonical(): bool
-    {
-        return $this->code !== null;
-    }
-
     public function isAvailableForNewContent(): bool
     {
-        return $this->isCanonical()
-            && $this->status === 'active';
+        return $this->status === 'active';
     }
 }

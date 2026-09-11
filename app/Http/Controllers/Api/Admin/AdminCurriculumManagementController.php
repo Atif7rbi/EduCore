@@ -20,12 +20,18 @@ class AdminCurriculumManagementController extends Controller
 {
     public function __construct(
         private readonly TransactionManager $transactions,
-    ) {
-    }
+    ) {}
 
     public function storeSubject(
         StoreSubjectRequest $request,
     ): JsonResponse {
+        /*
+         * Compatibility path only.
+         *
+         * New canonical Subjects are platform-owned reference data.
+         * This endpoint may create only a legacy/non-canonical Subject
+         * because Subject::$fillable does not expose canonical metadata.
+         */
         $subject = $this->transactions->run(
             fn (): Subject => Subject::query()->create(
                 $request->validated()
@@ -33,7 +39,7 @@ class AdminCurriculumManagementController extends Controller
         );
 
         return ApiResponse::success(
-            $this->subjectData($subject),
+            $this->subjectData($subject->refresh()),
             201,
         );
     }
@@ -46,10 +52,23 @@ class AdminCurriculumManagementController extends Controller
             ->whereKey($subjectId)
             ->firstOrFail();
 
+        $requestedName = $request->validated('name');
+
+        if (
+            $subject->isCanonical()
+            && $requestedName !== $subject->name
+        ) {
+            return ApiResponse::error(
+                'canonical_subject_immutable',
+                'Canonical subjects cannot be renamed.',
+                409,
+            );
+        }
+
         $this->transactions->run(
-            fn (): bool => $subject->update(
-                $request->validated()
-            )
+            fn (): bool => $subject->update([
+                'name' => $requestedName,
+            ])
         );
 
         return ApiResponse::success(
@@ -65,9 +84,20 @@ class AdminCurriculumManagementController extends Controller
             ->whereKey($subjectId)
             ->firstOrFail();
 
+        if (! $subject->isAvailableForNewContent()) {
+            return ApiResponse::error(
+                'subject_not_available_for_new_content',
+                'The selected subject is not available for new content.',
+                409,
+            );
+        }
+
         $curriculum = $this->transactions->run(
             fn (): Curriculum => Curriculum::query()->create([
                 'subject_id' => $subject->id,
+                'education_stage_id' => $request->validated(
+                    'education_stage_id'
+                ),
                 'name' => $request->validated('name'),
             ])
         );
@@ -108,15 +138,12 @@ class AdminCurriculumManagementController extends Controller
             ->firstOrFail();
 
         $version = $this->transactions->run(
-            fn (): CurriculumVersion =>
-                CurriculumVersion::query()->create([
-                    'curriculum_id' => $curriculum->id,
-                    'version_number' =>
-                        $request->validated('version_number'),
-                    'label' =>
-                        $request->validated('label'),
-                    'status' => 'draft',
-                ])
+            fn (): CurriculumVersion => CurriculumVersion::query()->create([
+                'curriculum_id' => $curriculum->id,
+                'version_number' => $request->validated('version_number'),
+                'label' => $request->validated('label'),
+                'status' => 'draft',
+            ])
         );
 
         return ApiResponse::success(
@@ -157,13 +184,27 @@ class AdminCurriculumManagementController extends Controller
     private function subjectData(
         Subject $subject,
     ): array {
+        $curriculaCount = $subject->getAttribute(
+            'curricula_count'
+        );
+
+        if ($curriculaCount === null) {
+            $curriculaCount = $subject
+                ->curricula()
+                ->count();
+        }
+
         return [
             'id' => $subject->id,
+            'code' => $subject->code,
             'name' => $subject->name,
-            'created_at' =>
-                $subject->created_at?->toISOString(),
-            'updated_at' =>
-                $subject->updated_at?->toISOString(),
+            'icon_key' => $subject->icon_key,
+            'thumbnail_key' => $subject->thumbnail_key,
+            'sort_order' => (int) $subject->sort_order,
+            'status' => $subject->status,
+            'curricula_count' => (int) $curriculaCount,
+            'created_at' => $subject->created_at?->toISOString(),
+            'updated_at' => $subject->updated_at?->toISOString(),
         ];
     }
 
@@ -173,11 +214,10 @@ class AdminCurriculumManagementController extends Controller
         return [
             'id' => $curriculum->id,
             'subject_id' => $curriculum->subject_id,
+            'education_stage_id' => $curriculum->education_stage_id,
             'name' => $curriculum->name,
-            'created_at' =>
-                $curriculum->created_at?->toISOString(),
-            'updated_at' =>
-                $curriculum->updated_at?->toISOString(),
+            'created_at' => $curriculum->created_at?->toISOString(),
+            'updated_at' => $curriculum->updated_at?->toISOString(),
         ];
     }
 
@@ -186,16 +226,12 @@ class AdminCurriculumManagementController extends Controller
     ): array {
         return [
             'id' => $version->id,
-            'curriculum_id' =>
-                $version->curriculum_id,
-            'version_number' =>
-                $version->version_number,
+            'curriculum_id' => $version->curriculum_id,
+            'version_number' => $version->version_number,
             'label' => $version->label,
             'status' => $version->status,
-            'created_at' =>
-                $version->created_at?->toISOString(),
-            'updated_at' =>
-                $version->updated_at?->toISOString(),
+            'created_at' => $version->created_at?->toISOString(),
+            'updated_at' => $version->updated_at?->toISOString(),
         ];
     }
 }

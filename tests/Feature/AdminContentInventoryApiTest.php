@@ -12,52 +12,60 @@ class AdminContentInventoryApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_active_admin_can_list_subjects_in_stable_order(): void
+    public function test_active_admin_can_list_canonical_subject_catalog_in_stable_order(): void
     {
         $this->actingAs($this->admin());
 
-        $subjectB = $this->createSubject('Quantitative');
-        $subjectA = $this->createSubject('Mathematics');
+        $this->createSubject('Legacy Subject');
 
-        $response = $this->getJson('/api/admin/subjects');
+        DB::table('subjects')
+            ->where('code', 'physics')
+            ->update([
+                'status' => 'inactive',
+            ]);
 
-        $response->assertOk();
+        $response = $this->getJson(
+            '/api/admin/subjects'
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(6, 'data');
 
         $data = $response->json('data');
 
-        $ids = array_column($data, 'id');
-
-        $this->assertContains($subjectA, $ids);
-        $this->assertContains($subjectB, $ids);
-
-        $subjectAIndex = array_search(
-            $subjectA,
-            $ids,
-            true,
-        );
-
-        $subjectBIndex = array_search(
-            $subjectB,
-            $ids,
-            true,
-        );
-
-        $this->assertIsInt($subjectAIndex);
-        $this->assertIsInt($subjectBIndex);
-
-        $this->assertLessThan(
-            $subjectBIndex,
-            $subjectAIndex,
+        $this->assertSame(
+            [
+                'mathematics',
+                'physics',
+                'biology',
+                'chemistry',
+                'english_language',
+                'arabic_language',
+            ],
+            array_column($data, 'code'),
         );
 
         $this->assertSame(
-            'Mathematics',
-            $data[$subjectAIndex]['name'],
+            [
+                'الرياضيات',
+                'الفيزياء',
+                'الأحياء',
+                'الكيمياء',
+                'اللغة الإنجليزية',
+                'اللغة العربية',
+            ],
+            array_column($data, 'name'),
+        );
+
+        $this->assertNotContains(
+            'Legacy Subject',
+            array_column($data, 'name'),
         );
 
         $this->assertSame(
-            'Quantitative',
-            $data[$subjectBIndex]['name'],
+            'inactive',
+            $data[1]['status'],
         );
     }
 

@@ -13,12 +13,18 @@ class Curriculum extends Model
 
     protected $fillable = [
         'subject_id',
+        'education_stage_id',
         'name',
     ];
 
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function educationStage(): BelongsTo
+    {
+        return $this->belongsTo(EducationStage::class);
     }
 
     public function versions(): HasMany

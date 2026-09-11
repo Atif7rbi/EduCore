@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCurriculumRequest extends FormRequest
 {
@@ -18,6 +19,17 @@ class StoreCurriculumRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
+            ],
+            'education_stage_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists(
+                    'education_stages',
+                    'id',
+                )->where(
+                    'status',
+                    'active',
+                ),
             ],
         ];
     }
