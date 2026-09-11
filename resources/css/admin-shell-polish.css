@@ -395,17 +395,67 @@
 }
 
 /*
- * Tablet/mobile shell remains compact without inheriting the
- * desktop sticky-sidebar spacing.
+ * Tablet/mobile shell becomes a top navigation workspace before
+ * the desktop sidebar gets too narrow. At this width there is no
+ * meaningful sidebar to collapse, so persisted desktop collapse
+ * state is neutralized visually until the viewport expands again.
  */
-@media (max-width: 56rem) {
+@media (max-width: 64rem) {
     .authenticated-shell
-    .authenticated-shell__sidebar {
+    .authenticated-shell__layout,
+    .authenticated-shell
+    .authenticated-shell__layout--sidebar-collapsed {
+        grid-template-columns:
+            minmax(0, 1fr) !important;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar,
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed {
         position: static;
+        min-width: 0;
         min-height: auto;
+        grid-template-rows: auto;
         padding: 0.65rem 1rem;
         border-inline-end: 0;
         border-bottom: 1px solid #e1e9f1;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar-toggle {
+        display: none;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__navigation {
+        display: flex !important;
+        width: 100%;
+        min-width: 0;
+        align-items: center;
+        gap: 0.5rem;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        padding-block-end: 0.15rem !important;
+        scrollbar-width: thin;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__nav-link,
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed
+    .authenticated-shell__nav-link {
+        min-width: max-content;
+        justify-content: flex-start;
+        flex: 0 0 auto;
+        padding-inline: 0.72rem !important;
+        white-space: nowrap;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed
+    .authenticated-shell__nav-link span {
+        display: inline;
     }
 
     .authenticated-shell

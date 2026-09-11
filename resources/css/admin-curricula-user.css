@@ -13,9 +13,9 @@
  * - searchable bounded list
  * - local pagination
  *
- * Canonical subject icons, thumbnails and per-subject curriculum
- * counts belong to Subject Catalog Phase 1 and are intentionally
- * not fabricated here.
+ * Canonical Subject identity is rendered from backend catalog
+ * metadata. icon_key selects the inline product icon; thumbnail_key
+ * remains an asset identity and is not fabricated into a URL.
  */
 
 .authenticated-shell
@@ -470,5 +470,219 @@
     .admin-curricula__panel--subjects
     .admin-entity-list__item:hover {
         transform: none;
+    }
+}
+
+
+/* CDA-008 — Subject Catalog + Education Stage */
+
+.authenticated-shell
+.admin-curricula__panel--subjects
+.admin-entity-list__item {
+    min-height: 5.6rem;
+    padding: 0;
+}
+
+.authenticated-shell
+.admin-curricula__panel--subjects
+.admin-subject-select {
+    display: flex !important;
+    width: 100%;
+    min-width: 0;
+    min-height: 5.55rem;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.8rem 0.9rem;
+    overflow: visible;
+    -webkit-box-orient: initial;
+    -webkit-line-clamp: initial;
+    line-clamp: initial;
+    text-align: start;
+}
+
+.admin-subject-visual {
+    display: grid;
+    width: 2.8rem;
+    height: 2.8rem;
+    flex: 0 0 2.8rem;
+    place-items: center;
+    color: #0b67b2;
+    border: 1px solid #d6e9f7;
+    border-radius: 0.85rem;
+    background:
+        linear-gradient(
+            145deg,
+            #f8fcff 0%,
+            #edf7ff 100%
+        );
+}
+
+.admin-subject-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+}
+
+.admin-subject-copy {
+    display: grid;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.35rem;
+}
+
+.admin-subject-copy > strong {
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: #172033;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    text-overflow: ellipsis;
+}
+
+.admin-entity-list__item--selected
+.admin-subject-copy > strong {
+    color: #0867b2;
+}
+
+.admin-subject-meta {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    color: #6b7d90;
+    font-size: 0.72rem;
+    font-weight: 750;
+}
+
+.admin-subject-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.14rem 0.42rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 850;
+}
+
+.admin-subject-status--inactive {
+    color: #8a5a12;
+    border: 1px solid #f2d89e;
+    background: #fff8e8;
+}
+
+.admin-curricula__readonly-note {
+    width: fit-content;
+    max-width: min(100%, 36rem);
+    margin: 0.55rem 0 0;
+    padding: 0.4rem 0.6rem;
+    color: #7a5416;
+    border: 1px solid #f0dda9;
+    border-radius: 0.65rem;
+    background: #fffaf0;
+    font-size: 0.74rem;
+    line-height: 1.6;
+}
+
+.admin-curricula__create-form {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(13rem, 0.72fr)
+        auto;
+    align-items: end;
+    gap: 0.75rem;
+}
+
+.admin-curricula__create-form label {
+    display: grid;
+    min-width: 0;
+    gap: 0.35rem;
+}
+
+.admin-curricula__create-form select {
+    width: 100%;
+    min-height: 2.7rem;
+    padding: 0.65rem 0.8rem;
+    color: var(--color-neutral-900);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 0.75rem;
+    background: var(--color-neutral-0);
+    font: inherit;
+    transition:
+        border-color 150ms ease,
+        box-shadow 150ms ease;
+}
+
+.admin-curricula__create-form select:focus {
+    border-color: var(--color-brand-300);
+    outline: 0;
+    box-shadow:
+        0 0 0 3px rgb(11 123 211 / 0.1);
+}
+
+.admin-curricula__create-form select:disabled {
+    cursor: not-allowed;
+    opacity: 0.68;
+    background: var(--color-neutral-50);
+}
+
+.admin-curricula__field-hint {
+    color: var(--color-neutral-500);
+    font-size: 0.69rem;
+    font-weight: 650;
+    line-height: 1.55;
+}
+
+.admin-curriculum-summary {
+    display: grid;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.28rem;
+}
+
+.admin-curriculum-summary > strong {
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: #172033;
+    text-overflow: ellipsis;
+}
+
+.admin-curriculum-stage {
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    color: #5f7185;
+    font-size: 0.72rem;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-curricula__immutable-note {
+    display: block;
+    color: #64748b;
+    font-size: 0.7rem;
+    line-height: 1.6;
+}
+
+.admin-curricula__immutable-note strong {
+    color: #42566c;
+}
+
+@media (max-width: 48rem) {
+    .admin-curricula__create-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-subject-visual {
+        width: 2.55rem;
+        height: 2.55rem;
+        flex-basis: 2.55rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-curricula__create-form select {
+        transition: none;
     }
 }
