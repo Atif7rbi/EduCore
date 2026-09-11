@@ -72,6 +72,40 @@ vi.mock('./content/ExamTemplatesPanel', () => ({
     ExamTemplatesPanel: () => <div data-testid="exam-templates-panel">لوحة الاختبارات</div>,
 }));
 
+vi.mock('./content/ContentReadinessPanel', () => ({
+    contentReadinessKey: (
+        curriculumVersionId: string,
+    ) => [
+        'admin',
+        'content',
+        'curriculum-versions',
+        curriculumVersionId,
+        'readiness',
+    ] as const,
+
+    fetchContentReadiness: (
+        curriculumVersionId: string,
+    ) =>
+        apiRequestMock({
+            method: 'GET',
+            url:
+                `/api/admin/curriculum-versions/${curriculumVersionId}/readiness`,
+        }),
+
+    ContentReadinessPanel: ({ version }: {
+        version: {
+            status: 'draft' | 'published' | 'retired';
+        };
+    }) => (
+        <div
+            data-testid="readiness-panel"
+            data-version-status={version.status}
+        >
+            مراجعة النشر
+        </div>
+    ),
+}));
+
 function renderPage(initialEntry = '/admin/content') {
     const client = new QueryClient({
         defaultOptions: {
@@ -89,7 +123,108 @@ function renderPage(initialEntry = '/admin/content') {
     );
 }
 
-function installContext(status: 'draft' | 'published' | 'retired' = 'draft') {
+function readinessResponse({
+    practiceReady = true,
+    examWarning = false,
+}: {
+    practiceReady?: boolean;
+    examWarning?: boolean;
+} = {}) {
+    return {
+        curriculum_version: {
+            id: 'version-1',
+            curriculum_id: 'curriculum-1',
+            version_number: 1,
+            label: 'الإصدار الأول',
+            status: 'draft',
+        },
+        ready_to_publish:
+            practiceReady,
+        checks: [
+            {
+                code:
+                    'curriculum_version_is_draft',
+                message: 'Draft.',
+                passed: true,
+                value: 'draft',
+            },
+            {
+                code: 'has_topic',
+                message: 'Topic.',
+                passed: true,
+                value: 1,
+            },
+            {
+                code:
+                    'has_skill_placement',
+                message: 'Skill.',
+                passed: true,
+                value: 1,
+            },
+            {
+                code:
+                    'has_published_lesson',
+                message: 'Lesson.',
+                passed: true,
+                value: 1,
+            },
+            {
+                code:
+                    'has_published_assessment_item',
+                message: 'Assessment.',
+                passed: true,
+                value: 1,
+            },
+            {
+                code:
+                    'has_learner_usable_practice',
+                message: 'Practice.',
+                passed: practiceReady,
+                value:
+                    practiceReady ? 1 : 0,
+            },
+            {
+                code:
+                    'has_usable_exam_template',
+                message: 'Exam.',
+                passed: true,
+                value: 1,
+            },
+        ],
+        counts: {},
+        blockers:
+            practiceReady
+                ? []
+                : [
+                    {
+                        code:
+                            'has_learner_usable_practice',
+                        message: 'Practice.',
+                        value: 0,
+                    },
+                ],
+        warnings:
+            examWarning
+                ? [
+                    {
+                        code:
+                            'draft_exam_template_versions',
+                        message: 'Draft exam.',
+                        value: 1,
+                    },
+                ]
+                : [],
+    };
+}
+
+function installContext(
+    status:
+        'draft'
+        | 'published'
+        | 'retired' = 'draft',
+    readinessData =
+        readinessResponse(),
+) {
     apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
         if (method === 'GET' && url === '/api/admin/subjects') {
             return Promise.resolve([
@@ -124,6 +259,16 @@ function installContext(status: 'draft' | 'published' | 'retired' = 'draft') {
                     status,
                 },
             ]);
+        }
+
+        if (
+            method === 'GET'
+            && url
+                === '/api/admin/curriculum-versions/version-1/readiness'
+        ) {
+            return Promise.resolve(
+                readinessData
+            );
         }
 
         throw new Error(`Unexpected request ${method} ${url}`);
@@ -162,6 +307,30 @@ describe('AdminContentPage', () => {
         expect(screen.queryByTestId('lessons-panel')).not.toBeInTheDocument();
     });
 
+    it('opens publishing readiness from a deep link as review-only workspace', async () => {
+        installContext();
+        renderPage('/admin/content?section=readiness');
+
+        expect(
+            await screen.findByTestId(
+                'readiness-panel'
+            )
+        ).toHaveAttribute(
+            'data-version-status',
+            'draft',
+        );
+
+        expect(
+            screen.getByRole(
+                'tab',
+                { name: 'مراجعة النشر' }
+            )
+        ).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    });
+
     it('orders authoring tabs by user workflow and keeps placements inside skills', async () => {
         installContext();
         renderPage();
@@ -176,6 +345,7 @@ describe('AdminContentPage', () => {
             'التدريبات',
             'الاختبارات',
             'المهارات',
+            'مراجعة النشر',
         ]);
 
         fireEvent.click(screen.getByRole('tab', { name: 'المهارات' }));
@@ -190,6 +360,64 @@ describe('AdminContentPage', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'الوحدات' }));
         expect(await screen.findByTestId('topics-panel')).toBeInTheDocument();
         expect(screen.queryByTestId('skills-panel')).not.toBeInTheDocument();
+    });
+
+    it('shows publishing readiness as a subtle state on the responsible tabs', async () => {
+        installContext(
+            'draft',
+            readinessResponse({
+                practiceReady: false,
+                examWarning: true,
+            }),
+        );
+
+        renderPage();
+
+        await screen.findByTestId(
+            'lessons-panel'
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByRole(
+                    'tab',
+                    { name: 'التدريبات' }
+                )
+            ).toHaveAttribute(
+                'data-readiness-state',
+                'blocker',
+            );
+        });
+
+        expect(
+            screen.getByRole(
+                'tab',
+                { name: 'الدروس' }
+            )
+        ).toHaveAttribute(
+            'data-readiness-state',
+            'pass',
+        );
+
+        expect(
+            screen.getByRole(
+                'tab',
+                { name: 'الاختبارات' }
+            )
+        ).toHaveAttribute(
+            'data-readiness-state',
+            'warning',
+        );
+
+        expect(
+            screen.getByRole(
+                'tab',
+                { name: 'مراجعة النشر' }
+            )
+        ).toHaveAttribute(
+            'data-readiness-state',
+            'blocker',
+        );
     });
 
     it('resets curriculum context when the subject changes', async () => {
@@ -220,6 +448,34 @@ describe('AdminContentPage', () => {
                     { id: 'version-2', curriculum_id: 'curriculum-2', version_number: 1, label: 'الأول', status: 'draft' },
                 ]);
             }
+
+            if (
+                method === 'GET'
+                && url
+                    === '/api/admin/curriculum-versions/version-1/readiness'
+            ) {
+                return Promise.resolve(
+                    readinessResponse()
+                );
+            }
+
+            if (
+                method === 'GET'
+                && url
+                    === '/api/admin/curriculum-versions/version-2/readiness'
+            ) {
+                return Promise.resolve({
+                    ...readinessResponse(),
+                    curriculum_version: {
+                        ...readinessResponse()
+                            .curriculum_version,
+                        id: 'version-2',
+                        curriculum_id:
+                            'curriculum-2',
+                    },
+                });
+            }
+
             throw new Error(`Unexpected request ${method} ${url}`);
         });
 

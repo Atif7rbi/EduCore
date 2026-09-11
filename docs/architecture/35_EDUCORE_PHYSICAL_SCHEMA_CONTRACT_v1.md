@@ -61,17 +61,62 @@ FK user_id -> users(id) RESTRICT
 ### subjects
 id UUID PK
 name TEXT NOT NULL UNIQUE
+code TEXT NULL
+icon_key TEXT NULL
+thumbnail_key TEXT NULL
+sort_order INTEGER NOT NULL DEFAULT 0
+status TEXT NOT NULL DEFAULT 'active'
 created_at TIMESTAMPTZ NOT NULL
 updated_at TIMESTAMPTZ NULL
+
+CHECK code IS NULL OR code ~ '^[a-z][a-z0-9_]*$'
+CHECK sort_order >= 0
+CHECK status IN ('active','inactive')
+UNIQUE(code)
+
+Canonical Subjects have non-NULL code.
+Legacy/non-canonical Subjects may retain code NULL.
+PostgreSQL UNIQUE semantics permit multiple NULL code values.
+Subject.code is immutable after INSERT through ordinary runtime
+mutation, including NULL-to-value, value-to-NULL, and value-to-value
+changes.
+
+For canonical Subjects with non-NULL code, Subject.name is immutable
+through ordinary runtime mutation.
+
+Legacy/non-canonical Subjects with code NULL may retain compatibility
+name-edit behavior.
+
+### education_stages
+id UUID PK
+code TEXT NOT NULL UNIQUE
+name TEXT NOT NULL
+sort_order INTEGER NOT NULL DEFAULT 0
+status TEXT NOT NULL DEFAULT 'active'
+created_at TIMESTAMPTZ NOT NULL
+updated_at TIMESTAMPTZ NULL
+
+CHECK code ~ '^[a-z][a-z0-9_]*$'
+CHECK sort_order >= 0
+CHECK status IN ('active','inactive')
+
+EducationStage.code is immutable after INSERT through ordinary runtime
+mutation.
 
 ### curricula
 id UUID PK
 subject_id UUID NOT NULL
+education_stage_id UUID NULL
 name TEXT NOT NULL
 created_at TIMESTAMPTZ NOT NULL
 updated_at TIMESTAMPTZ NULL
 
 FK subject_id -> subjects(id) RESTRICT
+FK education_stage_id -> education_stages(id) RESTRICT
+
+education_stage_id is immutable after INSERT through ordinary runtime
+mutation, including NULL-to-value, value-to-NULL, and value-to-value
+changes.
 
 ### curriculum_versions
 id UUID PK

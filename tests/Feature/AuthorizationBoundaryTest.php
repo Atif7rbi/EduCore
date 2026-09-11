@@ -35,6 +35,7 @@ class AuthorizationBoundaryTest extends TestCase
                 'label' => 'Updated Version',
             ]],
             ['getJson', '/api/admin/subjects', []],
+            ['getJson', '/api/admin/education-stages', []],
 
             ['getJson', "/api/admin/curriculum-versions/{$id}/topics", []],
             ['postJson', "/api/admin/curriculum-versions/{$id}/topics", [

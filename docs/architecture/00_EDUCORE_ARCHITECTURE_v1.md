@@ -46,9 +46,29 @@ Learner history references LearnerProfile.
 Disablement does not delete learner history.
 
 ## Curriculum
-Subject → Curriculum → CurriculumVersion.
+Subject is the canonical academic-subject identity and catalog entity.
+
+The initial canonical Subject catalog is extensible reference data,
+not a closed enum.
+
+EducationStage is an independent canonical reference identity for
+school-stage classification.
+
+Subject 1 → N Curriculum.
+Curriculum optionally references one EducationStage.
+Curriculum 1 → N CurriculumVersion.
+
+Curriculum EducationStage classification is immutable after creation
+through ordinary editing, including NULL-to-value reassignment.
+
+Existing legacy Curricula may remain unclassified.
+
 CurriculumVersion lifecycle: draft → published → retired.
 Published/retired structural membership is protected.
+
+Version-bound downstream content derives Subject and EducationStage
+through CurriculumVersion → Curriculum rather than duplicating those
+values as authoritative convenience fields.
 
 ## Taxonomy
 Topic is version-local.

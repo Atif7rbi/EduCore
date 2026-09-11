@@ -247,16 +247,16 @@ class AdminCurriculumManagementApiTest extends TestCase
 
     private function subject(): string
     {
-        $id = (string) Str::uuid();
+        $id = DB::table('subjects')
+            ->where('code', 'mathematics')
+            ->value('id');
 
-        DB::table('subjects')->insert([
-            'id' => $id,
-            'name' => 'Subject '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->assertNotNull(
+            $id,
+            'Canonical mathematics Subject is missing.'
+        );
 
-        return $id;
+        return (string) $id;
     }
 
     private function curriculum(): string

@@ -21,6 +21,11 @@ class StoreSubjectRequest extends FormRequest
                 'max:255',
                 Rule::unique('subjects', 'name'),
             ],
+            'code' => ['prohibited'],
+            'icon_key' => ['prohibited'],
+            'thumbnail_key' => ['prohibited'],
+            'sort_order' => ['prohibited'],
+            'status' => ['prohibited'],
         ];
     }
 }

@@ -258,6 +258,71 @@ describe('PracticeActivityItemsPanel', () => {
         });
     });
 
+    it('excludes questions already linked to the training and never posts the duplicate', async () => {
+        installBaseMock({
+            items: [
+                {
+                    id: 'membership-1',
+                    practice_activity_id: 'activity-1',
+                    assessment_item_revision_id:
+                        'revision-released',
+                    assessment_item_id:
+                        'assessment-1',
+                    curriculum_version_id:
+                        'version-1',
+                    display_order: 0,
+                    revision: {
+                        id: 'revision-released',
+                        assessment_item_id:
+                            'assessment-1',
+                        revision_number: 1,
+                        difficulty: 'easy',
+                        released_at:
+                            '2026-08-31T00:00:00Z',
+                    },
+                    created_at: null,
+                },
+            ],
+        });
+
+        renderPanel();
+
+        expect(
+            await screen.findByText(
+                /1\. سؤال النسب/,
+            ),
+        ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(
+                screen.queryByRole('option', {
+                    name: 'سؤال النسب',
+                }),
+            ).not.toBeInTheDocument();
+        });
+
+        expect(
+            screen.getByText(
+                'لا توجد أسئلة أخرى متاحة للإضافة إلى هذا التدريب.',
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('button', {
+                name: 'إضافة السؤال',
+            }),
+        ).toBeDisabled();
+
+        expect(
+            apiRequestMock,
+        ).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                method: 'POST',
+                url: '/api/admin/practice-activities/activity-1/items',
+            }),
+        );
+    });
+
     it('uses only approved question content for an active training', async () => {
         installBaseMock({ items: [] });
 

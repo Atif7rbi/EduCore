@@ -45,7 +45,8 @@ class BuildExamGeneration
                     'id' => (string) Str::uuid(),
                     'exam_template_version_id' => $templateVersion->id,
                     'curriculum_version_id' => $templateVersion->curriculum_version_id,
-                    'rules_snapshot' => $templateVersion->rules_payload,
+                    'rules_snapshot' =>
+                        (object) $templateVersion->rules_payload,
                     'rules_schema_version' => $templateVersion->rules_schema_version,
                     'generator_version' => $generatorVersion,
                     'seed' => $seed,

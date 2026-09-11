@@ -79,6 +79,55 @@ class BuildExamGenerationTest extends TestCase
         );
     }
 
+    public function test_empty_rules_object_is_preserved_in_generation_snapshot(): void
+    {
+        [$templateVersionId, $versionId] =
+            $this->createTemplateVersion(
+                published: true,
+                rulesOverride: [],
+            );
+
+        [$revisionId, $itemId] =
+            $this->createAssessmentRevision(
+                $versionId,
+                0,
+                released: true,
+            );
+
+        $generation = $this->service()->execute(
+            $templateVersionId,
+            'generator-v1',
+            'empty-rules-seed',
+            [
+                [
+                    'assessment_item_revision_id' =>
+                        $revisionId,
+                    'assessment_item_id' =>
+                        $itemId,
+                ],
+            ],
+        );
+
+        $row = DB::selectOne(
+            <<<'SQL'
+SELECT jsonb_typeof(rules_snapshot) AS snapshot_type
+FROM exam_generations
+WHERE id = ?
+SQL,
+            [$generation->id],
+        );
+
+        $this->assertNotNull($row);
+        $this->assertSame(
+            'object',
+            $row->snapshot_type
+        );
+        $this->assertSame(
+            [],
+            $generation->rules_snapshot
+        );
+    }
+
     public function test_empty_generation_is_rejected_and_rolled_back(): void
     {
         [$templateVersionId] = $this->createTemplateVersion(
@@ -197,7 +246,10 @@ class BuildExamGenerationTest extends TestCase
     /**
      * @return array{string, string, array<string, mixed>}
      */
-    private function createTemplateVersion(bool $published): array
+    private function createTemplateVersion(
+        bool $published,
+        ?array $rulesOverride = null,
+    ): array
     {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
@@ -205,7 +257,7 @@ class BuildExamGenerationTest extends TestCase
         $templateId = (string) Str::uuid();
         $templateVersionId = (string) Str::uuid();
 
-        $rules = [
+        $rules = $rulesOverride ?? [
             'question_count' => 2,
             'difficulty' => [
                 'easy' => 1,
@@ -257,7 +309,7 @@ class BuildExamGenerationTest extends TestCase
             'label' => 'v1',
             'status' => 'draft',
             'rules_payload' => json_encode(
-                $rules,
+                (object) $rules,
                 JSON_THROW_ON_ERROR
             ),
             'rules_schema_version' => 1,

@@ -160,7 +160,7 @@ export function ExamTemplateVersionsPanel({
                         nextVersionNumber,
                     label:
                         label.trim() || null,
-                    rules_payload: [],
+                    rules_payload: {},
                     rules_schema_version: 1,
                 },
             ),

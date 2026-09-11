@@ -6,6 +6,51 @@ Version: 1.0
 ## Enforcement hierarchy
 Declarative constraints first, then deferred constraint triggers, then normal triggers, then application-only semantics.
 
+## Subject and Curriculum classification
+Subject.code is stable canonical machine identity.
+
+Legacy/non-canonical Subjects may retain code NULL.
+
+Canonical Subject code is unique when present.
+
+Subject.code is immutable after INSERT through ordinary runtime
+mutation, including NULL→value, value→NULL, and value→value changes.
+
+For Subjects with non-NULL code, Subject.name is platform-owned catalog
+metadata and ordinary Subject edit operations must reject renaming.
+
+Legacy/non-canonical Subjects with code NULL may retain compatibility
+name-edit behavior.
+
+Subject and EducationStage status values are active|inactive.
+
+EducationStage.code is stable, unique, and immutable after INSERT
+through ordinary runtime mutation.
+
+Subject and EducationStage sort_order values are nonnegative.
+
+Curriculum.education_stage_id is nullable at INSERT.
+
+After Curriculum creation, education_stage_id is immutable through
+ordinary runtime mutation.
+
+DB-backed enforcement rejects:
+- NULL → EducationStage;
+- EducationStage → NULL;
+- EducationStage A → EducationStage B.
+
+Existing legacy Curricula may retain education_stage_id NULL.
+
+No Subject canonicalization or EducationStage classification may be
+inferred automatically from names.
+
+Version-bound downstream educational content derives Subject and
+EducationStage through CurriculumVersion and Curriculum rather than
+duplicating them as authoritative convenience fields.
+
+Curriculum counts by Subject or EducationStage are derived and are not
+authoritative stored counters.
+
 ## CurriculumVersion
 Lifecycle draft→published→retired only.
 When not draft, structural membership frozen:

@@ -7,7 +7,6 @@ use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
-use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Curriculum\RetireCurriculumVersion;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
@@ -1116,11 +1115,20 @@ PHP,
             ],
         );
 
-        (new PublishCurriculumVersion(
-            new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
-        ))->execute($versionId);
+        /*
+         * Fixture-only state construction.
+         *
+         * Curriculum publishing readiness is covered by the
+         * dedicated publishing tests. This suite exercises the
+         * ExamAttempt aggregate against an already-published
+         * source.
+         */
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
 
         return [
             $learnerId,

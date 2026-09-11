@@ -9,9 +9,29 @@ User is account/actor identity.
 LearnerProfile is educational learner identity and owns learner-history relationships.
 
 ## Curriculum
+Subject is the canonical academic-subject catalog identity.
+
+Canonical Subjects have stable machine identity through Subject.code.
+Legacy/non-canonical Subjects may retain code = NULL.
+
+EducationStage is an independent canonical reference entity.
+
 Subject 1 → N Curriculum.
+EducationStage 1 → N Curriculum, with Curriculum participation
+optional.
+
+Curriculum.education_stage_id is nullable at creation and immutable
+after creation through ordinary editing.
+
+Existing legacy Curricula may retain education_stage_id = NULL.
+
 Curriculum 1 → N CurriculumVersion.
 CurriculumVersion lifecycle draft → published → retired.
+
+Version-bound educational content derives Subject and EducationStage
+through CurriculumVersion and Curriculum.
+
+GradeLevel and university academic hierarchy are deferred.
 
 ## Taxonomy
 Topic belongs to one CurriculumVersion and has no stable cross-version identity in v1.

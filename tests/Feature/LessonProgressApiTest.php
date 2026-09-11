@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -370,11 +369,9 @@ class LessonProgressApiTest extends TestCase
                 'updated_at' => now(),
             ]);
 
-        (new PublishCurriculumVersion(
-            new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
-        ))->execute($versionId);
+        $this->markCurriculumPublishedForFixture(
+            $versionId
+        );
 
         return [
             $lessonId,
@@ -453,15 +450,30 @@ class LessonProgressApiTest extends TestCase
                 'updated_at' => now(),
             ]);
 
-        (new PublishCurriculumVersion(
-            $transactions
-        ))->execute($versionId);
+        $this->markCurriculumPublishedForFixture(
+            $versionId
+        );
 
         return [
             $lessonId,
             $historicalRevisionId,
             $currentRevisionId,
         ];
+    }
+
+    private function markCurriculumPublishedForFixture(
+        string $versionId,
+    ): void {
+        /*
+         * Progress tests need a visible published Lesson, not a
+         * second copy of the curriculum publishing specification.
+         */
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
     }
 
     private function createDraftLesson(): string

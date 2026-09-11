@@ -184,6 +184,109 @@ class AdminExamTemplateApiTest extends TestCase
         )->assertStatus(409);
     }
 
+    public function test_empty_rules_object_is_persisted_as_json_object(): void
+    {
+        $this->actingAs($this->admin());
+
+        $curriculumVersionId =
+            $this->curriculumVersion('draft');
+
+        $templateId =
+            $this->template(
+                $curriculumVersionId
+            );
+
+        $response = $this->postJson(
+            "/api/admin/exam-templates/{$templateId}/versions",
+            [
+                'version_number' => 1,
+                'label' => 'Empty rules object',
+                'rules_payload' => (object) [],
+                'rules_schema_version' => 1,
+            ]
+        );
+
+        $response->assertCreated();
+
+        $templateVersionId =
+            $response->json('data.id');
+
+        $row = DB::selectOne(
+            <<<'SQL'
+SELECT jsonb_typeof(rules_payload) AS payload_type
+FROM exam_template_versions
+WHERE id = ?
+SQL,
+            [$templateVersionId]
+        );
+
+        $this->assertNotNull($row);
+        $this->assertSame(
+            'object',
+            $row->payload_type
+        );
+
+        $this->putJson(
+            "/api/admin/exam-template-versions/{$templateVersionId}",
+            [
+                'label' => 'Empty rules object updated',
+                'rules_payload' => (object) [],
+                'rules_schema_version' => 1,
+            ]
+        )->assertOk();
+
+        $updatedRow = DB::selectOne(
+            <<<'SQL'
+SELECT jsonb_typeof(rules_payload) AS payload_type
+FROM exam_template_versions
+WHERE id = ?
+SQL,
+            [$templateVersionId]
+        );
+
+        $this->assertNotNull($updatedRow);
+        $this->assertSame(
+            'object',
+            $updatedRow->payload_type
+        );
+    }
+
+    public function test_non_empty_rules_list_is_rejected(): void
+    {
+        $this->actingAs($this->admin());
+
+        $curriculumVersionId =
+            $this->curriculumVersion('draft');
+
+        $templateId =
+            $this->template(
+                $curriculumVersionId
+            );
+
+        $this->postJson(
+            "/api/admin/exam-templates/{$templateId}/versions",
+            [
+                'version_number' => 1,
+                'label' => 'Invalid list',
+                'rules_payload' => [
+                    [
+                        'question_count' => 20,
+                    ],
+                ],
+                'rules_schema_version' => 1,
+            ]
+        )
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'error.code',
+                'validation_failed'
+            )
+            ->assertJsonPath(
+                'error.details.rules_payload.0',
+                'The rules payload must be a JSON object.'
+            );
+    }
+
     public function test_published_version_cannot_be_edited(): void
     {
         $this->actingAs($this->admin());

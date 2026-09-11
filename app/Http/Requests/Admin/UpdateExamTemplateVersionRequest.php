@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateExamTemplateVersionRequest extends FormRequest
@@ -20,8 +21,23 @@ class UpdateExamTemplateVersionRequest extends FormRequest
                 'max:255',
             ],
             'rules_payload' => [
-                'required',
+                'present',
                 'array',
+                function (
+                    string $attribute,
+                    mixed $value,
+                    Closure $fail,
+                ): void {
+                    if (
+                        is_array($value)
+                        && $value !== []
+                        && array_is_list($value)
+                    ) {
+                        $fail(
+                            'The rules payload must be a JSON object.'
+                        );
+                    }
+                },
             ],
             'rules_schema_version' => [
                 'required',

@@ -79,29 +79,291 @@ PHP_CODE,
 
             DB::commit();
 
-            $result = $this->finishChild($process);
+            $result = $this->finishChild(
+                $process
+            );
 
             $this->assertSame(
-                'success',
+                'exception',
                 $result['result'] ?? null
             );
 
             $this->assertSame(
-                'published',
-                $result['status'] ?? null
+                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                $result['class'] ?? null
             );
 
             $this->assertSame(
-                'published',
+                'draft',
                 DB::table('curriculum_versions')
                     ->where('id', $versionId)
                     ->value('status')
             );
 
-            $this->assertDatabaseHas('topics', [
-                'id' => $topicId,
-                'curriculum_version_id' => $versionId,
+            $this->assertDatabaseHas(
+                'topics',
+                [
+                    'id' => $topicId,
+                    'curriculum_version_id' =>
+                        $versionId,
+                ]
+            );
+        } finally {
+            $this->rollbackIfNeeded();
+            $this->cleanupChild();
+        }
+    }
+
+    public function test_k2a_authoring_mutation_wins_parent_lock_and_publish_rechecks_readiness(): void
+    {
+        [
+            $versionId,
+        ] = $this->createCurriculumVersion();
+
+        $ready =
+            $this->ensureCurriculumPublishingReadiness(
+                $versionId
+            );
+
+        $practiceActivityId =
+            $ready['practice_activity_id'];
+
+        DB::beginTransaction();
+
+        try {
+            /*
+             * This readiness-relevant mutation takes the
+             * CurriculumVersion parent lock through the K1
+             * PostgreSQL authoring guard and deliberately keeps
+             * that lock uncommitted.
+             */
+            DB::table('practice_activities')
+                ->where(
+                    'id',
+                    $practiceActivityId
+                )
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+
+            $process = $this->startChild(
+                sprintf(
+                    <<<'PHP_CODE'
+try {
+    $result = app(
+        \App\Application\Curriculum\PublishCurriculumVersion::class
+    )->execute(%s);
+
+    file_put_contents(
+        %s,
+        json_encode([
+            'result' => 'success',
+            'status' => $result->status,
+        ], JSON_THROW_ON_ERROR)
+    );
+} catch (\Throwable $exception) {
+    $blockers = [];
+
+    if (
+        $exception instanceof
+        \App\Application\Exceptions\CurriculumVersionNotReady
+    ) {
+        $blockers = array_column(
+            $exception->blockers,
+            'code'
+        );
+    }
+
+    file_put_contents(
+        %s,
+        json_encode([
+            'result' => 'exception',
+            'class' => $exception::class,
+            'message' => $exception->getMessage(),
+            'blockers' => $blockers,
+        ], JSON_THROW_ON_ERROR)
+    );
+}
+PHP_CODE,
+                    var_export(
+                        $versionId,
+                        true
+                    ),
+                    'NULL_SIGNAL_FILE',
+                    'NULL_SIGNAL_FILE',
+                )
+            );
+
+            $this->assertBlocked(
+                $process,
+                'K2A publish escaped the authoring CurriculumVersion parent lock.'
+            );
+
+            DB::commit();
+
+            $result = $this->finishChild(
+                $process
+            );
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null
+            );
+
+            $this->assertSame(
+                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                $result['class'] ?? null
+            );
+
+            $this->assertContains(
+                'has_learner_usable_practice',
+                $result['blockers'] ?? []
+            );
+
+            $this->assertSame(
+                'archived',
+                DB::table('practice_activities')
+                    ->where(
+                        'id',
+                        $practiceActivityId
+                    )
+                    ->value('status')
+            );
+
+            $this->assertSame(
+                'draft',
+                DB::table('curriculum_versions')
+                    ->where(
+                        'id',
+                        $versionId
+                    )
+                    ->value('status')
+            );
+        } finally {
+            $this->rollbackIfNeeded();
+            $this->cleanupChild();
+        }
+    }
+
+    public function test_k2b_publish_wins_parent_lock_and_concurrent_authoring_is_rejected(): void
+    {
+        [
+            $versionId,
+        ] = $this->createCurriculumVersion();
+
+        $ready =
+            $this->ensureCurriculumPublishingReadiness(
+                $versionId
+            );
+
+        $practiceActivityId =
+            $ready['practice_activity_id'];
+
+        DB::beginTransaction();
+
+        try {
+            /*
+             * Publish runs inside its own TransactionManager.
+             * Because an outer transaction is already open,
+             * the resulting CurriculumVersion row lock remains
+             * held until the explicit COMMIT below.
+             */
+            $published = app(
+                \App\Application\Curriculum\PublishCurriculumVersion::class
+            )->execute(
+                $versionId
+            );
+
+            $this->assertSame(
+                'published',
+                $published->status
+            );
+
+            $process = $this->startChild(
+                sprintf(
+                    <<<'PHP_CODE'
+try {
+    $affected =
+        \Illuminate\Support\Facades\DB::table(
+            'practice_activities'
+        )
+            ->where('id', %s)
+            ->update([
+                'status' => 'archived',
+                'updated_at' => now(),
             ]);
+
+    file_put_contents(
+        %s,
+        json_encode([
+            'result' => 'unexpected_success',
+            'affected' => $affected,
+        ], JSON_THROW_ON_ERROR)
+    );
+} catch (\Throwable $exception) {
+    file_put_contents(
+        %s,
+        json_encode([
+            'result' => 'exception',
+            'class' => $exception::class,
+            'message' => $exception->getMessage(),
+        ], JSON_THROW_ON_ERROR)
+    );
+}
+PHP_CODE,
+                    var_export(
+                        $practiceActivityId,
+                        true
+                    ),
+                    'NULL_SIGNAL_FILE',
+                    'NULL_SIGNAL_FILE',
+                )
+            );
+
+            $this->assertBlocked(
+                $process,
+                'K2B authoring mutation escaped the publishing CurriculumVersion parent lock.'
+            );
+
+            DB::commit();
+
+            $result = $this->finishChild(
+                $process
+            );
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null
+            );
+
+            $this->assertStringContainsString(
+                'is not draft',
+                (string) (
+                    $result['message']
+                    ?? ''
+                )
+            );
+
+            $this->assertSame(
+                'published',
+                DB::table('curriculum_versions')
+                    ->where(
+                        'id',
+                        $versionId
+                    )
+                    ->value('status')
+            );
+
+            $this->assertSame(
+                'active',
+                DB::table('practice_activities')
+                    ->where(
+                        'id',
+                        $practiceActivityId
+                    )
+                    ->value('status')
+            );
         } finally {
             $this->rollbackIfNeeded();
             $this->cleanupChild();
@@ -396,7 +658,7 @@ PHP_CODE,
         }
     }
 
-    public function test_c5_practice_attempt_serializes_with_membership_mutation(): void
+    public function test_c5_published_curriculum_freezes_practice_membership_before_attempt_build(): void
     {
         [
             $versionId,
@@ -420,7 +682,8 @@ PHP_CODE,
             $second
         );
 
-        $activityId = (string) Str::uuid();
+        $activityId =
+            (string) Str::uuid();
 
         DB::table('practice_activities')->insert([
             'id' => $activityId,
@@ -433,12 +696,18 @@ PHP_CODE,
             'updated_at' => now(),
         ]);
 
-        DB::table('practice_activity_items')->insert([
+        DB::table(
+            'practice_activity_items'
+        )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' => $activityId,
-            'assessment_item_revision_id' => $first['revision_id'],
-            'assessment_item_id' => $first['item_id'],
-            'curriculum_version_id' => $versionId,
+            'practice_activity_id' =>
+                $activityId,
+            'assessment_item_revision_id' =>
+                $first['revision_id'],
+            'assessment_item_id' =>
+                $first['item_id'],
+            'curriculum_version_id' =>
+                $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -450,106 +719,79 @@ PHP_CODE,
                 'updated_at' => now(),
             ]);
 
-        $this->publishCurriculum($versionId);
+        /*
+         * Add the other required learner-ready surfaces.
+         * The target C5 Practice remains the source under test.
+         */
+        $this->ensureCurriculumPublishingReadiness(
+            $versionId
+        );
+
+        $this->publishCurriculum(
+            $versionId
+        );
+
+        try {
+            DB::table(
+                'practice_activity_items'
+            )->insert([
+                'id' => (string) Str::uuid(),
+                'practice_activity_id' =>
+                    $activityId,
+                'assessment_item_revision_id' =>
+                    $second['revision_id'],
+                'assessment_item_id' =>
+                    $second['item_id'],
+                'curriculum_version_id' =>
+                    $versionId,
+                'display_order' => 1,
+                'created_at' => now(),
+            ]);
+
+            $this->fail(
+                'Published CurriculumVersion unexpectedly allowed Practice membership mutation.'
+            );
+        } catch (
+            \Illuminate\Database\QueryException $exception
+        ) {
+            $this->assertStringContainsString(
+                'is not draft',
+                $exception->getMessage()
+            );
+        }
 
         [
             $learnerId,
         ] = $this->createLearner();
 
-        DB::beginTransaction();
+        $attempt = app(
+            \App\Application\Attempt\BuildPracticeAttempt::class
+        )->execute(
+            $learnerId,
+            $activityId
+        );
 
-        try {
-            /*
-             * Direct membership write intentionally exercises
-             * the DB parent-lock trigger. Practice membership is
-             * prospective configuration and remains protected by
-             * PracticeActivity serialization.
-             */
-            DB::table('practice_activity_items')->insert([
-                'id' => (string) Str::uuid(),
-                'practice_activity_id' => $activityId,
-                'assessment_item_revision_id' => $second['revision_id'],
-                'assessment_item_id' => $second['item_id'],
-                'curriculum_version_id' => $versionId,
-                'display_order' => 1,
-                'created_at' => now(),
-            ]);
-
-            $process = $this->startChild(
-                sprintf(
-                    <<<'PHP_CODE'
-try {
-    $result = app(
-        \App\Application\Attempt\BuildPracticeAttempt::class
-    )->execute(%s, %s);
-
-    file_put_contents(
-        %s,
-        json_encode([
-            'result' => 'success',
-            'attempt_id' => $result->id,
-        ], JSON_THROW_ON_ERROR)
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode([
-            'result' => 'exception',
-            'class' => $exception::class,
-            'message' => $exception->getMessage(),
-        ], JSON_THROW_ON_ERROR)
-    );
-}
-PHP_CODE,
-                    var_export($learnerId, true),
-                    var_export($activityId, true),
-                    'NULL_SIGNAL_FILE',
-                    'NULL_SIGNAL_FILE',
+        $this->assertSame(
+            1,
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id
                 )
-            );
+                ->count()
+        );
 
-            $this->assertBlocked(
-                $process,
-                'C5 Attempt construction escaped PracticeActivity membership parent lock.'
-            );
-
-            DB::commit();
-
-            $result = $this->finishChild($process);
-
-            $this->assertSame(
-                'success',
-                $result['result'] ?? null
-            );
-
-            $attemptId =
-                $result['attempt_id'] ?? null;
-
-            $this->assertNotNull($attemptId);
-
-            $this->assertSame(
-                2,
-                DB::table('attempt_items')
-                    ->where(
-                        'attempt_id',
-                        $attemptId
-                    )
-                    ->count()
-            );
-
-            $this->assertSame(
-                2,
-                DB::table('practice_activity_items')
-                    ->where(
-                        'practice_activity_id',
-                        $activityId
-                    )
-                    ->count()
-            );
-        } finally {
-            $this->rollbackIfNeeded();
-            $this->cleanupChild();
-        }
+        $this->assertSame(
+            1,
+            DB::table(
+                'practice_activity_items'
+            )
+                ->where(
+                    'practice_activity_id',
+                    $activityId
+                )
+                ->count()
+        );
     }
 
     public function test_c6_generation_item_mutation_serializes_on_exam_generation_parent(): void
@@ -1508,6 +1750,7 @@ PHP_CODE,
 
         return [
             'version_id' => $versionId,
+            'topic_id' => $topicId,
             'item_id' => $itemId,
             'revision_id' => $revisionId,
             'primary_placement_id' => $placements['primary'],
@@ -1639,6 +1882,10 @@ PHP_CODE,
         $generation =
             $this->createExamGenerationFixture();
 
+        $this->ensureCurriculumPublishingReadiness(
+            $generation['version_id']
+        );
+
         $this->publishCurriculum(
             $generation['version_id']
         );
@@ -1740,6 +1987,232 @@ PHP_CODE,
         return [
             $learnerId,
             $userId,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     practice_activity_id: string,
+     *     assessment_item_id: string,
+     *     assessment_revision_id: string,
+     *     lesson_id: string,
+     *     exam_template_id: string,
+     *     exam_template_version_id: string
+     * }
+     */
+    private function ensureCurriculumPublishingReadiness(
+        string $versionId,
+    ): array {
+        $assessment =
+            $this->createAssessmentRevisionFixture(
+                $versionId
+            );
+
+        $this->installPrimaryAndReleaseAssessment(
+            $assessment
+        );
+
+        DB::table('assessment_items')
+            ->where(
+                'id',
+                $assessment['item_id']
+            )
+            ->update([
+                'published_revision_id' =>
+                    $assessment['revision_id'],
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        $lessonId =
+            (string) Str::uuid();
+
+        $lessonRevisionId =
+            (string) Str::uuid();
+
+        DB::table('lessons')->insert([
+            'id' => $lessonId,
+            'curriculum_version_id' =>
+                $versionId,
+            'title' =>
+                "Publishing Ready Lesson {$lessonId}",
+            'description' => null,
+            'status' => 'draft',
+            'display_order' => 0,
+            'published_revision_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('lesson_revisions')->insert([
+            'id' => $lessonRevisionId,
+            'lesson_id' => $lessonId,
+            'curriculum_version_id' =>
+                $versionId,
+            'revision_number' => 1,
+            'primary_topic_id' =>
+                $assessment['topic_id'],
+            'content_payload' => json_encode(
+                [
+                    'type' => 'lesson',
+                    'blocks' => [],
+                ],
+                JSON_THROW_ON_ERROR
+            ),
+            'content_schema_version' => 1,
+            'released_at' => null,
+            'created_at' => now(),
+        ]);
+
+        $this->releaseLesson(
+            $lessonRevisionId
+        );
+
+        DB::table('lessons')
+            ->where('id', $lessonId)
+            ->update([
+                'published_revision_id' =>
+                    $lessonRevisionId,
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        $practiceActivityId =
+            (string) Str::uuid();
+
+        DB::table(
+            'practice_activities'
+        )->insert([
+            'id' => $practiceActivityId,
+            'curriculum_version_id' =>
+                $versionId,
+            'lesson_id' => null,
+            'name' =>
+                "Publishing Ready Practice {$practiceActivityId}",
+            'description' => null,
+            'status' => 'archived',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table(
+            'practice_activity_items'
+        )->insert([
+            'id' => (string) Str::uuid(),
+            'practice_activity_id' =>
+                $practiceActivityId,
+            'assessment_item_revision_id' =>
+                $assessment['revision_id'],
+            'assessment_item_id' =>
+                $assessment['item_id'],
+            'curriculum_version_id' =>
+                $versionId,
+            'display_order' => 0,
+            'created_at' => now(),
+        ]);
+
+        DB::table('practice_activities')
+            ->where(
+                'id',
+                $practiceActivityId
+            )
+            ->update([
+                'status' => 'active',
+                'updated_at' => now(),
+            ]);
+
+        $examTemplateId =
+            (string) Str::uuid();
+
+        $examTemplateVersionId =
+            (string) Str::uuid();
+
+        DB::table('exam_templates')->insert([
+            'id' => $examTemplateId,
+            'curriculum_version_id' =>
+                $versionId,
+            'name' =>
+                "Publishing Ready Exam {$examTemplateId}",
+            'description' => null,
+            'status' => 'active',
+            'published_version_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table(
+            'exam_template_versions'
+        )->insert([
+            'id' => $examTemplateVersionId,
+            'exam_template_id' =>
+                $examTemplateId,
+            'curriculum_version_id' =>
+                $versionId,
+            'version_number' => 1,
+            'label' => 'Publishing Ready v1',
+            'status' => 'draft',
+            'rules_payload' => json_encode(
+                [
+                    'question_count' => 1,
+                ],
+                JSON_THROW_ON_ERROR
+            ),
+            'rules_schema_version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table(
+            'exam_template_versions'
+        )
+            ->where(
+                'id',
+                $examTemplateVersionId
+            )
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        DB::table('exam_templates')
+            ->where(
+                'id',
+                $examTemplateId
+            )
+            ->update([
+                'published_version_id' =>
+                    $examTemplateVersionId,
+                'updated_at' => now(),
+            ]);
+
+        $readiness = app(
+            \App\Application\Curriculum\EvaluateCurriculumVersionReadiness::class
+        )->execute(
+            $versionId
+        );
+
+        if (! $readiness['ready_to_publish']) {
+            throw new RuntimeException(
+                'Concurrency publishing-readiness fixture is incomplete: '
+                .json_encode(
+                    $readiness['blockers'],
+                    JSON_THROW_ON_ERROR
+                )
+            );
+        }
+
+        return [
+            'practice_activity_id' =>
+                $practiceActivityId,
+            'assessment_item_id' =>
+                $assessment['item_id'],
+            'assessment_revision_id' =>
+                $assessment['revision_id'],
+            'lesson_id' => $lessonId,
+            'exam_template_id' =>
+                $examTemplateId,
+            'exam_template_version_id' =>
+                $examTemplateVersionId,
         ];
     }
 

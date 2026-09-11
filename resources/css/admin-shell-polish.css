@@ -152,3 +152,339 @@
         grid-template-columns: 1fr !important;
     }
 }
+
+/*
+ * Admin Dashboard UX Batch B
+ * — shell density and navigation polish
+ */
+
+.authenticated-shell {
+    --admin-shell-active-glow: rgb(11 123 211 / 0.14);
+}
+
+/*
+ * Remove inherited outer layout spacing.
+ * Content and sidebar now own their vertical rhythm.
+ */
+.authenticated-shell
+.authenticated-shell__layout {
+    gap: 0;
+    padding-block: 0;
+}
+
+.authenticated-shell
+.authenticated-shell__layout.ui-container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+/*
+ * Lift page content closer to the application header.
+ */
+.authenticated-shell
+.authenticated-shell__content {
+    min-width: 0;
+    padding:
+        1rem
+        clamp(1.25rem, 2.5vw, 2.75rem)
+        2.5rem;
+}
+
+/*
+ * Sidebar begins directly below the application header instead
+ * of inheriting the old shell's outer vertical whitespace.
+ */
+.authenticated-shell
+.authenticated-shell__sidebar {
+    gap: 0.7rem;
+    padding: 0.85rem 0.85rem 1rem;
+    border-inline-end: 1px solid #e1e9f1;
+    background:
+        linear-gradient(
+            180deg,
+            #ffffff 0%,
+            #fcfdff 100%
+        );
+}
+
+/*
+ * Navigation rhythm.
+ */
+.authenticated-shell
+.authenticated-shell__navigation {
+    gap: 0.38rem;
+}
+
+/*
+ * Primary navigation item.
+ */
+.authenticated-shell
+.authenticated-shell__nav-link {
+    position: relative;
+    overflow: hidden;
+    min-height: 2.9rem;
+    padding: 0.65rem 0.72rem !important;
+    border: 1px solid transparent;
+    border-radius: 0.78rem !important;
+    color: #475569;
+    background: transparent;
+    box-shadow: none;
+    transition:
+        color 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+/*
+ * Logical active edge works correctly with the RTL sidebar.
+ */
+.authenticated-shell
+.authenticated-shell__nav-link::before {
+    position: absolute;
+    top: 22%;
+    bottom: 22%;
+    inset-inline-end: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: #0b7bd3;
+    box-shadow:
+        0 0 10px rgb(11 123 211 / 0.28);
+    opacity: 0;
+    content: '';
+    transition:
+        opacity 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.authenticated-shell
+.authenticated-shell__nav-link:hover {
+    color: #0b67b2;
+    border-color: #e0edf8;
+    background: #f7fbff;
+    box-shadow:
+        0 5px 14px rgb(15 23 42 / 0.035);
+    transform: translateX(-1px);
+}
+
+.authenticated-shell
+.authenticated-shell__nav-link--active {
+    color: #0867b2 !important;
+    border-color: #cde5f7;
+    background:
+        linear-gradient(
+            90deg,
+            #f7fbff 0%,
+            #edf7ff 100%
+        ) !important;
+    box-shadow:
+        0 7px 18px var(--admin-shell-active-glow),
+        inset 0 0 0 1px rgb(255 255 255 / 0.5)
+        !important;
+}
+
+.authenticated-shell
+.authenticated-shell__nav-link--active::before {
+    opacity: 1;
+}
+
+/*
+ * Navigation icon container.
+ * No JSX wrapper is required; the SVG itself receives the surface.
+ */
+.authenticated-shell
+.authenticated-shell__nav-link svg {
+    box-sizing: content-box;
+    width: 1rem;
+    height: 1rem;
+    padding: 0.28rem;
+    flex: 0 0 auto;
+    color: #496580;
+    border: 1px solid transparent;
+    border-radius: 0.58rem;
+    background: transparent;
+    transition:
+        color 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.authenticated-shell
+.authenticated-shell__nav-link:hover svg {
+    color: #0b6fbf;
+    border-color: #e1eef8;
+    background: #ffffff;
+}
+
+.authenticated-shell
+.authenticated-shell__nav-link--active svg {
+    color: #0867b2;
+    border-color: #d1e8f8;
+    background: #ffffff;
+    box-shadow:
+        0 4px 12px rgb(11 123 211 / 0.12),
+        0 0 12px rgb(11 123 211 / 0.06);
+}
+
+/*
+ * Collapse control.
+ */
+.authenticated-shell
+.authenticated-shell__sidebar-toggle {
+    min-height: 2.55rem;
+    padding: 0.5rem 0.7rem;
+    color: #52657a;
+    border: 1px solid #dce6ef;
+    border-radius: 0.78rem;
+    background:
+        linear-gradient(
+            180deg,
+            #ffffff 0%,
+            #fbfdff 100%
+        );
+    box-shadow:
+        0 4px 12px rgb(15 23 42 / 0.025);
+    transition:
+        color 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.authenticated-shell
+.authenticated-shell__sidebar-toggle:hover {
+    color: #0867b2;
+    border-color: #cce4f6;
+    background: #f5faff;
+    box-shadow:
+        0 6px 16px rgb(11 123 211 / 0.08);
+    transform: translateY(-1px);
+}
+
+.authenticated-shell
+.authenticated-shell__sidebar-toggle:focus-visible,
+.authenticated-shell
+.authenticated-shell__nav-link:focus-visible {
+    outline: 2px solid #1887d4;
+    outline-offset: 2px;
+}
+
+/*
+ * Keep the collapsed sidebar visually balanced.
+ */
+.authenticated-shell
+.authenticated-shell__sidebar--collapsed
+.authenticated-shell__sidebar-toggle,
+.authenticated-shell
+.authenticated-shell__sidebar--collapsed
+.authenticated-shell__nav-link {
+    justify-content: center;
+    padding-inline: 0 !important;
+}
+
+.authenticated-shell
+.authenticated-shell__sidebar--collapsed
+.authenticated-shell__nav-link::before {
+    top: 20%;
+    bottom: 20%;
+}
+
+/*
+ * Tablet/mobile shell becomes a top navigation workspace before
+ * the desktop sidebar gets too narrow. At this width there is no
+ * meaningful sidebar to collapse, so persisted desktop collapse
+ * state is neutralized visually until the viewport expands again.
+ */
+@media (max-width: 64rem) {
+    .authenticated-shell
+    .authenticated-shell__layout,
+    .authenticated-shell
+    .authenticated-shell__layout--sidebar-collapsed {
+        grid-template-columns:
+            minmax(0, 1fr) !important;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar,
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed {
+        position: static;
+        min-width: 0;
+        min-height: auto;
+        grid-template-rows: auto;
+        padding: 0.65rem 1rem;
+        border-inline-end: 0;
+        border-bottom: 1px solid #e1e9f1;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar-toggle {
+        display: none;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__navigation {
+        display: flex !important;
+        width: 100%;
+        min-width: 0;
+        align-items: center;
+        gap: 0.5rem;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        padding-block-end: 0.15rem !important;
+        scrollbar-width: thin;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__nav-link,
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed
+    .authenticated-shell__nav-link {
+        min-width: max-content;
+        justify-content: flex-start;
+        flex: 0 0 auto;
+        padding-inline: 0.72rem !important;
+        white-space: nowrap;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__sidebar--collapsed
+    .authenticated-shell__nav-link span {
+        display: inline;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__content {
+        padding: 0.9rem 1rem 1.5rem;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__nav-link:hover {
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .authenticated-shell
+    .authenticated-shell__nav-link,
+    .authenticated-shell
+    .authenticated-shell__nav-link::before,
+    .authenticated-shell
+    .authenticated-shell__nav-link svg,
+    .authenticated-shell
+    .authenticated-shell__sidebar-toggle {
+        transition: none;
+    }
+
+    .authenticated-shell
+    .authenticated-shell__nav-link:hover,
+    .authenticated-shell
+    .authenticated-shell__sidebar-toggle:hover {
+        transform: none;
+    }
+}

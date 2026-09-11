@@ -151,6 +151,32 @@ export function PracticeActivityItemsPanel({
         ) + 1;
     }, [itemsQuery.data]);
 
+    const linkedAssessmentItemIds = useMemo(
+        () => new Set(
+            (itemsQuery.data ?? []).map(
+                (item) => item.assessment_item_id,
+            ),
+        ),
+        [itemsQuery.data],
+    );
+
+    const availableAssessmentItems = useMemo(
+        () => (assessmentItemsQuery.data ?? []).filter(
+            (item) =>
+                !linkedAssessmentItemIds.has(item.id),
+        ),
+        [
+            assessmentItemsQuery.data,
+            linkedAssessmentItemIds,
+        ],
+    );
+
+    const selectedItemAlreadyLinked =
+        assessmentItemId !== ''
+        && linkedAssessmentItemIds.has(
+            assessmentItemId,
+        );
+
     const itemNames = useMemo(
         () => new Map(
             (assessmentItemsQuery.data ?? []).map(
@@ -219,6 +245,7 @@ export function PracticeActivityItemsPanel({
             !editable
             || createMutation.isPending
             || assessmentItemId === ''
+            || selectedItemAlreadyLinked
             || !selectedRevision
         ) {
             return;
@@ -278,7 +305,7 @@ export function PracticeActivityItemsPanel({
                                 <option value="">
                                     اختر السؤال
                                 </option>
-                                {assessmentItemsQuery.data?.map(
+                                {availableAssessmentItems.map(
                                     (item) => (
                                         <option
                                             key={item.id}
@@ -291,6 +318,16 @@ export function PracticeActivityItemsPanel({
                                 )}
                             </select>
                         </label>
+
+                        {!assessmentItemsQuery.isPending
+                        && !assessmentItemsQuery.isError
+                        && !itemsQuery.isPending
+                        && !itemsQuery.isError
+                        && availableAssessmentItems.length === 0 ? (
+                            <Feedback>
+                                لا توجد أسئلة أخرى متاحة للإضافة إلى هذا التدريب.
+                            </Feedback>
+                        ) : null}
 
                         {assessmentItemId !== ''
                         && revisionsQuery.isPending ? (
@@ -312,6 +349,7 @@ export function PracticeActivityItemsPanel({
                             disabled={
                                 createMutation.isPending
                                 || assessmentItemId === ''
+                                || selectedItemAlreadyLinked
                                 || revisionsQuery.isPending
                                 || !selectedRevision
                             }

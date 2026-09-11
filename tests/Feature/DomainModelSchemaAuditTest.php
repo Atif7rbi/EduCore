@@ -11,6 +11,7 @@ use App\Models\AttemptItemClassificationSkill;
 use App\Models\AttemptResponse;
 use App\Models\Curriculum;
 use App\Models\CurriculumVersion;
+use App\Models\EducationStage;
 use App\Models\EvidenceScope;
 use App\Models\ExamGeneration;
 use App\Models\ExamGenerationItem;
@@ -48,6 +49,7 @@ class DomainModelSchemaAuditTest extends TestCase
             LearnerProfile::class => 'learner_profiles',
 
             Subject::class => 'subjects',
+            EducationStage::class => 'education_stages',
             Curriculum::class => 'curricula',
             CurriculumVersion::class => 'curriculum_versions',
 
@@ -85,15 +87,15 @@ class DomainModelSchemaAuditTest extends TestCase
         ];
     }
 
-    public function test_all_thirty_domain_tables_have_explicit_models(): void
+    public function test_all_thirty_one_domain_tables_have_explicit_models(): void
     {
         $modelTables = $this->modelTables();
 
-        $this->assertCount(30, $modelTables);
-        $this->assertCount(30, array_unique(array_values($modelTables)));
+        $this->assertCount(31, $modelTables);
+        $this->assertCount(31, array_unique(array_values($modelTables)));
 
         foreach ($modelTables as $modelClass => $table) {
-            $model = new $modelClass();
+            $model = new $modelClass;
 
             $this->assertSame(
                 $table,
@@ -111,7 +113,7 @@ class DomainModelSchemaAuditTest extends TestCase
     public function test_all_domain_models_use_uuid_ids(): void
     {
         foreach ($this->modelTables() as $modelClass => $table) {
-            $model = new $modelClass();
+            $model = new $modelClass;
 
             $this->assertSame(
                 'id',
@@ -135,7 +137,7 @@ class DomainModelSchemaAuditTest extends TestCase
     public function test_fillable_and_cast_columns_exist_in_physical_schema(): void
     {
         foreach ($this->modelTables() as $modelClass => $table) {
-            $model = new $modelClass();
+            $model = new $modelClass;
             $columns = Schema::getColumnListing($table);
 
             foreach ($model->getFillable() as $column) {
@@ -159,7 +161,7 @@ class DomainModelSchemaAuditTest extends TestCase
     public function test_model_timestamp_expectations_match_physical_schema(): void
     {
         foreach ($this->modelTables() as $modelClass => $table) {
-            $model = new $modelClass();
+            $model = new $modelClass;
             $columns = Schema::getColumnListing($table);
 
             $this->assertTrue(

@@ -18,25 +18,42 @@ class CurriculumApiTest extends TestCase
         );
     }
 
-    public function test_draft_curriculum_version_can_be_published_via_api(): void
+    public function test_incomplete_draft_curriculum_version_is_rejected_via_api(): void
     {
-        $versionId = $this->createCurriculumVersion('draft');
+        $versionId =
+            $this->createCurriculumVersion(
+                'draft'
+            );
 
         $response = $this->postJson(
             "/api/curriculum-versions/{$versionId}/publish"
         );
 
         $response
-            ->assertOk()
-            ->assertJsonPath('data.id', $versionId)
-            ->assertJsonPath('data.version_number', 1)
-            ->assertJsonPath('data.label', 'v1')
-            ->assertJsonPath('data.status', 'published');
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'error.code',
+                'curriculum_version_not_ready'
+            )
+            ->assertJsonPath(
+                'error.details.blockers',
+                [
+                    'has_topic',
+                    'has_skill_placement',
+                    'has_published_lesson',
+                    'has_published_assessment_item',
+                    'has_learner_usable_practice',
+                    'has_usable_exam_template',
+                ]
+            );
 
-        $this->assertDatabaseHas('curriculum_versions', [
-            'id' => $versionId,
-            'status' => 'published',
-        ]);
+        $this->assertDatabaseHas(
+            'curriculum_versions',
+            [
+                'id' => $versionId,
+                'status' => 'draft',
+            ]
+        );
     }
 
     public function test_published_curriculum_version_can_be_retired_via_api(): void

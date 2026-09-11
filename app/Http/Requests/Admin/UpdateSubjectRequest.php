@@ -22,6 +22,11 @@ class UpdateSubjectRequest extends FormRequest
                 Rule::unique('subjects', 'name')
                     ->ignore($this->route('subjectId')),
             ],
+            'code' => ['prohibited'],
+            'icon_key' => ['prohibited'],
+            'thumbnail_key' => ['prohibited'],
+            'sort_order' => ['prohibited'],
+            'status' => ['prohibited'],
         ];
     }
 }

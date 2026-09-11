@@ -281,31 +281,10 @@ class AttemptApiTest extends TestCase
         [
             ,
             $templateGenerationId,
-        ] = $this->createExamFixture();
-
-        $templateVersionId =
-            DB::table(
-                'exam_generations'
-            )
-                ->where(
-                    'id',
-                    $templateGenerationId
-                )
-                ->value(
-                    'exam_template_version_id'
-                );
-
-        DB::table(
-            'exam_template_versions'
-        )
-            ->where(
-                'id',
-                $templateVersionId
-            )
-            ->update([
-                'status' => 'retired',
-                'updated_at' => now(),
-            ]);
+        ] = $this->createExamFixture(
+            retireTemplateVersionBeforeCurriculumPublish:
+                true,
+        );
 
         $firstUserId = DB::table(
             'learner_profiles'
@@ -1675,18 +1654,10 @@ class AttemptApiTest extends TestCase
         [
             $learnerId,
             $generationId,
-        ] = $this->createExamFixture();
-
-        $templateVersionId = DB::table('exam_generations')
-            ->where('id', $generationId)
-            ->value('exam_template_version_id');
-
-        DB::table('exam_template_versions')
-            ->where('id', $templateVersionId)
-            ->update([
-                'status' => 'retired',
-                'updated_at' => now(),
-            ]);
+        ] = $this->createExamFixture(
+            retireTemplateVersionBeforeCurriculumPublish:
+                true,
+        );
 
         $this->postJson(
             "/api/exam-generations/{$generationId}/attempts",
@@ -1760,14 +1731,10 @@ class AttemptApiTest extends TestCase
         [
             $learnerId,
             $activityId,
-        ] = $this->createPracticeFixture();
-
-        DB::table('practice_activities')
-            ->where('id', $activityId)
-            ->update([
-                'status' => 'archived',
-                'updated_at' => now(),
-            ]);
+        ] = $this->createPracticeFixture(
+            archiveBeforeCurriculumPublish:
+                true,
+        );
 
         $this->postJson(
             "/api/practice-activities/{$activityId}/attempts",
@@ -1840,8 +1807,9 @@ class AttemptApiTest extends TestCase
     /**
      * @return array{string, string, string, string}
      */
-    private function createPracticeFixture(): array
-    {
+    private function createPracticeFixture(
+        bool $archiveBeforeCurriculumPublish = false,
+    ): array {
         [
             $learnerId,
             $versionId,
@@ -1879,6 +1847,15 @@ class AttemptApiTest extends TestCase
                 'updated_at' => now(),
             ]);
 
+        if ($archiveBeforeCurriculumPublish) {
+            DB::table('practice_activities')
+                ->where('id', $activityId)
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+        }
+
         DB::table('curriculum_versions')
             ->where('id', $versionId)
             ->update([
@@ -1897,8 +1874,9 @@ class AttemptApiTest extends TestCase
     /**
      * @return array{string, string, string, string}
      */
-    private function createExamFixture(): array
-    {
+    private function createExamFixture(
+        bool $retireTemplateVersionBeforeCurriculumPublish = false,
+    ): array {
         [
             $learnerId,
             $versionId,
@@ -1957,6 +1935,20 @@ class AttemptApiTest extends TestCase
                 ],
             ],
         );
+
+        if (
+            $retireTemplateVersionBeforeCurriculumPublish
+        ) {
+            DB::table('exam_template_versions')
+                ->where(
+                    'id',
+                    $templateVersionId
+                )
+                ->update([
+                    'status' => 'retired',
+                    'updated_at' => now(),
+                ]);
+        }
 
         DB::table('curriculum_versions')
             ->where('id', $versionId)

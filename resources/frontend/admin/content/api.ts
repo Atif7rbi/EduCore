@@ -870,17 +870,13 @@ export function fetchExamTemplateVersions(
 export interface CreateExamTemplateVersionPayload {
     version_number: number;
     label: string | null;
-    rules_payload:
-        | unknown[]
-        | Record<string, unknown>;
+    rules_payload: Record<string, unknown>;
     rules_schema_version: number;
 }
 
 export interface UpdateExamTemplateVersionPayload {
     label: string | null;
-    rules_payload:
-        | unknown[]
-        | Record<string, unknown>;
+    rules_payload: Record<string, unknown>;
     rules_schema_version: number;
 }
 

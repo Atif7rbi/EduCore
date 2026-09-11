@@ -1,6 +1,7 @@
 import '../../css/admin-authoring.css';
 import '../../css/admin-authoring-r2.css';
 import '../../css/admin-lesson-user.css';
+import '../../css/admin-content-ux-polish.css';
 
 import {
     useCallback,
@@ -9,6 +10,9 @@ import {
 import {
     useSearchParams,
 } from 'react-router-dom';
+import {
+    useQuery,
+} from '@tanstack/react-query';
 
 import {
     Feedback,
@@ -38,6 +42,15 @@ import {
 import {
     ExamTemplatesPanel,
 } from './content/ExamTemplatesPanel';
+import {
+    ContentReadinessPanel,
+    contentReadinessKey,
+    fetchContentReadiness,
+} from './content/ContentReadinessPanel';
+
+import type {
+    CurriculumReadiness,
+} from './content/ContentReadinessPanel';
 
 import type {
     CurriculumVersion,
@@ -49,7 +62,114 @@ type WorkspaceSection =
     | 'lessons'
     | 'assessment-items'
     | 'practice-activities'
-    | 'exam-templates';
+    | 'exam-templates'
+    | 'readiness';
+
+type PublishingTabState =
+    | 'pass'
+    | 'blocker'
+    | 'warning';
+
+const readinessCheckBySection:
+Partial<Record<WorkspaceSection, string>> = {
+    topics: 'has_topic',
+    lessons: 'has_published_lesson',
+    'assessment-items':
+        'has_published_assessment_item',
+    'practice-activities':
+        'has_learner_usable_practice',
+    'exam-templates':
+        'has_usable_exam_template',
+    skills: 'has_skill_placement',
+};
+
+const warningSectionByCode:
+Record<string, WorkspaceSection> = {
+    draft_lessons: 'lessons',
+    unpublished_lessons: 'lessons',
+    draft_assessment_items:
+        'assessment-items',
+    retired_assessment_items:
+        'assessment-items',
+    archived_practice_activities:
+        'practice-activities',
+    active_practice_hidden_by_lesson:
+        'practice-activities',
+    archived_exam_templates:
+        'exam-templates',
+    active_exam_templates_without_published_version:
+        'exam-templates',
+    draft_exam_template_versions:
+        'exam-templates',
+    retired_exam_template_versions:
+        'exam-templates',
+};
+
+function publishingTabState(
+    section: WorkspaceSection,
+    readiness:
+        CurriculumReadiness | undefined,
+): PublishingTabState | null {
+    if (
+        !readiness
+        || readiness.curriculum_version.status
+            !== 'draft'
+    ) {
+        return null;
+    }
+
+    if (section === 'readiness') {
+        return readiness.ready_to_publish
+            ? 'pass'
+            : 'blocker';
+    }
+
+    const checkCode =
+        readinessCheckBySection[section];
+
+    if (!checkCode) {
+        return null;
+    }
+
+    const check = readiness.checks.find(
+        (candidate) =>
+            candidate.code === checkCode,
+    );
+
+    if (!check) {
+        return null;
+    }
+
+    if (!check.passed) {
+        return 'blocker';
+    }
+
+    const hasWarning =
+        readiness.warnings.some(
+            (warning) =>
+                warningSectionByCode[
+                    warning.code
+                ] === section,
+        );
+
+    return hasWarning
+        ? 'warning'
+        : 'pass';
+}
+
+function publishingTabTitle(
+    state: PublishingTabState,
+): string {
+    if (state === 'pass') {
+        return 'مستوفٍ لمتطلبات النشر';
+    }
+
+    if (state === 'warning') {
+        return 'يحتوي على تنبيه غير مانع للنشر';
+    }
+
+    return 'يحتاج إكمالًا قبل النشر';
+}
 
 const workspaceSections: Array<{
     id: WorkspaceSection;
@@ -78,6 +198,10 @@ const workspaceSections: Array<{
     {
         id: 'skills',
         label: 'المهارات',
+    },
+    {
+        id: 'readiness',
+        label: 'مراجعة النشر',
     },
 ];
 
@@ -153,6 +277,16 @@ function WorkspaceIcon({
                     <path d="M15 3v5h5M10 12h6M10 16h6" />
                 </svg>
             );
+        case 'readiness':
+            return (
+                <svg {...common}>
+                    <path d="M5 4h14v16H5z" />
+                    <path d="m8 9 1.5 1.5L12 8" />
+                    <path d="M13.5 10H16" />
+                    <path d="m8 15 1.5 1.5L12 14" />
+                    <path d="M13.5 16H16" />
+                </svg>
+            );
     }
 }
 
@@ -173,6 +307,19 @@ export function AdminContentPage() {
                 searchParams.get('section'),
             )
         );
+
+    const publishingReadiness = useQuery({
+        queryKey: contentReadinessKey(
+            selectedVersion?.id ?? 'none',
+        ),
+        queryFn: () =>
+            fetchContentReadiness(
+                selectedVersion!.id,
+            ),
+        enabled:
+            selectedVersion?.status
+            === 'draft',
+    });
 
     const resolveVersion = useCallback(
         (version: CurriculumVersion | null) => {
@@ -217,6 +364,15 @@ export function AdminContentPage() {
                 return <PracticeActivitiesPanel version={version} />;
             case 'exam-templates':
                 return <ExamTemplatesPanel version={version} />;
+            case 'readiness':
+                return (
+                    <ContentReadinessPanel
+                        version={version}
+                        onNavigateToSection={
+                            selectSection
+                        }
+                    />
+                );
         }
     }
 
@@ -261,12 +417,30 @@ export function AdminContentPage() {
                             const active =
                                 section.id === activeSection;
 
+                            const readinessState =
+                                publishingTabState(
+                                    section.id,
+                                    publishingReadiness
+                                        .data,
+                                );
+
                             return (
                                 <button
                                     key={section.id}
                                     type="button"
                                     role="tab"
                                     aria-selected={active}
+                                    data-readiness-state={
+                                        readinessState
+                                        ?? undefined
+                                    }
+                                    title={
+                                        readinessState
+                                            ? `${section.label}: ${publishingTabTitle(
+                                                readinessState
+                                            )}`
+                                            : undefined
+                                    }
                                     className={
                                         active
                                             ? 'admin-authoring-tabs__item admin-authoring-tabs__item--active'

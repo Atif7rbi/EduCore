@@ -44,9 +44,55 @@ Before 10_curriculum, execute one forward identity-normalization migration:
 Post-normalization PostgreSQL introspection and regression tests are required before closing Identity.
 
 ## 10_curriculum
-subjects → curricula → curriculum_versions.
-subjects.name UNIQUE.
-CurriculumVersion version>=1 and lifecycle values draft|published|retired.
+subjects + education_stages → curricula → curriculum_versions.
+
+CDA-008 forward reconciliation is additive over the implemented
+Curriculum baseline:
+- create education_stages;
+- add Subject canonical catalog metadata;
+- add nullable curricula.education_stage_id;
+- preserve every existing Subject ID;
+- preserve every existing Curriculum ID and subject_id;
+- retain existing Curricula with education_stage_id NULL;
+- prohibit automatic Subject or EducationStage inference from names.
+
+subjects.name remains UNIQUE.
+subjects.code is NULLABLE and UNIQUE when present.
+Canonical Subject code is stable.
+Subject status is active|inactive.
+Subject sort_order is nonnegative.
+
+education_stages.code is UNIQUE and stable.
+EducationStage status is active|inactive.
+EducationStage sort_order is nonnegative.
+
+Initial canonical Subject reference data:
+- mathematics;
+- physics;
+- biology;
+- chemistry;
+- english_language;
+- arabic_language.
+
+Initial EducationStage reference data:
+- primary;
+- middle;
+- secondary.
+
+These reference sets are extensible data, not closed enums.
+
+Before canonical reference insertion, perform explicit collision
+preflight. A Subject name/code collision is a stop condition and must
+not trigger automatic merge, rename, or mapping.
+
+Curriculum.education_stage_id is nullable and references
+education_stages(id) with RESTRICT.
+
+Curriculum.education_stage_id is immutable after INSERT through
+ordinary runtime mutation.
+
+CurriculumVersion version>=1 and lifecycle values
+draft|published|retired.
 
 ## 20_taxonomy
 skills → topics → skill_lineages → skill_version_placements → skill_home_topics.
@@ -128,6 +174,20 @@ Lifetime-only cache, bounded BIGINT counts.
 ## 90_integrity
 Separate trigger migrations for curriculum, learning, assessment, practice, exam, attempt, analytics.
 
+CDA-008 curriculum classification integrity:
+- Subject.code rejects ordinary UPDATE after INSERT, including
+  NULL→value, value→NULL, and value→value changes;
+- canonical Subject.name rejects ordinary administrator/runtime rename;
+- legacy Subject name compatibility may remain only while code IS NULL;
+- EducationStage.code rejects ordinary UPDATE after INSERT;
+- Curriculum.education_stage_id rejects UPDATE when the new value is
+  distinct from the stored value;
+- the prohibition includes NULL→value, value→NULL, and value→value
+  stage reassignment;
+- no v1 ordinary runtime bypass is authorized;
+- any future legacy classification/remediation requires separately
+  reviewed historical-impact handling.
+
 Mandatory aggregate locking protocol:
 - CurriculumVersion structural child mutation and publish/retire operations lock the same CurriculumVersion row.
 - LessonRevision / AssessmentItemRevision classification mutation and release operations lock the same revision row.
@@ -150,6 +210,7 @@ CDA-007: TemplateVersion cannot retire while it remains ExamTemplate.published_v
 ## 95_indexes
 Approved explicit secondary indexes:
 idx_curricula_subject_id
+idx_curricula_education_stage_id
 idx_topics_curriculum_version_order
 idx_skill_lineages_target_skill
 idx_skill_version_placements_curriculum_version

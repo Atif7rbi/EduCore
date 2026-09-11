@@ -58,6 +58,11 @@ function DashboardIcon({ name }: { name: string }) {
 }
 
 interface StatCardProps {
+    accent?:
+        | 'blue'
+        | 'cyan'
+        | 'indigo'
+        | 'amber';
     icon: string;
     label: string;
     value: number;
@@ -66,6 +71,7 @@ interface StatCardProps {
 }
 
 function StatCard({
+    accent = 'blue',
     hint,
     icon,
     label,
@@ -88,13 +94,24 @@ function StatCard({
 
     if (to) {
         return (
-            <Link className="admin-dashboard-card admin-dashboard-card--link" to={to}>
+            <Link
+                className="admin-dashboard-card admin-dashboard-card--link"
+                data-accent={accent}
+                to={to}
+            >
                 {content}
             </Link>
         );
     }
 
-    return <div className="admin-dashboard-card">{content}</div>;
+    return (
+        <div
+            className="admin-dashboard-card"
+            data-accent={accent}
+        >
+            {content}
+        </div>
+    );
 }
 
 export function AdminDashboardPage() {
@@ -110,19 +127,10 @@ export function AdminDashboardPage() {
         <section className="admin-dashboard" aria-labelledby="admin-dashboard-title">
             <header className="admin-dashboard__hero">
                 <div>
-                    <p className="admin-dashboard__eyebrow">لوحة الإدارة</p>
                     <h1 id="admin-dashboard-title">نظرة عامة</h1>
                     <p>
                         تابع حجم المحتوى التعليمي وجاهزية النشر، وانتقل بسرعة إلى أهم أدوات الإدارة.
                     </p>
-                </div>
-                <div className="admin-dashboard__hero-actions">
-                    <Link className="admin-dashboard__primary-action" to="/admin/content?section=lessons">
-                        فتح إدارة المحتوى
-                    </Link>
-                    <Link className="admin-dashboard__secondary-action" to="/admin/curricula">
-                        إدارة المناهج
-                    </Link>
                 </div>
             </header>
 
@@ -148,12 +156,12 @@ export function AdminDashboardPage() {
                         </div>
 
                         <div className="admin-dashboard__stats-grid">
-                            <StatCard icon="learners" label="الطلاب" value={data.counts.learners} />
-                            <StatCard icon="lessons" label="الدروس" value={data.counts.lessons} to="/admin/content?section=lessons" />
-                            <StatCard icon="topics" label="الوحدات" value={data.counts.topics} to="/admin/content?section=topics" />
-                            <StatCard icon="exams" label="الاختبارات" value={data.counts.exam_templates} to="/admin/content?section=exam-templates" />
-                            <StatCard icon="curricula" label="المناهج" value={data.counts.curricula} to="/admin/curricula" />
-                            <StatCard icon="subjects" label="المواد" value={data.counts.subjects} to="/admin/curricula" />
+                            <StatCard accent="blue" icon="learners" label="الطلاب" value={data.counts.learners} />
+                            <StatCard accent="cyan" icon="lessons" label="الدروس" value={data.counts.lessons} to="/admin/content?section=lessons" />
+                            <StatCard accent="indigo" icon="topics" label="الوحدات" value={data.counts.topics} to="/admin/content?section=topics" />
+                            <StatCard accent="amber" icon="exams" label="الاختبارات" value={data.counts.exam_templates} to="/admin/content?section=exam-templates" />
+                            <StatCard accent="indigo" icon="curricula" label="المناهج" value={data.counts.curricula} to="/admin/curricula" />
+                            <StatCard accent="blue" icon="subjects" label="المواد" value={data.counts.subjects} to="/admin/curricula" />
                         </div>
                     </section>
 
