@@ -1,0 +1,27 @@
+.admin-lesson-content-preview {
+    white-space: pre-wrap;
+    padding: 1rem;
+    border: 1px solid #e5ebf2;
+    border-radius: 0.8rem;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.92rem;
+    line-height: 1.9;
+}
+
+.admin-lesson-pending-content {
+    padding: 1rem;
+    border: 1px solid #dbeafe;
+    border-radius: 0.9rem;
+    background: #f8fbff;
+}
+
+.admin-lesson-title-button {
+    cursor: pointer;
+}
+
+.admin-lesson-title-button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+    border-radius: 0.35rem;
+}

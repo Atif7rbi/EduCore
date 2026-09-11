@@ -1,0 +1,127 @@
+import {
+    render,
+    screen,
+} from '@testing-library/react';
+import {
+    QueryClient,
+    QueryClientProvider,
+} from '@tanstack/react-query';
+import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
+
+import {
+    AdminDashboardPage,
+} from './AdminDashboardPage';
+
+interface RequestConfig {
+    method: string;
+    url: string;
+}
+
+const apiRequestMock = vi.fn();
+
+vi.mock('../api/client', () => ({
+    apiRequest: (config: RequestConfig) => apiRequestMock(config),
+}));
+
+function renderPage() {
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+        },
+    });
+
+    render(
+        <MemoryRouter>
+            <QueryClientProvider client={client}>
+                <AdminDashboardPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
+    );
+}
+
+function linkWithHref(href: string): HTMLAnchorElement | undefined {
+    return screen.getAllByRole('link').find(
+        (link) => link.getAttribute('href') === href,
+    ) as HTMLAnchorElement | undefined;
+}
+
+const summary = {
+    counts: {
+        subjects: 2,
+        curricula: 3,
+        curriculum_versions: 4,
+        topics: 8,
+        lessons: 12,
+        skills: 9,
+        assessment_items: 30,
+        practice_activities: 6,
+        exam_templates: 5,
+        learners: 24,
+    },
+    readiness: {
+        published_curriculum_versions: 2,
+        published_lessons: 7,
+        active_practice_activities: 4,
+        active_exam_templates: 3,
+    },
+};
+
+describe('AdminDashboardPage', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it('renders live platform counts with western numerals', async () => {
+        apiRequestMock.mockResolvedValue(summary);
+
+        renderPage();
+
+        expect(await screen.findByText('المؤشرات الرئيسية'))
+            .toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'نظرة عامة' }))
+            .toBeInTheDocument();
+        expect(screen.queryByText('لوحة الإدارة'))
+            .not.toBeInTheDocument();
+        expect(screen.getByText('الطلاب')).toBeInTheDocument();
+        expect(screen.getAllByText('الدروس').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('الوحدات').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('الاختبارات').length).toBeGreaterThan(0);
+        expect(screen.getByText('جاهزية المحتوى')).toBeInTheDocument();
+        expect(screen.getByText('مخزون التأليف')).toBeInTheDocument();
+        expect(screen.getByText('24')).toBeInTheDocument();
+        expect(screen.getByText('12')).toBeInTheDocument();
+        expect(screen.getByText('7')).toBeInTheDocument();
+
+        expect(apiRequestMock).toHaveBeenCalledWith({
+            method: 'GET',
+            url: '/api/admin/dashboard',
+        });
+    });
+
+    it('routes dashboard cards and quick actions to matching content tabs', async () => {
+        apiRequestMock.mockResolvedValue(summary);
+
+        renderPage();
+        await screen.findByText('المؤشرات الرئيسية');
+
+        expect(linkWithHref('/admin/content?section=lessons'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=topics'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=exam-templates'))
+            .toBeInTheDocument();
+        expect(linkWithHref('/admin/content?section=assessment-items'))
+            .toBeInTheDocument();
+        expect(screen.getAllByRole('link', { name: /إدارة المناهج/ }).length)
+            .toBeGreaterThan(0);
+    });
+});

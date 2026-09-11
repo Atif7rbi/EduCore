@@ -19,6 +19,7 @@ class User extends Authenticatable
         'email',
         'password',
         'status',
+        'role',
     ];
 
     protected $hidden = [
@@ -29,6 +30,31 @@ class User extends Authenticatable
     public function learnerProfile(): HasOne
     {
         return $this->hasOne(LearnerProfile::class);
+    }
+
+    public function hasRole(string $role): bool
+    {
+        return $this->role === $role;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isStudent(): bool
+    {
+        return $this->hasRole('student');
+    }
+
+    public function isTeacher(): bool
+    {
+        return $this->hasRole('teacher');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
     }
 
     protected function casts(): array

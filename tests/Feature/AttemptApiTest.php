@@ -1,0 +1,2115 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Application\Assessment\ReleaseAssessmentItemRevision;
+use App\Application\Attempt\AddRegradeCorrection;
+use App\Application\Exam\BuildExamGeneration;
+use App\Application\Support\TransactionManager;
+use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+class AttemptApiTest extends TestCase
+{
+    public function test_practice_attempt_can_be_built_via_api(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            $revisionId,
+            $itemId,
+        ] = $this->createPracticeFixture();
+
+        $response = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        );
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('data.learner_profile_id', $learnerId)
+            ->assertJsonPath('data.exam_generation_id', null)
+            ->assertJsonPath('data.practice_activity_id', $activityId)
+            ->assertJsonPath('data.status', 'in_progress')
+            ->assertJsonPath(
+                'data.items.0.assessment_item_revision_id',
+                $revisionId
+            )
+            ->assertJsonPath(
+                'data.items.0.assessment_item_id',
+                $itemId
+            )
+            ->assertJsonPath(
+                'data.items.0.presentation_position',
+                0
+            );
+
+        $this->assertNotNull(
+            $response->json('data.started_at')
+        );
+
+        $attemptId = $response->json('data.id');
+        $attemptItemId = $response->json('data.items.0.id');
+
+        $this->assertDatabaseHas('attempts', [
+            'id' => $attemptId,
+            'learner_profile_id' => $learnerId,
+            'practice_activity_id' => $activityId,
+            'status' => 'in_progress',
+        ]);
+
+        $this->assertDatabaseHas('attempt_responses', [
+            'attempt_item_id' => $attemptItemId,
+            'answer_change_count' => 0,
+            'time_spent_ms' => 0,
+            'original_is_correct' => null,
+        ]);
+    }
+
+    public function test_learner_can_discover_eligible_exam_generation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $generation = DB::table(
+            'exam_generations'
+        )
+            ->where('id', $generationId)
+            ->first();
+
+        $this->assertNotNull($generation);
+
+        $version = DB::table(
+            'exam_template_versions'
+        )
+            ->where(
+                'id',
+                $generation->exam_template_version_id
+            )
+            ->first();
+
+        $this->assertNotNull($version);
+
+        $template = DB::table(
+            'exam_templates'
+        )
+            ->where(
+                'id',
+                $version->exam_template_id
+            )
+            ->first();
+
+        $this->assertNotNull($template);
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.0.id',
+                $generationId
+            )
+            ->assertJsonPath(
+                'data.0.template.id',
+                $template->id
+            )
+            ->assertJsonPath(
+                'data.0.template.name',
+                $template->name
+            )
+            ->assertJsonPath(
+                'data.0.template_version.id',
+                $version->id
+            )
+            ->assertJsonPath(
+                'data.0.current_attempt',
+                null
+            );
+
+        $generationPayload =
+            $response->json('data.0');
+
+        $this->assertArrayNotHasKey(
+            'rules_snapshot',
+            $generationPayload
+        );
+
+        $this->assertArrayNotHasKey(
+            'seed',
+            $generationPayload
+        );
+
+        $this->assertArrayNotHasKey(
+            'generator_version',
+            $generationPayload
+        );
+    }
+
+    public function test_exam_discovery_does_not_expose_another_learners_attempt(): void
+    {
+        [
+            $firstLearnerId,
+            $firstGenerationId,
+        ] = $this->createExamFixture();
+
+        [
+            $otherLearnerId,
+            $otherGenerationId,
+        ] = $this->createExamFixture();
+
+        $otherAttempt = $this->postJson(
+            "/api/exam-generations/{$otherGenerationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $otherAttemptId =
+            $otherAttempt->json('data.id');
+
+        $firstUserId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $firstLearnerId
+            )
+            ->value('user_id');
+
+        $this->actingAs(
+            User::query()->findOrFail(
+                $firstUserId
+            )
+        );
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response->assertOk();
+
+        $generations = collect(
+            $response->json('data')
+        );
+
+        $firstGeneration =
+            $generations->firstWhere(
+                'id',
+                $firstGenerationId
+            );
+
+        $otherGeneration =
+            $generations->firstWhere(
+                'id',
+                $otherGenerationId
+            );
+
+        $this->assertNotNull(
+            $firstGeneration
+        );
+
+        $this->assertNotNull(
+            $otherGeneration
+        );
+
+        $this->assertNull(
+            $firstGeneration[
+                'current_attempt'
+            ]
+        );
+
+        $this->assertNull(
+            $otherGeneration[
+                'current_attempt'
+            ]
+        );
+
+        $this->assertNotSame(
+            $firstLearnerId,
+            $otherLearnerId
+        );
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $otherAttemptId,
+                'learner_profile_id' =>
+                    $otherLearnerId,
+                'exam_generation_id' =>
+                    $otherGenerationId,
+            ]
+        );
+    }
+
+    public function test_exam_discovery_hides_generations_that_lose_lifecycle_eligibility(): void
+    {
+        [
+            $learnerId,
+            $curriculumGenerationId,
+        ] = $this->createExamFixture();
+
+        $curriculumVersionId =
+            DB::table(
+                'exam_generations'
+            )
+                ->where(
+                    'id',
+                    $curriculumGenerationId
+                )
+                ->value(
+                    'curriculum_version_id'
+                );
+
+        DB::table(
+            'curriculum_versions'
+        )
+            ->where(
+                'id',
+                $curriculumVersionId
+            )
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        [
+            ,
+            $templateGenerationId,
+        ] = $this->createExamFixture(
+            retireTemplateVersionBeforeCurriculumPublish:
+                true,
+        );
+
+        $firstUserId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $learnerId
+            )
+            ->value('user_id');
+
+        $this->actingAs(
+            User::query()->findOrFail(
+                $firstUserId
+            )
+        );
+
+        $response = $this->getJson(
+            '/api/exam-generations'
+        );
+
+        $response->assertOk();
+
+        $ids = collect(
+            $response->json('data')
+        )->pluck('id');
+
+        $this->assertFalse(
+            $ids->contains(
+                $curriculumGenerationId
+            )
+        );
+
+        $this->assertFalse(
+            $ids->contains(
+                $templateGenerationId
+            )
+        );
+    }
+
+    public function test_exam_discovery_requires_authentication(): void
+    {
+        $this->app['auth']
+            ->guard('web')
+            ->logout();
+
+        $this->getJson(
+            '/api/exam-generations'
+        )->assertStatus(401);
+    }
+
+    public function test_exam_discovery_requires_learner_profile(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            '/api/exam-generations'
+        )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+    }
+
+    public function test_exam_attempt_can_be_built_via_api(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+            $revisionId,
+            $itemId,
+        ] = $this->createExamFixture();
+
+        $response = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        );
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('data.learner_profile_id', $learnerId)
+            ->assertJsonPath(
+                'data.exam_generation_id',
+                $generationId
+            )
+            ->assertJsonPath(
+                'data.practice_activity_id',
+                null
+            )
+            ->assertJsonPath('data.status', 'in_progress')
+            ->assertJsonPath(
+                'data.items.0.assessment_item_revision_id',
+                $revisionId
+            )
+            ->assertJsonPath(
+                'data.items.0.assessment_item_id',
+                $itemId
+            );
+
+        $this->assertNotNull(
+            $response->json('data.started_at')
+        );
+    }
+
+    public function test_second_exam_attempt_for_same_generation_is_rejected_via_api(): void
+    {
+        [$learnerId, $generationId] =
+            $this->createExamFixture();
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'error.code',
+                'integrity_conflict'
+            );
+    }
+
+    public function test_missing_exam_generation_returns_not_found(): void
+    {
+        $generationId = (string) Str::uuid();
+        $learnerId = $this->createLearner();
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
+    public function test_attempt_response_can_be_saved_and_changed_via_api(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $attemptResponse = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $attemptResponse->json(
+            'data.items.0.id'
+        );
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 1,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.response_payload.selected_option',
+                1
+            )
+            ->assertJsonPath(
+                'data.answer_change_count',
+                0
+            )
+            ->assertJsonPath(
+                'data.time_spent_ms',
+                1000
+            )
+            ->assertJsonPath(
+                'data.original_is_correct',
+                null
+            );
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 2400,
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.response_payload.selected_option',
+                2
+            )
+            ->assertJsonPath(
+                'data.answer_change_count',
+                1
+            )
+            ->assertJsonPath(
+                'data.time_spent_ms',
+                2400
+            );
+    }
+
+    public function test_attempt_response_rejects_negative_time(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $attemptResponse = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $attemptResponse->json(
+            'data.items.0.id'
+        );
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => -1,
+            ],
+        )
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'error.code',
+                'validation_failed'
+            );
+    }
+
+    public function test_missing_attempt_item_response_returns_not_found(): void
+    {
+        $this->createLearner();
+
+        $attemptItemId = (string) Str::uuid();
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
+    public function test_attempt_can_be_read_without_scoring_truth(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 2100,
+            ],
+        )->assertOk();
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.id', $attemptId)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            )
+            ->assertJsonPath(
+                'data.practice_activity_id',
+                $activityId
+            )
+            ->assertJsonPath(
+                'data.status',
+                'in_progress'
+            )
+            ->assertJsonPath(
+                'data.items.0.id',
+                $attemptItemId
+            )
+            ->assertJsonPath(
+                'data.items.0.response.response_payload.selected_option',
+                2
+            )
+            ->assertJsonPath(
+                'data.items.0.response.answer_change_count',
+                0
+            )
+            ->assertJsonPath(
+                'data.items.0.response.time_spent_ms',
+                2100
+            );
+
+        $item = $response->json('data.items.0');
+        $itemResponse = $response->json(
+            'data.items.0.response'
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $itemResponse
+        );
+    }
+
+    public function test_missing_attempt_read_returns_not_found(): void
+    {
+        $this->createLearner();
+
+        $attemptId = (string) Str::uuid();
+
+        $this->getJson(
+            "/api/attempts/{$attemptId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
+    public function test_learner_attempt_routes_require_authentication(): void
+    {
+        auth()->logout();
+
+        $missingId = (string) Str::uuid();
+
+        $this->postJson(
+            "/api/exam-generations/{$missingId}/attempts",
+            [],
+        )->assertUnauthorized();
+
+        $this->postJson(
+            "/api/practice-activities/{$missingId}/attempts",
+            [],
+        )->assertUnauthorized();
+
+        $this->putJson(
+            "/api/attempt-items/{$missingId}/response",
+            [
+                'response_payload' => null,
+                'time_spent_ms' => 0,
+            ],
+        )->assertUnauthorized();
+
+        $this->getJson(
+            "/api/attempts/{$missingId}"
+        )->assertUnauthorized();
+
+        $this->getJson(
+            '/api/attempts'
+        )->assertUnauthorized();
+
+        $this->postJson(
+            "/api/attempts/{$missingId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertUnauthorized();
+    }
+
+    public function test_attempt_identity_comes_from_authenticated_user_not_request_body(): void
+    {
+        [$learnerId, $activityId] =
+            $this->createPracticeFixture();
+
+        $spoofedLearnerId = (string) Str::uuid();
+
+        $response = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [
+                'learner_profile_id' => $spoofedLearnerId,
+            ],
+        );
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            );
+
+        $this->assertDatabaseHas('attempts', [
+            'id' => $response->json('data.id'),
+            'learner_profile_id' => $learnerId,
+        ]);
+
+        $this->assertDatabaseMissing('attempts', [
+            'id' => $response->json('data.id'),
+            'learner_profile_id' => $spoofedLearnerId,
+        ]);
+    }
+
+    public function test_learner_cannot_read_another_learners_attempt(): void
+    {
+        [, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $this->createLearner();
+
+        $this->getJson(
+            "/api/attempts/{$attemptId}"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+    }
+
+    public function test_learner_cannot_update_another_learners_attempt_item(): void
+    {
+        [, $activityId] =
+            $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $created->json(
+            'data.items.0.id'
+        );
+
+        $this->createLearner();
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'response_payload' => null,
+                'answer_change_count' => 0,
+                'time_spent_ms' => 0,
+            ]
+        );
+    }
+
+    public function test_attempt_read_never_exposes_scoring_snapshot_or_correctness(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response->assertOk();
+
+        $item = $response->json('data.items.0');
+
+        $this->assertArrayHasKey(
+            'presented_payload',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'primary_topic_id',
+            $item
+        );
+    }
+
+    public function test_response_update_does_not_expose_original_correctness(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptItemId = $created->json(
+            'data.items.0.id'
+        );
+
+        $response = $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1200,
+            ],
+        );
+
+        $response->assertOk();
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $response->json('data')
+        );
+    }
+
+    public function test_learner_can_finalize_own_attempt_with_server_side_scoring(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1500,
+            ],
+        )->assertOk();
+
+        $response = $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.id', $attemptId)
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId
+            )
+            ->assertJsonPath(
+                'data.status',
+                'submitted'
+            );
+
+        $this->assertNotNull(
+            $response->json('data.finalized_at')
+        );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'original_is_correct' => true,
+            ]
+        );
+    }
+
+    public function test_finalization_ignores_spoofed_correctness_and_scores_from_snapshot(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 900,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+
+                // These fields are deliberately hostile input.
+                // They are not part of the trusted HTTP contract.
+                'original_is_correct' => false,
+                'items' => [
+                    [
+                        'attempt_item_id' => $attemptItemId,
+                        'original_is_correct' => false,
+                    ],
+                ],
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.status',
+                'submitted'
+            );
+
+        $stored = DB::table('attempt_responses')
+            ->where(
+                'attempt_item_id',
+                $attemptItemId
+            )
+            ->first();
+
+        $this->assertNotNull($stored);
+        $this->assertTrue(
+            $stored->original_is_correct
+        );
+    }
+
+    public function test_learner_cannot_finalize_another_learners_attempt(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $this->createLearner();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $attemptId,
+                'status' => 'in_progress',
+                'finalized_at' => null,
+            ]
+        );
+    }
+
+    public function test_attempt_finalization_requires_learner_profile(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user);
+
+        $this->postJson(
+            '/api/attempts/'.Str::uuid().'/finalize',
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'learner_profile_required'
+            );
+    }
+
+    public function test_finalized_attempt_cannot_be_finalized_again_via_api(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 700,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(409)
+            ->assertJsonPath(
+                'error.code',
+                'integrity_conflict'
+            );
+    }
+
+    public function test_in_progress_attempt_does_not_expose_result_or_summary(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response->assertOk();
+
+        $this->assertArrayNotHasKey(
+            'summary',
+            $response->json('data')
+        );
+
+        $this->assertArrayNotHasKey(
+            'result',
+            $response->json('data.items.0')
+        );
+    }
+
+    public function test_submitted_attempt_exposes_result_and_summary_without_scoring_snapshot(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1100,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.status',
+                'submitted'
+            )
+            ->assertJsonPath(
+                'data.items.0.result.original_is_correct',
+                true
+            )
+            ->assertJsonPath(
+                'data.items.0.result.effective_is_correct',
+                true
+            )
+            ->assertJsonPath(
+                'data.items.0.result.correction_number',
+                null
+            )
+            ->assertJsonPath(
+                'data.summary.answered',
+                1
+            )
+            ->assertJsonPath(
+                'data.summary.correct',
+                1
+            )
+            ->assertJsonPath(
+                'data.summary.incorrect',
+                0
+            )
+            ->assertJsonPath(
+                'data.summary.unanswered',
+                0
+            )
+            ->assertJsonPath(
+                'data.summary.total',
+                1
+            );
+
+        $item = $response->json('data.items.0');
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+    }
+
+    public function test_latest_regrade_becomes_effective_result_without_overwriting_original_truth(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 1,
+                ],
+                'time_spent_ms' => 900,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $attemptResponseId = DB::table('attempt_responses')
+            ->where(
+                'attempt_item_id',
+                $attemptItemId
+            )
+            ->value('id');
+
+        $service = new AddRegradeCorrection(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        );
+
+        $service->execute(
+            $attemptResponseId,
+            true,
+            'First review correction.',
+        );
+
+        $service->execute(
+            $attemptResponseId,
+            false,
+            'Second review correction.',
+        );
+
+        $service->execute(
+            $attemptResponseId,
+            true,
+            'Final review correction.',
+        );
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.items.0.result.original_is_correct',
+                false
+            )
+            ->assertJsonPath(
+                'data.items.0.result.effective_is_correct',
+                true
+            )
+            ->assertJsonPath(
+                'data.items.0.result.correction_number',
+                3
+            )
+            ->assertJsonPath(
+                'data.summary.correct',
+                1
+            )
+            ->assertJsonPath(
+                'data.summary.incorrect',
+                0
+            );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'id' => $attemptResponseId,
+                'original_is_correct' => false,
+            ]
+        );
+    }
+
+    public function test_unanswered_finalized_item_has_null_effective_result_and_counts_as_unanswered(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $response = $this->getJson(
+            "/api/attempts/{$attemptId}"
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.items.0.result.original_is_correct',
+                null
+            )
+            ->assertJsonPath(
+                'data.items.0.result.effective_is_correct',
+                null
+            )
+            ->assertJsonPath(
+                'data.items.0.result.correction_number',
+                null
+            )
+            ->assertJsonPath(
+                'data.summary.answered',
+                0
+            )
+            ->assertJsonPath(
+                'data.summary.correct',
+                0
+            )
+            ->assertJsonPath(
+                'data.summary.incorrect',
+                0
+            )
+            ->assertJsonPath(
+                'data.summary.unanswered',
+                1
+            )
+            ->assertJsonPath(
+                'data.summary.total',
+                1
+            );
+    }
+
+    public function test_learner_attempt_history_lists_only_own_attempts(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $own = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $ownAttemptId = $own->json('data.id');
+
+        [, $otherGenerationId] =
+            $this->createExamFixture();
+
+        $other = $this->postJson(
+            "/api/exam-generations/{$otherGenerationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $otherAttemptId = $other->json('data.id');
+
+        $this->createLearner();
+
+        $response = $this->getJson(
+            '/api/attempts'
+        );
+
+        $response->assertOk();
+
+        $ids = collect(
+            $response->json('data')
+        )->pluck('id');
+
+        $this->assertFalse(
+            $ids->contains($ownAttemptId)
+        );
+
+        $this->assertFalse(
+            $ids->contains($otherAttemptId)
+        );
+    }
+
+    public function test_learner_attempt_history_returns_current_learners_attempts_newest_first(): void
+    {
+        CarbonImmutable::setTestNow(
+            '2026-08-26 01:00:00 UTC'
+        );
+
+        try {
+            [
+                $learnerId,
+                $generationId,
+            ] = $this->createExamFixture();
+
+            $first = $this->postJson(
+                "/api/exam-generations/{$generationId}/attempts",
+                [],
+            )->assertStatus(201);
+
+            $firstAttemptId = $first->json('data.id');
+
+            CarbonImmutable::setTestNow(
+                '2026-08-26 01:01:00 UTC'
+            );
+
+            [, $activityId] =
+                $this->createPracticeFixture();
+
+            $firstLearnerUserId = DB::table(
+                'learner_profiles'
+            )
+                ->where('id', $learnerId)
+                ->value('user_id');
+
+            $this->actingAs(
+                User::query()->findOrFail(
+                    $firstLearnerUserId
+                )
+            );
+
+            $second = $this->postJson(
+                "/api/practice-activities/{$activityId}/attempts",
+                [],
+            )->assertStatus(201);
+
+            $secondAttemptId = $second->json('data.id');
+
+            $response = $this->getJson(
+                '/api/attempts'
+            );
+
+            $response->assertOk();
+
+            $data = $response->json('data');
+
+            $this->assertCount(
+                2,
+                $data
+            );
+
+            $this->assertSame(
+                $secondAttemptId,
+                $data[0]['id']
+            );
+
+            $this->assertSame(
+                $firstAttemptId,
+                $data[1]['id']
+            );
+
+            $this->assertArrayNotHasKey(
+                'items',
+                $data[0]
+            );
+
+            $this->assertArrayNotHasKey(
+                'scoring_snapshot',
+                $data[0]
+            );
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_finalized_attempt_history_includes_effective_summary(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+        $attemptItemId = $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 1,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )->assertOk();
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )->assertOk();
+
+        $attemptResponseId = DB::table('attempt_responses')
+            ->where(
+                'attempt_item_id',
+                $attemptItemId
+            )
+            ->value('id');
+
+        (new AddRegradeCorrection(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute(
+            $attemptResponseId,
+            true,
+            'History effective correction.',
+        );
+
+        $response = $this->getJson(
+            '/api/attempts'
+        );
+
+        $response->assertOk();
+
+        $attempt = collect(
+            $response->json('data')
+        )->firstWhere(
+            'id',
+            $attemptId
+        );
+
+        $this->assertNotNull($attempt);
+
+        $this->assertSame(
+            'submitted',
+            $attempt['status']
+        );
+
+        $this->assertSame(
+            1,
+            $attempt['summary']['answered']
+        );
+
+        $this->assertSame(
+            1,
+            $attempt['summary']['correct']
+        );
+
+        $this->assertSame(
+            0,
+            $attempt['summary']['incorrect']
+        );
+
+        $this->assertSame(
+            0,
+            $attempt['summary']['unanswered']
+        );
+
+        $this->assertSame(
+            1,
+            $attempt['summary']['total']
+        );
+    }
+
+    public function test_in_progress_attempt_history_does_not_include_summary(): void
+    {
+        [, $generationId] =
+            $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId = $created->json('data.id');
+
+        $response = $this->getJson(
+            '/api/attempts'
+        );
+
+        $response->assertOk();
+
+        $attempt = collect(
+            $response->json('data')
+        )->firstWhere(
+            'id',
+            $attemptId
+        );
+
+        $this->assertNotNull($attempt);
+
+        $this->assertArrayNotHasKey(
+            'summary',
+            $attempt
+        );
+    }
+
+    public function test_exam_generation_in_unpublished_curriculum_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $versionId = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->value('curriculum_version_id');
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'exam_generation_id',
+                    $generationId
+                )
+                ->count()
+        );
+    }
+
+    public function test_exam_generation_from_retired_template_version_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture(
+            retireTemplateVersionBeforeCurriculumPublish:
+                true,
+        );
+
+        $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'exam_generation_id',
+                    $generationId
+                )
+                ->count()
+        );
+    }
+
+    public function test_exam_attempt_creation_never_exposes_scoring_truth(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $response = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        );
+
+        $response->assertStatus(201);
+
+        $item = $response->json('data.items.0');
+
+        $this->assertArrayHasKey(
+            'presented_payload',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_snapshot',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'scoring_schema_version',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'original_is_correct',
+            $item
+        );
+
+        $this->assertArrayNotHasKey(
+            'primary_topic_id',
+            $item
+        );
+    }
+
+    public function test_archived_practice_activity_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture(
+            archiveBeforeCurriculumPublish:
+                true,
+        );
+
+        $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'practice_activity_id',
+                    $activityId
+                )
+                ->count()
+        );
+    }
+
+    public function test_practice_activity_in_unpublished_curriculum_cannot_start_learner_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $versionId = DB::table('practice_activities')
+            ->where('id', $activityId)
+            ->value('curriculum_version_id');
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'retired',
+                'updated_at' => now(),
+            ]);
+
+        $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found'
+            );
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId
+                )
+                ->where(
+                    'practice_activity_id',
+                    $activityId
+                )
+                ->count()
+        );
+    }
+
+    /**
+     * @return array{string, string, string, string}
+     */
+    private function createPracticeFixture(
+        bool $archiveBeforeCurriculumPublish = false,
+    ): array {
+        [
+            $learnerId,
+            $versionId,
+            $revisionId,
+            $itemId,
+        ] = $this->createAssessmentFixture();
+
+        $activityId = (string) Str::uuid();
+
+        DB::table('practice_activities')->insert([
+            'id' => $activityId,
+            'curriculum_version_id' => $versionId,
+            'lesson_id' => null,
+            'name' => "Attempt API Practice {$activityId}",
+            'description' => null,
+            'status' => 'archived',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('practice_activity_items')->insert([
+            'id' => (string) Str::uuid(),
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $revisionId,
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $versionId,
+            'display_order' => 0,
+            'created_at' => now(),
+        ]);
+
+        DB::table('practice_activities')
+            ->where('id', $activityId)
+            ->update([
+                'status' => 'active',
+                'updated_at' => now(),
+            ]);
+
+        if ($archiveBeforeCurriculumPublish) {
+            DB::table('practice_activities')
+                ->where('id', $activityId)
+                ->update([
+                    'status' => 'archived',
+                    'updated_at' => now(),
+                ]);
+        }
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        return [
+            $learnerId,
+            $activityId,
+            $revisionId,
+            $itemId,
+        ];
+    }
+
+    /**
+     * @return array{string, string, string, string}
+     */
+    private function createExamFixture(
+        bool $retireTemplateVersionBeforeCurriculumPublish = false,
+    ): array {
+        [
+            $learnerId,
+            $versionId,
+            $revisionId,
+            $itemId,
+        ] = $this->createAssessmentFixture();
+
+        $templateId = (string) Str::uuid();
+        $templateVersionId = (string) Str::uuid();
+
+        DB::table('exam_templates')->insert([
+            'id' => $templateId,
+            'curriculum_version_id' => $versionId,
+            'name' => "Attempt API Template {$templateId}",
+            'description' => null,
+            'status' => 'active',
+            'published_version_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('exam_template_versions')->insert([
+            'id' => $templateVersionId,
+            'exam_template_id' => $templateId,
+            'curriculum_version_id' => $versionId,
+            'version_number' => 1,
+            'label' => 'v1',
+            'status' => 'draft',
+            'rules_payload' => json_encode([
+                'question_count' => 1,
+            ], JSON_THROW_ON_ERROR),
+            'rules_schema_version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('exam_template_versions')
+            ->where('id', $templateVersionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        $generation = (new BuildExamGeneration(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute(
+            $templateVersionId,
+            'attempt-api-generator-v1',
+            'attempt-api-seed',
+            [
+                [
+                    'assessment_item_revision_id' => $revisionId,
+                    'assessment_item_id' => $itemId,
+                ],
+            ],
+        );
+
+        if (
+            $retireTemplateVersionBeforeCurriculumPublish
+        ) {
+            DB::table('exam_template_versions')
+                ->where(
+                    'id',
+                    $templateVersionId
+                )
+                ->update([
+                    'status' => 'retired',
+                    'updated_at' => now(),
+                ]);
+        }
+
+        DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        return [
+            $learnerId,
+            $generation->id,
+            $revisionId,
+            $itemId,
+        ];
+    }
+
+    /**
+     * @return array{string, string, string, string}
+     */
+    private function createAssessmentFixture(): array
+    {
+        $learnerId = $this->createLearner();
+
+        $subjectId = (string) Str::uuid();
+        $curriculumId = (string) Str::uuid();
+        $versionId = (string) Str::uuid();
+        $topicId = (string) Str::uuid();
+        $skillId = (string) Str::uuid();
+        $placementId = (string) Str::uuid();
+        $itemId = (string) Str::uuid();
+        $revisionId = (string) Str::uuid();
+
+        DB::table('subjects')->insert([
+            'id' => $subjectId,
+            'name' => "Attempt API Subject {$subjectId}",
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('curricula')->insert([
+            'id' => $curriculumId,
+            'subject_id' => $subjectId,
+            'name' => "Attempt API Curriculum {$curriculumId}",
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('curriculum_versions')->insert([
+            'id' => $versionId,
+            'curriculum_id' => $curriculumId,
+            'version_number' => 1,
+            'label' => 'v1',
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('topics')->insert([
+            'id' => $topicId,
+            'curriculum_version_id' => $versionId,
+            'name' => "Attempt API Topic {$topicId}",
+            'display_order' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('skills')->insert([
+            'id' => $skillId,
+            'name' => "Attempt API Skill {$skillId}",
+            'description' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('skill_version_placements')->insert([
+            'id' => $placementId,
+            'skill_id' => $skillId,
+            'curriculum_version_id' => $versionId,
+            'created_at' => now(),
+        ]);
+
+        DB::table('assessment_items')->insert([
+            'id' => $itemId,
+            'curriculum_version_id' => $versionId,
+            'item_type' => 'multiple_choice',
+            'internal_label' => "Attempt API Item {$itemId}",
+            'status' => 'draft',
+            'published_revision_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('assessment_item_revisions')->insert([
+            'id' => $revisionId,
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $versionId,
+            'revision_number' => 1,
+            'primary_topic_id' => $topicId,
+            'difficulty' => 'easy',
+            'content_payload' => json_encode([
+                'stem' => '8 + 7 = ?',
+                'options' => [13, 14, 15, 16],
+            ], JSON_THROW_ON_ERROR),
+            'content_schema_version' => 1,
+            'scoring_payload' => json_encode([
+                'correct_option' => 2,
+            ], JSON_THROW_ON_ERROR),
+            'scoring_schema_version' => 1,
+            'released_at' => null,
+            'created_at' => now(),
+        ]);
+
+        DB::table('assessment_item_revision_skills')->insert([
+            'id' => (string) Str::uuid(),
+            'assessment_item_revision_id' => $revisionId,
+            'skill_version_placement_id' => $placementId,
+            'curriculum_version_id' => $versionId,
+            'role' => 'primary',
+            'created_at' => now(),
+        ]);
+
+        (new ReleaseAssessmentItemRevision(
+            new TransactionManager(
+                new PostgresExceptionTranslator()
+            )
+        ))->execute($revisionId);
+
+        return [
+            $learnerId,
+            $versionId,
+            $revisionId,
+            $itemId,
+        ];
+    }
+
+    private function createLearner(): string
+    {
+        $userId = (string) Str::uuid();
+        $learnerId = (string) Str::uuid();
+
+        DB::table('users')->insert([
+            'id' => $userId,
+            'name' => "Attempt API User {$userId}",
+            'email' => "attempt-api-{$userId}@example.test",
+            'password' => 'not-used',
+            'status' => 'active',
+            'role' => 'student',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('learner_profiles')->insert([
+            'id' => $learnerId,
+            'user_id' => $userId,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs(
+            User::query()->findOrFail($userId)
+        );
+
+        return $learnerId;
+    }
+}
