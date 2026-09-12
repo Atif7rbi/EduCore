@@ -67,16 +67,90 @@ return new class extends Migration
                 'name',
             );
 
+            /*
+             * Explicit production remediation approved after CDA-008
+             * detected a pre-existing Physics Subject that already owns
+             * historical Curriculum identity.
+             *
+             * This is intentionally exact-ID based. Name equality alone
+             * is never sufficient to canonicalize a legacy Subject.
+             */
+            $approvedLegacyAdoptions = [
+                'physics' => [
+                    'id' => '01a075f1-d4bb-72dc-ac69-7332950b8408',
+                    'name' => 'الفيزياء',
+                ],
+            ];
+
+            foreach (
+                $approvedLegacyAdoptions as $code => $adoption
+            ) {
+                $reservedIdentity = DB::table('subjects')
+                    ->where('id', $adoption['id'])
+                    ->first([
+                        'id',
+                        'name',
+                    ]);
+
+                if (
+                    $reservedIdentity !== null
+                    && $reservedIdentity->name
+                        !== $adoption['name']
+                ) {
+                    throw new RuntimeException(
+                        'CDA-008 approved Subject identity mismatch: '
+                        .$code
+                    );
+                }
+            }
+
             $nameCollisions = DB::table('subjects')
                 ->whereIn('name', $canonicalNames)
                 ->orderBy('name')
-                ->pluck('name')
-                ->all();
+                ->get([
+                    'id',
+                    'name',
+                ]);
 
-            if ($nameCollisions !== []) {
+            foreach ($nameCollisions as $collision) {
+                $canonicalSubject = null;
+
+                foreach (
+                    $canonicalSubjects as $candidate
+                ) {
+                    if (
+                        $candidate['name']
+                        === $collision->name
+                    ) {
+                        $canonicalSubject = $candidate;
+                        break;
+                    }
+                }
+
+                if ($canonicalSubject === null) {
+                    throw new RuntimeException(
+                        'CDA-008 internal canonical Subject '
+                        .'resolution failure.'
+                    );
+                }
+
+                $approvedAdoption =
+                    $approvedLegacyAdoptions[
+                        $canonicalSubject['code']
+                    ]
+                    ?? null;
+
+                if (
+                    $approvedAdoption !== null
+                    && (string) $collision->id
+                        === $approvedAdoption['id']
+                ) {
+                    continue;
+                }
+
                 throw new RuntimeException(
                     'CDA-008 canonical Subject name collision: '
-                    .implode(', ', $nameCollisions)
+                    .$collision->name
                 );
             }
 
@@ -145,6 +219,50 @@ SQL);
             $now = now();
 
             foreach ($canonicalSubjects as $subject) {
+                $approvedAdoption =
+                    $approvedLegacyAdoptions[
+                        $subject['code']
+                    ]
+                    ?? null;
+
+                if (
+                    $approvedAdoption !== null
+                    && DB::table('subjects')
+                        ->where(
+                            'id',
+                            $approvedAdoption['id'],
+                        )
+                        ->where(
+                            'name',
+                            $approvedAdoption['name'],
+                        )
+                        ->exists()
+                ) {
+                    $updated = DB::table('subjects')
+                        ->where(
+                            'id',
+                            $approvedAdoption['id'],
+                        )
+                        ->update([
+                            'code' => $subject['code'],
+                            'icon_key' => $subject['icon_key'],
+                            'thumbnail_key' => $subject['thumbnail_key'],
+                            'sort_order' => $subject['sort_order'],
+                            'status' => 'active',
+                            'updated_at' => $now,
+                        ]);
+
+                    if ($updated !== 1) {
+                        throw new RuntimeException(
+                            'CDA-008 approved Subject adoption '
+                            .'did not update exactly one row: '
+                            .$subject['code']
+                        );
+                    }
+
+                    continue;
+                }
+
                 DB::table('subjects')->insert([
                     'id' => (string) Str::uuid(),
                     'name' => $subject['name'],
