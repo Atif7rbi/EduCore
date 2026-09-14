@@ -35,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => \App\Http\Middleware\RequireActiveUser::class,
             'learner' => \App\Http\Middleware\RequireLearnerProfile::class,
             'management' => \App\Http\Middleware\RequireManagementAuthorization::class,
+            'student' => \App\Http\Middleware\RequireStudentAuthorization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -43,7 +44,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 IntegrityConstraintViolation $exception,
                 Request $request,
             ) {
-                if (! $request->is('api/*')) {
+                if (
+                    ! $request->is('api/*')
+                    && ! $request->is('auth/register')
+                ) {
                     return null;
                 }
 

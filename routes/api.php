@@ -564,7 +564,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
     )->whereUuid('examTemplateVersionId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::post(
         '/exam-generations/{examGenerationId}/attempts',
         [
@@ -608,7 +608,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
     )->whereUuid('attemptResponseId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::get(
         '/curricula',
         [
@@ -682,7 +682,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     )->whereUuid('practiceActivityId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::get(
         '/progress/overview',
         [
