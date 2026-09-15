@@ -2,6 +2,13 @@
 
 use App\Application\Exceptions\ConcurrencyConflict;
 use App\Application\Exceptions\IntegrityConstraintViolation;
+use App\Http\Middleware\RequestCorrelation;
+use App\Http\Middleware\RequireActiveUser;
+use App\Http\Middleware\RequireLearnerProfile;
+use App\Http\Middleware\RequireManagementAuthorization;
+use App\Http\Middleware\RequireStudentAuthorization;
+use App\Http\Middleware\RequireTeacherAuthorization;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -24,18 +31,19 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(
-            \App\Http\Middleware\RequestCorrelation::class
+            RequestCorrelation::class
         );
 
         $middleware->append(
-            \App\Http\Middleware\SecurityHeaders::class
+            SecurityHeaders::class
         );
 
         $middleware->alias([
-            'active' => \App\Http\Middleware\RequireActiveUser::class,
-            'learner' => \App\Http\Middleware\RequireLearnerProfile::class,
-            'management' => \App\Http\Middleware\RequireManagementAuthorization::class,
-            'student' => \App\Http\Middleware\RequireStudentAuthorization::class,
+            'active' => RequireActiveUser::class,
+            'learner' => RequireLearnerProfile::class,
+            'management' => RequireManagementAuthorization::class,
+            'student' => RequireStudentAuthorization::class,
+            'teacher' => RequireTeacherAuthorization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -214,7 +222,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(
             function (
-                \Throwable $exception,
+                Throwable $exception,
                 Request $request,
             ) {
                 if (! $request->is('api/*')) {
