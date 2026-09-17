@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminExamTemplateLifecycleApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_draft_version_can_be_published_and_becomes_current(): void
@@ -56,8 +58,7 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
             'exam_templates',
             [
                 'id' => $templateId,
-                'published_version_id' =>
-                    $versionId,
+                'published_version_id' => $versionId,
             ]
         );
     }
@@ -165,8 +166,7 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
             'exam_templates',
             [
                 'id' => $templateId,
-                'published_version_id' =>
-                    $versionTwo,
+                'published_version_id' => $versionTwo,
             ]
         );
     }
@@ -352,27 +352,13 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
 
     private function curriculumVersion(): string
     {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId =
-            (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId =
             (string) Str::uuid();
@@ -381,11 +367,9 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
             'curriculum_versions'
         )->insert([
             'id' => $versionId,
-            'curriculum_id' =>
-                $curriculumId,
+            'curriculum_id' => $curriculumId,
             'version_number' => 1,
-            'label' =>
-                'Version '.Str::random(8),
+            'label' => 'Version '.Str::random(8),
             'status' => 'draft',
             'created_at' => now(),
             'updated_at' => now(),
@@ -401,10 +385,8 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
 
         DB::table('exam_templates')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
-            'name' =>
-                'Template '.Str::random(12),
+            'curriculum_version_id' => $curriculumVersionId,
+            'name' => 'Template '.Str::random(12),
             'description' => null,
             'status' => 'active',
             'published_version_id' => null,
@@ -426,20 +408,14 @@ class AdminExamTemplateLifecycleApiTest extends TestCase
             'exam_template_versions'
         )->insert([
             'id' => $id,
-            'exam_template_id' =>
-                $templateId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
-            'version_number' =>
-                $versionNumber,
-            'label' =>
-                'v'.$versionNumber,
+            'exam_template_id' => $templateId,
+            'curriculum_version_id' => $curriculumVersionId,
+            'version_number' => $versionNumber,
+            'label' => 'v'.$versionNumber,
             'status' => 'draft',
-            'rules_payload' =>
-                json_encode([
-                    'question_count' =>
-                        20 + $versionNumber,
-                ]),
+            'rules_payload' => json_encode([
+                'question_count' => 20 + $versionNumber,
+            ]),
             'rules_schema_version' => 1,
             'created_at' => now(),
             'updated_at' => now(),

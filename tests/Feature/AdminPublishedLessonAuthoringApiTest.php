@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminPublishedLessonAuthoringApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_published_lesson_in_draft_curriculum_can_be_edited_without_replacing_published_content(): void
@@ -142,22 +144,13 @@ class AdminPublishedLessonAuthoringApiTest extends TestCase
 
     private function publishedLessonFixture(): array
     {
-        $subjectId = (string) Str::uuid();
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Curriculum '.Str::random(8)
+            );
 
-        $curriculumId = (string) Str::uuid();
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
         DB::table('curriculum_versions')->insert([

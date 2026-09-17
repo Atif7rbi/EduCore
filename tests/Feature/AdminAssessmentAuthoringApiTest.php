@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminAssessmentAuthoringApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_list_and_update_draft_item(): void
@@ -323,24 +325,13 @@ class AdminAssessmentAuthoringApiTest extends TestCase
     private function version(
         string $status,
     ): string {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -364,11 +355,9 @@ class AdminAssessmentAuthoringApiTest extends TestCase
 
         DB::table('assessment_items')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                'Item '.Str::random(12),
+            'internal_label' => 'Item '.Str::random(12),
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -385,8 +374,7 @@ class AdminAssessmentAuthoringApiTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'name' => 'Topic '.Str::random(12),
             'display_order' => 0,
             'created_at' => now(),

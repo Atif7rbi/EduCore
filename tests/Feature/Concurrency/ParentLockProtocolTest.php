@@ -6,20 +6,29 @@ use App\Application\Analytics\CreateEvidenceScope;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
+use App\Application\Attempt\BuildPracticeAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
+use App\Application\Curriculum\EvaluateCurriculumVersionReadiness;
 use App\Application\Curriculum\PublishCurriculumVersion;
 use App\Application\Exam\BuildExamGeneration;
+use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ParentLockProtocolTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_c1_curriculum_publish_serializes_with_structural_child_mutation(): void
     {
         [
@@ -89,7 +98,7 @@ PHP_CODE,
             );
 
             $this->assertSame(
-                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                CurriculumVersionNotReady::class,
                 $result['class'] ?? null
             );
 
@@ -104,8 +113,7 @@ PHP_CODE,
                 'topics',
                 [
                     'id' => $topicId,
-                    'curriculum_version_id' =>
-                        $versionId,
+                    'curriculum_version_id' => $versionId,
                 ]
             );
         } finally {
@@ -212,7 +220,7 @@ PHP_CODE,
             );
 
             $this->assertSame(
-                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                CurriculumVersionNotReady::class,
                 $result['class'] ?? null
             );
 
@@ -270,7 +278,7 @@ PHP_CODE,
              * held until the explicit COMMIT below.
              */
             $published = app(
-                \App\Application\Curriculum\PublishCurriculumVersion::class
+                PublishCurriculumVersion::class
             )->execute(
                 $versionId
             );
@@ -700,14 +708,10 @@ PHP_CODE,
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $activityId,
-            'assessment_item_revision_id' =>
-                $first['revision_id'],
-            'assessment_item_id' =>
-                $first['item_id'],
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $first['revision_id'],
+            'assessment_item_id' => $first['item_id'],
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -736,14 +740,10 @@ PHP_CODE,
                 'practice_activity_items'
             )->insert([
                 'id' => (string) Str::uuid(),
-                'practice_activity_id' =>
-                    $activityId,
-                'assessment_item_revision_id' =>
-                    $second['revision_id'],
-                'assessment_item_id' =>
-                    $second['item_id'],
-                'curriculum_version_id' =>
-                    $versionId,
+                'practice_activity_id' => $activityId,
+                'assessment_item_revision_id' => $second['revision_id'],
+                'assessment_item_id' => $second['item_id'],
+                'curriculum_version_id' => $versionId,
                 'display_order' => 1,
                 'created_at' => now(),
             ]);
@@ -752,7 +752,7 @@ PHP_CODE,
                 'Published CurriculumVersion unexpectedly allowed Practice membership mutation.'
             );
         } catch (
-            \Illuminate\Database\QueryException $exception
+            QueryException $exception
         ) {
             $this->assertStringContainsString(
                 'is not draft',
@@ -765,7 +765,7 @@ PHP_CODE,
         ] = $this->createLearner();
 
         $attempt = app(
-            \App\Application\Attempt\BuildPracticeAttempt::class
+            BuildPracticeAttempt::class
         )->execute(
             $learnerId,
             $activityId
@@ -1550,24 +1550,18 @@ PHP_CODE,
      */
     private function createCurriculumVersion(): array
     {
-        $subjectId = (string) Str::uuid();
-        $curriculumId = (string) Str::uuid();
+        $subjectId =
+            $this->canonicalSubjectId();
+        $curriculumId = null;
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Concurrency Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Concurrency Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Concurrency Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -2018,8 +2012,7 @@ PHP_CODE,
                 $assessment['item_id']
             )
             ->update([
-                'published_revision_id' =>
-                    $assessment['revision_id'],
+                'published_revision_id' => $assessment['revision_id'],
                 'status' => 'published',
                 'updated_at' => now(),
             ]);
@@ -2032,10 +2025,8 @@ PHP_CODE,
 
         DB::table('lessons')->insert([
             'id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
-            'title' =>
-                "Publishing Ready Lesson {$lessonId}",
+            'curriculum_version_id' => $versionId,
+            'title' => "Publishing Ready Lesson {$lessonId}",
             'description' => null,
             'status' => 'draft',
             'display_order' => 0,
@@ -2047,11 +2038,9 @@ PHP_CODE,
         DB::table('lesson_revisions')->insert([
             'id' => $lessonRevisionId,
             'lesson_id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
-            'primary_topic_id' =>
-                $assessment['topic_id'],
+            'primary_topic_id' => $assessment['topic_id'],
             'content_payload' => json_encode(
                 [
                     'type' => 'lesson',
@@ -2071,8 +2060,7 @@ PHP_CODE,
         DB::table('lessons')
             ->where('id', $lessonId)
             ->update([
-                'published_revision_id' =>
-                    $lessonRevisionId,
+                'published_revision_id' => $lessonRevisionId,
                 'status' => 'published',
                 'updated_at' => now(),
             ]);
@@ -2084,11 +2072,9 @@ PHP_CODE,
             'practice_activities'
         )->insert([
             'id' => $practiceActivityId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
-            'name' =>
-                "Publishing Ready Practice {$practiceActivityId}",
+            'name' => "Publishing Ready Practice {$practiceActivityId}",
             'description' => null,
             'status' => 'archived',
             'created_at' => now(),
@@ -2099,14 +2085,10 @@ PHP_CODE,
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $practiceActivityId,
-            'assessment_item_revision_id' =>
-                $assessment['revision_id'],
-            'assessment_item_id' =>
-                $assessment['item_id'],
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $practiceActivityId,
+            'assessment_item_revision_id' => $assessment['revision_id'],
+            'assessment_item_id' => $assessment['item_id'],
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -2129,10 +2111,8 @@ PHP_CODE,
 
         DB::table('exam_templates')->insert([
             'id' => $examTemplateId,
-            'curriculum_version_id' =>
-                $versionId,
-            'name' =>
-                "Publishing Ready Exam {$examTemplateId}",
+            'curriculum_version_id' => $versionId,
+            'name' => "Publishing Ready Exam {$examTemplateId}",
             'description' => null,
             'status' => 'active',
             'published_version_id' => null,
@@ -2144,10 +2124,8 @@ PHP_CODE,
             'exam_template_versions'
         )->insert([
             'id' => $examTemplateVersionId,
-            'exam_template_id' =>
-                $examTemplateId,
-            'curriculum_version_id' =>
-                $versionId,
+            'exam_template_id' => $examTemplateId,
+            'curriculum_version_id' => $versionId,
             'version_number' => 1,
             'label' => 'Publishing Ready v1',
             'status' => 'draft',
@@ -2180,13 +2158,12 @@ PHP_CODE,
                 $examTemplateId
             )
             ->update([
-                'published_version_id' =>
-                    $examTemplateVersionId,
+                'published_version_id' => $examTemplateVersionId,
                 'updated_at' => now(),
             ]);
 
         $readiness = app(
-            \App\Application\Curriculum\EvaluateCurriculumVersionReadiness::class
+            EvaluateCurriculumVersionReadiness::class
         )->execute(
             $versionId
         );
@@ -2202,17 +2179,12 @@ PHP_CODE,
         }
 
         return [
-            'practice_activity_id' =>
-                $practiceActivityId,
-            'assessment_item_id' =>
-                $assessment['item_id'],
-            'assessment_revision_id' =>
-                $assessment['revision_id'],
+            'practice_activity_id' => $practiceActivityId,
+            'assessment_item_id' => $assessment['item_id'],
+            'assessment_revision_id' => $assessment['revision_id'],
             'lesson_id' => $lessonId,
-            'exam_template_id' =>
-                $examTemplateId,
-            'exam_template_version_id' =>
-                $examTemplateVersionId,
+            'exam_template_id' => $examTemplateId,
+            'exam_template_version_id' => $examTemplateVersionId,
         ];
     }
 

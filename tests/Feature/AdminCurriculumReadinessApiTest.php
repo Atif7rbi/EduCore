@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminCurriculumReadinessApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_guest_cannot_read_curriculum_readiness(): void
@@ -86,8 +88,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         ]);
 
         $response->assertJsonFragment([
-            'code' =>
-                'has_usable_exam_template',
+            'code' => 'has_usable_exam_template',
             'passed' => false,
             'value' => 0,
         ]);
@@ -123,8 +124,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
                     'blocks' => [
                         [
                             'type' => 'text',
-                            'text' =>
-                                'Ratio fundamentals',
+                            'text' => 'Ratio fundamentals',
                         ],
                     ],
                 ],
@@ -138,8 +138,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/lesson-revisions/{$lessonRevisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
             ]
         )->assertCreated();
 
@@ -150,18 +149,15 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/lessons/{$lessonId}/publish",
             [
-                'published_revision_id' =>
-                    $lessonRevisionId,
+                'published_revision_id' => $lessonRevisionId,
             ]
         )->assertOk();
 
         $assessment = $this->postJson(
             "/api/admin/curriculum-versions/{$versionId}/assessment-items",
             [
-                'item_type' =>
-                    'multiple_choice',
-                'internal_label' =>
-                    'Ratios Question 1',
+                'item_type' => 'multiple_choice',
+                'internal_label' => 'Ratios Question 1',
             ]
         )->assertCreated();
 
@@ -173,12 +169,10 @@ class AdminCurriculumReadinessApiTest extends TestCase
                 "/api/admin/assessment-items/{$assessmentItemId}/revisions",
                 [
                     'revision_number' => 1,
-                    'primary_topic_id' =>
-                        $topicId,
+                    'primary_topic_id' => $topicId,
                     'difficulty' => 'easy',
                     'content_payload' => [
-                        'stem' =>
-                            'What is 2:4 simplified?',
+                        'stem' => 'What is 2:4 simplified?',
                         'options' => [
                             '1:2',
                             '2:3',
@@ -200,8 +194,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$assessmentRevisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'primary',
             ]
         )->assertCreated();
@@ -213,8 +206,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/assessment-items/{$assessmentItemId}/publish",
             [
-                'published_revision_id' =>
-                    $assessmentRevisionId,
+                'published_revision_id' => $assessmentRevisionId,
             ]
         )->assertOk();
 
@@ -223,8 +215,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
             [
                 'lesson_id' => $lessonId,
                 'name' => 'Ratios Practice',
-                'description' =>
-                    'Ratios practice activity',
+                'description' => 'Ratios practice activity',
             ]
         )->assertCreated();
 
@@ -234,8 +225,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$practiceId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $assessmentRevisionId,
+                'assessment_item_revision_id' => $assessmentRevisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -248,8 +238,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
             "/api/admin/curriculum-versions/{$versionId}/exam-templates",
             [
                 'name' => 'Ratios Mock',
-                'description' =>
-                    'Ratios mock exam',
+                'description' => 'Ratios mock exam',
             ]
         )->assertCreated();
 
@@ -285,8 +274,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/curriculum-versions/{$versionId}/lessons",
             [
-                'title' =>
-                    'Future optional lesson',
+                'title' => 'Future optional lesson',
                 'description' => null,
                 'display_order' => 99,
             ]
@@ -392,8 +380,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'primary',
             ]
         )->assertCreated();
@@ -417,8 +404,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$practiceId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -445,15 +431,13 @@ class AdminCurriculumReadinessApiTest extends TestCase
             );
 
         $response->assertJsonFragment([
-            'code' =>
-                'has_learner_usable_practice',
+            'code' => 'has_learner_usable_practice',
             'passed' => false,
             'value' => 0,
         ]);
 
         $response->assertJsonFragment([
-            'code' =>
-                'active_practice_hidden_by_lesson',
+            'code' => 'active_practice_hidden_by_lesson',
             'value' => 1,
         ]);
     }
@@ -491,15 +475,13 @@ class AdminCurriculumReadinessApiTest extends TestCase
             );
 
         $response->assertJsonFragment([
-            'code' =>
-                'has_usable_exam_template',
+            'code' => 'has_usable_exam_template',
             'passed' => false,
             'value' => 0,
         ]);
 
         $response->assertJsonFragment([
-            'code' =>
-                'active_exam_templates_without_published_version',
+            'code' => 'active_exam_templates_without_published_version',
             'value' => 1,
         ]);
     }
@@ -519,24 +501,13 @@ class AdminCurriculumReadinessApiTest extends TestCase
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'Readiness Subject '.
-                Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'Readiness Curriculum '.
-                Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -558,8 +529,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $topicId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'name' => 'Ratios',
             'display_order' => 0,
             'created_at' => now(),
@@ -568,8 +538,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
 
         DB::table('skills')->insert([
             'id' => $skillId,
-            'name' =>
-                'Readiness Skill '.
+            'name' => 'Readiness Skill '.
                 Str::random(8),
             'description' => null,
             'created_at' => now(),
@@ -581,8 +550,7 @@ class AdminCurriculumReadinessApiTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'created_at' => now(),
         ]);
 

@@ -2,16 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\RequireManagementAuthorization;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Support\TransactionManager;
+use App\Http\Middleware\RequireManagementAuthorization;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ExamGenerationApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -297,20 +302,13 @@ class ExamGenerationApiTest extends TestCase
             ],
         ];
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Exam API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Exam API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -446,7 +444,7 @@ class ExamGenerationApiTest extends TestCase
         if ($released) {
             $service = new ReleaseAssessmentItemRevision(
                 new TransactionManager(
-                    new PostgresExceptionTranslator()
+                    new PostgresExceptionTranslator
                 )
             );
 

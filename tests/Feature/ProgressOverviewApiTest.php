@@ -7,10 +7,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class ProgressOverviewApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_empty_learner_has_zero_progress_counts(): void
@@ -71,10 +73,8 @@ class ProgressOverviewApiTest extends TestCase
         DB::table('lesson_progresses')->insert([
             [
                 'id' => $firstProgressId,
-                'learner_profile_id' =>
-                    $learner->id,
-                'lesson_revision_id' =>
-                    $revisionOne,
+                'learner_profile_id' => $learner->id,
+                'lesson_revision_id' => $revisionOne,
                 'status' => 'in_progress',
                 'started_at' => now(),
                 'completed_at' => null,
@@ -83,13 +83,10 @@ class ProgressOverviewApiTest extends TestCase
             ],
             [
                 'id' => $secondProgressId,
-                'learner_profile_id' =>
-                    $learner->id,
-                'lesson_revision_id' =>
-                    $revisionTwo,
+                'learner_profile_id' => $learner->id,
+                'lesson_revision_id' => $revisionTwo,
                 'status' => 'in_progress',
-                'started_at' =>
-                    now()->subMinute(),
+                'started_at' => now()->subMinute(),
                 'completed_at' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -230,22 +227,13 @@ class ProgressOverviewApiTest extends TestCase
             (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'Progress Subject '.Str::random(10),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'Progress Curriculum '.Str::random(10),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table(
             'curriculum_versions'
@@ -269,10 +257,8 @@ class ProgressOverviewApiTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
-            'name' =>
-                'Progress Topic '.Str::random(8),
+            'curriculum_version_id' => $versionId,
+            'name' => 'Progress Topic '.Str::random(8),
             'display_order' => 0,
             'created_at' => now(),
             'updated_at' => now(),
@@ -291,14 +277,11 @@ class ProgressOverviewApiTest extends TestCase
 
         DB::table('lessons')->insert([
             'id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
-            'title' =>
-                'Progress Lesson '.Str::random(8),
+            'curriculum_version_id' => $versionId,
+            'title' => 'Progress Lesson '.Str::random(8),
             'description' => null,
             'status' => 'draft',
-            'display_order' =>
-                $revisionNumber,
+            'display_order' => $revisionNumber,
             'published_revision_id' => null,
             'created_at' => now(),
             'updated_at' => now(),
@@ -307,14 +290,12 @@ class ProgressOverviewApiTest extends TestCase
         DB::table('lesson_revisions')->insert([
             'id' => $revisionId,
             'lesson_id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
             'primary_topic_id' => $topicId,
-            'content_payload' =>
-                json_encode([
-                    'blocks' => [],
-                ], JSON_THROW_ON_ERROR),
+            'content_payload' => json_encode([
+                'blocks' => [],
+            ], JSON_THROW_ON_ERROR),
             'content_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -343,11 +324,9 @@ class ProgressOverviewApiTest extends TestCase
             'practice_activities'
         )->insert([
             'id' => $practiceActivityId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
-            'name' =>
-                'Progress Practice '
+            'name' => 'Progress Practice '
                 .Str::random(8),
             'description' => null,
             'status' => 'archived',
@@ -366,13 +345,10 @@ class ProgressOverviewApiTest extends TestCase
          */
         DB::table('attempts')->insert([
             'id' => $id,
-            'learner_profile_id' =>
-                $learnerProfileId,
+            'learner_profile_id' => $learnerProfileId,
             'exam_generation_id' => null,
-            'practice_activity_id' =>
-                $practiceActivityId,
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $practiceActivityId,
+            'curriculum_version_id' => $versionId,
             'status' => 'in_progress',
             'started_at' => null,
             'finalized_at' => null,

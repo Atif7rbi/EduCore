@@ -9,10 +9,15 @@ use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class RecordLessonProgressTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_released_revision_can_start_progress(): void
     {
         [
@@ -192,7 +197,7 @@ class RecordLessonProgressTest extends TestCase
     {
         return new RecordLessonProgress(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -229,20 +234,13 @@ class RecordLessonProgressTest extends TestCase
             'created_at' => now(),
         ]);
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Progress Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Progress Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -297,7 +295,7 @@ class RecordLessonProgressTest extends TestCase
         if ($released) {
             (new ReleaseLessonRevision(
                 new TransactionManager(
-                    new PostgresExceptionTranslator()
+                    new PostgresExceptionTranslator
                 )
             ))->execute($revisionId);
         }

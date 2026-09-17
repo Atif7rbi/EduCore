@@ -15,10 +15,15 @@ use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class BuildExamAttemptTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_exam_attempt_copies_exact_generation_and_revision_truth(): void
     {
         [$learnerId, $generationId, $revisionId, $itemId, $skillId] =
@@ -117,7 +122,7 @@ class BuildExamAttemptTest extends TestCase
 
         (new RetireCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $generation->curriculum_version_id
@@ -476,8 +481,8 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->finalizeService()->execute(
-            $attempt->id,
-        );
+                $attempt->id,
+            );
 
             $this->fail(
                 'Expected IntegrityConstraintViolation was not thrown.'
@@ -904,7 +909,7 @@ PHP,
     {
         return new AddRegradeCorrection(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -913,7 +918,7 @@ PHP,
     {
         return new FinalizeAttempt(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -922,7 +927,7 @@ PHP,
     {
         return new SaveAttemptResponse(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -931,7 +936,7 @@ PHP,
     {
         return new BuildExamAttempt(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -971,20 +976,13 @@ PHP,
             'created_at' => now(),
         ]);
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Attempt Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Attempt Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -1062,7 +1060,7 @@ PHP,
 
         (new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
 
@@ -1101,12 +1099,12 @@ PHP,
 
         $generation = (new BuildExamGeneration(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $templateVersionId,
             'generator-v1',
-            'attempt-seed-' . Str::uuid(),
+            'attempt-seed-'.Str::uuid(),
             [
                 [
                     'assessment_item_revision_id' => $revisionId,

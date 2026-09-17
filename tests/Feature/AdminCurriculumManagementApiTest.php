@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Application\Curriculum\CreateOwnedCurriculum;
+use App\Application\TeacherAssignment\AssignTeacherSubject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -65,38 +67,34 @@ class AdminCurriculumManagementApiTest extends TestCase
             );
     }
 
-    public function test_admin_can_create_and_update_curriculum(): void
+    public function test_admin_curriculum_aggregate_writes_are_disabled(): void
     {
         $this->actingAs($this->admin());
 
         $subjectId = $this->subject();
 
-        $response = $this->postJson(
+        $this->postJson(
             "/api/admin/subjects/{$subjectId}/curricula",
             [
                 'name' => 'Qudrat Quantitative',
             ]
-        );
-
-        $response
-            ->assertCreated()
+        )
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.subject_id',
-                $subjectId
+                'error.code',
+                'admin_curriculum_authoring_disabled'
             );
 
-        $curriculumId = $response->json('data.id');
-
         $this->putJson(
-            "/api/admin/curricula/{$curriculumId}",
+            '/api/admin/curricula/'.Str::uuid(),
             [
                 'name' => 'Qudrat Quantitative Core',
             ]
         )
-            ->assertOk()
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.name',
-                'Qudrat Quantitative Core'
+                'error.code',
+                'admin_curriculum_authoring_disabled'
             );
     }
 
@@ -261,18 +259,34 @@ class AdminCurriculumManagementApiTest extends TestCase
 
     private function curriculum(): string
     {
-        $subjectId = $this->subject();
+        $admin = $this->admin();
 
-        $id = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $id,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
+        $teacher = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
         ]);
 
-        return $id;
+        $subjectId = $this->subject();
+
+        $assignment = app(
+            AssignTeacherSubject::class
+        )->execute(
+            actorUserId: $admin->id,
+            teacherUserId: $teacher->id,
+            subjectId: $subjectId,
+            operationId: (string) Str::uuid(),
+            reason: 'Admin curriculum management fixture',
+        );
+
+        $curriculum = app(
+            CreateOwnedCurriculum::class
+        )->execute(
+            actorUserId: $teacher->id,
+            teacherSubjectAssignmentId: $assignment->id,
+            name: 'Curriculum '.Str::random(8),
+            educationStageId: null,
+        );
+
+        return $curriculum->id;
     }
 }

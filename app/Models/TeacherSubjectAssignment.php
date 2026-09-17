@@ -30,6 +30,14 @@ class TeacherSubjectAssignment extends Model
         return $this->belongsTo(Subject::class);
     }
 
+    public function curricula(): HasMany
+    {
+        return $this->hasMany(
+            Curriculum::class,
+            'teacher_subject_assignment_id',
+        );
+    }
+
     public function transitions(): HasMany
     {
         return $this->hasMany(

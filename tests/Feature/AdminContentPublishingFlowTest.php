@@ -7,10 +7,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminContentPublishingFlowTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_authored_content_survives_full_publish_flow(): void
@@ -62,8 +64,7 @@ class AdminContentPublishingFlowTest extends TestCase
         $this->postJson(
             "/api/admin/lesson-revisions/{$lessonRevisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
             ]
         )->assertCreated();
 
@@ -79,8 +80,7 @@ class AdminContentPublishingFlowTest extends TestCase
         $this->postJson(
             "/api/lessons/{$lessonId}/publish",
             [
-                'published_revision_id' =>
-                    $lessonRevisionId,
+                'published_revision_id' => $lessonRevisionId,
             ]
         )
             ->assertOk()
@@ -96,8 +96,7 @@ class AdminContentPublishingFlowTest extends TestCase
             "/api/admin/curriculum-versions/{$curriculumVersionId}/assessment-items",
             [
                 'item_type' => 'multiple_choice',
-                'internal_label' =>
-                    'Ratios Question 1',
+                'internal_label' => 'Ratios Question 1',
             ]
         )->assertCreated();
 
@@ -109,12 +108,10 @@ class AdminContentPublishingFlowTest extends TestCase
                 "/api/admin/assessment-items/{$assessmentItemId}/revisions",
                 [
                     'revision_number' => 1,
-                    'primary_topic_id' =>
-                        $topicId,
+                    'primary_topic_id' => $topicId,
                     'difficulty' => 'easy',
                     'content_payload' => [
-                        'stem' =>
-                            'What is 2:4 simplified?',
+                        'stem' => 'What is 2:4 simplified?',
                         'options' => [
                             '1:2',
                             '2:3',
@@ -136,8 +133,7 @@ class AdminContentPublishingFlowTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$assessmentRevisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'primary',
             ]
         )->assertCreated();
@@ -154,8 +150,7 @@ class AdminContentPublishingFlowTest extends TestCase
         $this->postJson(
             "/api/assessment-items/{$assessmentItemId}/publish",
             [
-                'published_revision_id' =>
-                    $assessmentRevisionId,
+                'published_revision_id' => $assessmentRevisionId,
             ]
         )
             ->assertOk()
@@ -172,8 +167,7 @@ class AdminContentPublishingFlowTest extends TestCase
             [
                 'lesson_id' => $lessonId,
                 'name' => 'Ratios Practice',
-                'description' =>
-                    'Ratios practice activity',
+                'description' => 'Ratios practice activity',
             ]
         )
             ->assertCreated()
@@ -188,8 +182,7 @@ class AdminContentPublishingFlowTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$practiceActivityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $assessmentRevisionId,
+                'assessment_item_revision_id' => $assessmentRevisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -214,8 +207,7 @@ class AdminContentPublishingFlowTest extends TestCase
             "/api/admin/curriculum-versions/{$curriculumVersionId}/exam-templates",
             [
                 'name' => 'Ratios Mock',
-                'description' =>
-                    'Ratios mock exam',
+                'description' => 'Ratios mock exam',
             ]
         )->assertCreated();
 
@@ -289,16 +281,12 @@ class AdminContentPublishingFlowTest extends TestCase
         $generation = $this->postJson(
             "/api/exam-template-versions/{$templateVersionId}/generations",
             [
-                'generator_version' =>
-                    'generator-v1',
-                'seed' =>
-                    'a6-final-flow-seed',
+                'generator_version' => 'generator-v1',
+                'seed' => 'a6-final-flow-seed',
                 'items' => [
                     [
-                        'assessment_item_revision_id' =>
-                            $assessmentRevisionId,
-                        'assessment_item_id' =>
-                            $assessmentItemId,
+                        'assessment_item_revision_id' => $assessmentRevisionId,
+                        'assessment_item_id' => $assessmentItemId,
                     ],
                 ],
             ]
@@ -393,8 +381,7 @@ class AdminContentPublishingFlowTest extends TestCase
             'lessons',
             [
                 'id' => $lessonId,
-                'published_revision_id' =>
-                    $lessonRevisionId,
+                'published_revision_id' => $lessonRevisionId,
                 'status' => 'published',
             ]
         );
@@ -403,8 +390,7 @@ class AdminContentPublishingFlowTest extends TestCase
             'assessment_items',
             [
                 'id' => $assessmentItemId,
-                'published_revision_id' =>
-                    $assessmentRevisionId,
+                'published_revision_id' => $assessmentRevisionId,
                 'status' => 'published',
             ]
         );
@@ -413,8 +399,7 @@ class AdminContentPublishingFlowTest extends TestCase
             'exam_templates',
             [
                 'id' => $templateId,
-                'published_version_id' =>
-                    $templateVersionId,
+                'published_version_id' => $templateVersionId,
             ]
         );
     }
@@ -429,29 +414,19 @@ class AdminContentPublishingFlowTest extends TestCase
         $skillId = (string) Str::uuid();
         $placementId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'A6 Final Subject '.Str::random(10),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'A6 Final Curriculum '.Str::random(10),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table(
             'curriculum_versions'
         )->insert([
             'id' => $curriculumVersionId,
-            'curriculum_id' =>
-                $curriculumId,
+            'curriculum_id' => $curriculumId,
             'version_number' => 1,
             'label' => 'A6 Final v1',
             'status' => 'draft',
@@ -461,8 +436,7 @@ class AdminContentPublishingFlowTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $topicId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'curriculum_version_id' => $curriculumVersionId,
             'name' => 'Ratios',
             'display_order' => 0,
             'created_at' => now(),
@@ -471,8 +445,7 @@ class AdminContentPublishingFlowTest extends TestCase
 
         DB::table('skills')->insert([
             'id' => $skillId,
-            'name' =>
-                'Simplify ratios '.Str::random(8),
+            'name' => 'Simplify ratios '.Str::random(8),
             'description' => null,
             'created_at' => now(),
             'updated_at' => now(),
@@ -483,8 +456,7 @@ class AdminContentPublishingFlowTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'curriculum_version_id' => $curriculumVersionId,
             'created_at' => now(),
         ]);
 

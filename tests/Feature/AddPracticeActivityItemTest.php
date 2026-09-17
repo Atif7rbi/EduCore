@@ -9,10 +9,15 @@ use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class AddPracticeActivityItemTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_released_revision_can_be_added_to_active_activity(): void
     {
         [$activityId, $versionId] = $this->createActiveActivity();
@@ -114,7 +119,7 @@ class AddPracticeActivityItemTest extends TestCase
     {
         return new AddPracticeActivityItem(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -244,7 +249,7 @@ class AddPracticeActivityItemTest extends TestCase
         if ($released) {
             $service = new ReleaseAssessmentItemRevision(
                 new TransactionManager(
-                    new PostgresExceptionTranslator()
+                    new PostgresExceptionTranslator
                 )
             );
 
@@ -259,24 +264,18 @@ class AddPracticeActivityItemTest extends TestCase
      */
     private function createCurriculumVersion(): array
     {
-        $subjectId = (string) Str::uuid();
-        $curriculumId = (string) Str::uuid();
+        $subjectId =
+            $this->canonicalSubjectId();
+        $curriculumId = null;
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Practice Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Practice Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Practice Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
