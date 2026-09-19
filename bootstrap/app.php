@@ -6,6 +6,7 @@ use App\Http\Middleware\RequestCorrelation;
 use App\Http\Middleware\RequireActiveUser;
 use App\Http\Middleware\RequireLearnerProfile;
 use App\Http\Middleware\RequireManagementAuthorization;
+use App\Http\Middleware\RequireManagementCurriculumReadOnly;
 use App\Http\Middleware\RequireStudentAuthorization;
 use App\Http\Middleware\RequireTeacherAuthorization;
 use App\Http\Middleware\SecurityHeaders;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => RequireActiveUser::class,
             'learner' => RequireLearnerProfile::class,
             'management' => RequireManagementAuthorization::class,
+            'management.curriculum-readonly' => RequireManagementCurriculumReadOnly::class,
             'student' => RequireStudentAuthorization::class,
             'teacher' => RequireTeacherAuthorization::class,
         ]);

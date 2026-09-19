@@ -6,12 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class LessonUnpublishLifecycleTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_published_lesson_can_be_unpublished_and_republished_without_recreating_content(): void
@@ -29,7 +29,7 @@ class LessonUnpublishLifecycleTest extends TestCase
         $revisionId = (string) Str::uuid();
 
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'Owned Curriculum '.Str::uuid()
             );
 

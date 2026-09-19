@@ -6,12 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminPracticeActivityApiTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_list_and_update_archived_activity(): void
@@ -312,7 +312,7 @@ class AdminPracticeActivityApiTest extends TestCase
         string $status,
     ): string {
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'Owned Curriculum '.Str::uuid()
             );
 

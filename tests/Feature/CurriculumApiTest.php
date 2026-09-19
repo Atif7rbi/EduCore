@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class CurriculumApiTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use ResetsDedicatedTestDatabase;
 
     protected function setUp(): void
@@ -124,18 +124,18 @@ class CurriculumApiTest extends TestCase
             ]);
     }
 
-    public function test_missing_curriculum_version_returns_api_not_found(): void
+    public function test_missing_curriculum_version_fails_closed_for_management_write(): void
     {
         $versionId = (string) Str::uuid();
 
         $this->postJson(
             "/api/curriculum-versions/{$versionId}/publish"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertExactJson([
                 'error' => [
-                    'code' => 'not_found',
-                    'message' => 'The requested resource was not found.',
+                    'code' => 'admin_curriculum_content_read_only',
+                    'message' => 'Teacher-owned curriculum content is read-only for management users.',
                 ],
             ]);
     }
@@ -162,7 +162,7 @@ class CurriculumApiTest extends TestCase
         $versionId = (string) Str::uuid();
 
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'API Curriculum '.Str::uuid()
             );
 

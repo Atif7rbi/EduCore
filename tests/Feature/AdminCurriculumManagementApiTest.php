@@ -2,16 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Application\Curriculum\CreateOwnedCurriculum;
-use App\Application\TeacherAssignment\AssignTeacherSubject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminCurriculumManagementApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_and_update_subject(): void
@@ -259,34 +259,10 @@ class AdminCurriculumManagementApiTest extends TestCase
 
     private function curriculum(): string
     {
-        $admin = $this->admin();
-
-        $teacher = User::factory()->create([
-            'role' => 'teacher',
-            'status' => 'active',
-        ]);
-
-        $subjectId = $this->subject();
-
-        $assignment = app(
-            AssignTeacherSubject::class
-        )->execute(
-            actorUserId: $admin->id,
-            teacherUserId: $teacher->id,
-            subjectId: $subjectId,
-            operationId: (string) Str::uuid(),
-            reason: 'Admin curriculum management fixture',
-        );
-
-        $curriculum = app(
-            CreateOwnedCurriculum::class
-        )->execute(
-            actorUserId: $teacher->id,
-            teacherSubjectAssignmentId: $assignment->id,
-            name: 'Curriculum '.Str::random(8),
-            educationStageId: null,
-        );
-
-        return $curriculum->id;
+        return $this
+            ->createHistoricalOwnerlessCurriculumFixture(
+                'Curriculum '.Str::random(8),
+            )
+            ->id;
     }
 }

@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class AssessmentApiTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use ResetsDedicatedTestDatabase;
 
     protected function setUp(): void
@@ -165,31 +165,31 @@ class AssessmentApiTest extends TestCase
             ]);
     }
 
-    public function test_missing_item_returns_not_found(): void
+    public function test_missing_item_fails_closed_for_management_write(): void
     {
         $itemId = (string) Str::uuid();
 
         $this->postJson(
             "/api/assessment-items/{$itemId}/retire"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
-    public function test_missing_revision_returns_not_found(): void
+    public function test_missing_revision_fails_closed_for_management_write(): void
     {
         $revisionId = (string) Str::uuid();
 
         $this->postJson(
             "/api/assessment-item-revisions/{$revisionId}/release"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
@@ -208,7 +208,7 @@ class AssessmentApiTest extends TestCase
         $revisionId = (string) Str::uuid();
 
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'Owned Curriculum '.Str::uuid()
             );
 

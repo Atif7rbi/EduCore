@@ -6,12 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminAssessmentRevisionSkillApiTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_add_and_list_primary_and_supporting_skills(): void
@@ -330,7 +330,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
     private function version(): string
     {
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'Owned Curriculum '.Str::uuid()
             );
 

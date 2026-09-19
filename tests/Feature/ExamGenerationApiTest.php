@@ -8,13 +8,13 @@ use App\Http\Middleware\RequireManagementAuthorization;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ExamGenerationApiTest extends TestCase
 {
-    use CreatesOwnedCurriculumFixtures;
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use ResetsDedicatedTestDatabase;
 
     protected function setUp(): void
@@ -259,7 +259,7 @@ class ExamGenerationApiTest extends TestCase
         );
     }
 
-    public function test_missing_template_version_returns_not_found(): void
+    public function test_missing_template_version_fails_closed_for_management_write(): void
     {
         $templateVersionId = (string) Str::uuid();
 
@@ -276,10 +276,10 @@ class ExamGenerationApiTest extends TestCase
                 ],
             ],
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
@@ -303,7 +303,7 @@ class ExamGenerationApiTest extends TestCase
         ];
 
         $curriculum =
-            $this->createOwnedCurriculumFixture(
+            $this->createHistoricalOwnerlessCurriculumFixture(
                 'Owned Curriculum '.Str::uuid()
             );
 
