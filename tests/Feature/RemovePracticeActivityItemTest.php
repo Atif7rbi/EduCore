@@ -9,10 +9,15 @@ use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class RemovePracticeActivityItemTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_item_can_be_removed_when_active_activity_keeps_another_item(): void
     {
         [$activityId, $versionId] = $this->createActiveActivity();
@@ -86,7 +91,7 @@ class RemovePracticeActivityItemTest extends TestCase
     {
         return new RemovePracticeActivityItem(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -233,7 +238,7 @@ class RemovePracticeActivityItemTest extends TestCase
 
         $service = new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 
@@ -251,20 +256,13 @@ class RemovePracticeActivityItemTest extends TestCase
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Remove Practice Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Remove Practice Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

@@ -6,19 +6,25 @@ use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ReleaseLessonRevisionTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_unreleased_lesson_revision_can_be_released(): void
     {
         $revisionId = $this->createUnreleasedRevision();
 
         $service = new ReleaseLessonRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 
@@ -44,7 +50,7 @@ class ReleaseLessonRevisionTest extends TestCase
 
         $service = new ReleaseLessonRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 
@@ -67,7 +73,7 @@ class ReleaseLessonRevisionTest extends TestCase
 
         $this->assertSame(
             $releasedAt->format('Y-m-d H:i:sP'),
-            \Carbon\CarbonImmutable::parse($persisted)
+            CarbonImmutable::parse($persisted)
                 ->format('Y-m-d H:i:sP')
         );
     }
@@ -81,20 +87,13 @@ class ReleaseLessonRevisionTest extends TestCase
         $lessonId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Lesson Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Lesson Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

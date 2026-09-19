@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminPracticeActivityApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_list_and_update_archived_activity(): void
@@ -64,8 +66,7 @@ class AdminPracticeActivityApiTest extends TestCase
             [
                 'lesson_id' => $lessonId,
                 'name' => 'Ratios Practice Updated',
-                'description' =>
-                    'Updated practice set',
+                'description' => 'Updated practice set',
             ]
         )
             ->assertOk()
@@ -128,11 +129,9 @@ class AdminPracticeActivityApiTest extends TestCase
 
         DB::table('assessment_items')->insert([
             'id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                'Item '.Str::random(12),
+            'internal_label' => 'Item '.Str::random(12),
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -146,20 +145,17 @@ class AdminPracticeActivityApiTest extends TestCase
         )->insert([
             'id' => $revisionId,
             'assessment_item_id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
             'primary_topic_id' => null,
             'difficulty' => 'easy',
-            'content_payload' =>
-                json_encode([
-                    'prompt' => 'Question',
-                ]),
+            'content_payload' => json_encode([
+                'prompt' => 'Question',
+            ]),
             'content_schema_version' => 1,
-            'scoring_payload' =>
-                json_encode([
-                    'correct_choice' => 0,
-                ]),
+            'scoring_payload' => json_encode([
+                'correct_choice' => 0,
+            ]),
             'scoring_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -169,14 +165,10 @@ class AdminPracticeActivityApiTest extends TestCase
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $activityId,
-            'assessment_item_revision_id' =>
-                $revisionId,
-            'assessment_item_id' =>
-                $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $revisionId,
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -319,24 +311,13 @@ class AdminPracticeActivityApiTest extends TestCase
     private function version(
         string $status,
     ): string {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -360,8 +341,7 @@ class AdminPracticeActivityApiTest extends TestCase
 
         DB::table('lessons')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'title' => 'Lesson '.Str::random(12),
             'description' => null,
             'status' => 'draft',
@@ -382,8 +362,7 @@ class AdminPracticeActivityApiTest extends TestCase
 
         DB::table('practice_activities')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
             'name' => 'Practice '.Str::random(12),
             'description' => null,
@@ -408,11 +387,9 @@ class AdminPracticeActivityApiTest extends TestCase
 
         DB::table('assessment_items')->insert([
             'id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                'Item '.Str::random(12),
+            'internal_label' => 'Item '.Str::random(12),
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -426,20 +403,17 @@ class AdminPracticeActivityApiTest extends TestCase
         )->insert([
             'id' => $revisionId,
             'assessment_item_id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
             'primary_topic_id' => null,
             'difficulty' => 'easy',
-            'content_payload' =>
-                json_encode([
-                    'prompt' => 'Question',
-                ]),
+            'content_payload' => json_encode([
+                'prompt' => 'Question',
+            ]),
             'content_schema_version' => 1,
-            'scoring_payload' =>
-                json_encode([
-                    'correct_choice' => 0,
-                ]),
+            'scoring_payload' => json_encode([
+                'correct_choice' => 0,
+            ]),
             'scoring_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -462,8 +436,7 @@ class AdminPracticeActivityApiTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'created_at' => now(),
         ]);
 
@@ -471,12 +444,9 @@ class AdminPracticeActivityApiTest extends TestCase
             'assessment_item_revision_skills'
         )->insert([
             'id' => (string) Str::uuid(),
-            'assessment_item_revision_id' =>
-                $revisionId,
-            'skill_version_placement_id' =>
-                $placementId,
-            'curriculum_version_id' =>
-                $versionId,
+            'assessment_item_revision_id' => $revisionId,
+            'skill_version_placement_id' => $placementId,
+            'curriculum_version_id' => $versionId,
             'role' => 'primary',
             'created_at' => now(),
         ]);
@@ -493,13 +463,10 @@ class AdminPracticeActivityApiTest extends TestCase
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $activityId,
-            'assessment_item_revision_id' =>
-                $revisionId,
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $revisionId,
             'assessment_item_id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);

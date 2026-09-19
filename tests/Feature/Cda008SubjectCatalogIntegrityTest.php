@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Application\TeacherAssignment\AssignTeacherSubject;
+use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -488,6 +490,26 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
 
     private function rollBackCatalogForMigrationScenario(): void
     {
+        /*
+         * This scenario reconstructs a database state that predates
+         * CDA-008 and therefore also predates Phase-E ownership.
+         */
+        DB::unprepared(<<<'SQL'
+DROP TRIGGER IF EXISTS trg_curricula_ownership_integrity
+    ON curricula;
+
+DROP FUNCTION IF EXISTS educore_guard_curriculum_ownership();
+
+DROP INDEX IF EXISTS idx_curricula_teacher_subject_assignment;
+
+ALTER TABLE curricula
+    DROP CONSTRAINT IF EXISTS
+        fk_curricula_teacher_assignment_subject;
+
+ALTER TABLE curricula
+    DROP COLUMN IF EXISTS teacher_subject_assignment_id;
+SQL);
+
         $integrityMigration = require database_path(
             'migrations/'
             .'2026_09_11_001000_add_subject_catalog_integrity_triggers.php'
@@ -584,12 +606,33 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
         ?string $stageId,
         string $name,
     ): string {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        $teacher = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+
+        $assignment = app(
+            AssignTeacherSubject::class
+        )->execute(
+            actorUserId: $admin->id,
+            teacherUserId: $teacher->id,
+            subjectId: $subjectId,
+            operationId: (string) Str::uuid(),
+            reason: 'CDA-008 curriculum fixture ownership',
+        );
+
         $id = (string) Str::uuid();
 
         DB::table('curricula')->insert([
             'id' => $id,
             'subject_id' => $subjectId,
             'education_stage_id' => $stageId,
+            'teacher_subject_assignment_id' => $assignment->id,
             'name' => $name,
             'created_at' => now(),
             'updated_at' => now(),

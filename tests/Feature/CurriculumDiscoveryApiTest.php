@@ -6,10 +6,15 @@ use App\Models\LearnerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class CurriculumDiscoveryApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_curriculum_discovery_requires_authentication(): void
     {
         $this->getJson('/api/curricula')
@@ -42,7 +47,7 @@ class CurriculumDiscoveryApiTest extends TestCase
             'curriculum_id' => $curriculumId,
             'version_ids' => $versionIds,
         ] = $this->createCurriculum(
-            'P31 Published Subject '.Str::uuid(),
+            'mathematics',
             'P31 Published Curriculum '.Str::uuid(),
             [
                 [
@@ -132,7 +137,7 @@ class CurriculumDiscoveryApiTest extends TestCase
         $prefix = 'P31 Order '.Str::uuid();
 
         $first = $this->createCurriculum(
-            "{$prefix} A Subject",
+            'mathematics',
             "{$prefix} A Curriculum",
             [
                 [
@@ -144,7 +149,7 @@ class CurriculumDiscoveryApiTest extends TestCase
         );
 
         $second = $this->createCurriculum(
-            "{$prefix} B Subject",
+            'physics',
             "{$prefix} B Curriculum",
             [
                 [
@@ -210,7 +215,7 @@ class CurriculumDiscoveryApiTest extends TestCase
         $this->authenticateLearner();
 
         $draftOnly = $this->createCurriculum(
-            'P31 Hidden Subject '.Str::uuid(),
+            'biology',
             'P31 Hidden Curriculum '.Str::uuid(),
             [
                 [
@@ -262,7 +267,6 @@ class CurriculumDiscoveryApiTest extends TestCase
      *     label: string,
      *     status: 'draft'|'published'|'retired'
      * }> $versions
-     *
      * @return array{
      *     subject_id: string,
      *     curriculum_id: string,
@@ -270,27 +274,18 @@ class CurriculumDiscoveryApiTest extends TestCase
      * }
      */
     private function createCurriculum(
-        string $subjectName,
+        string $subjectCode,
         string $curriculumName,
         array $versions,
     ): array {
-        $subjectId = (string) Str::uuid();
-        $curriculumId = (string) Str::uuid();
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                $curriculumName,
+                $subjectCode,
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => $subjectName,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => $curriculumName,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $subjectId = $curriculum->subject_id;
+        $curriculumId = $curriculum->id;
 
         $versionIds = [];
 

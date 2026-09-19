@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminLessonAuthoringApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_list_and_update_draft_lesson(): void
@@ -57,8 +59,7 @@ class AdminLessonAuthoringApiTest extends TestCase
             "/api/admin/lessons/{$lessonId}",
             [
                 'title' => 'Ratios and Proportions',
-                'description' =>
-                    'Clarified fundamentals',
+                'description' => 'Clarified fundamentals',
                 'display_order' => 3,
             ]
         )
@@ -279,24 +280,13 @@ class AdminLessonAuthoringApiTest extends TestCase
     private function version(
         string $status,
     ): string {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 

@@ -38,7 +38,11 @@ Route::get('/health', function () {
     ]);
 });
 
-Route::middleware(['web', 'management'])->group(function (): void {
+Route::middleware([
+    'web',
+    'management',
+    'management.curriculum-readonly',
+])->group(function (): void {
     Route::prefix('admin')->group(function (): void {
         Route::post(
             '/subjects',

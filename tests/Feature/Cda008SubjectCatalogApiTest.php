@@ -2,14 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Application\Curriculum\CreateOwnedCurriculum;
+use App\Application\TeacherAssignment\AssignTeacherSubject;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class Cda008SubjectCatalogApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_subject_catalog_exposes_only_canonical_subjects_in_frozen_order(): void
@@ -18,12 +23,9 @@ class Cda008SubjectCatalogApiTest extends TestCase
 
         $this->legacySubject('Legacy Hidden');
 
-        $mathId = $this->subjectId('mathematics');
-
-        $this->curriculum(
-            $mathId,
+        $this->createOwnedCurriculumFixture(
             'Canonical Curriculum',
-            null,
+            'mathematics',
         );
 
         DB::table('subjects')
@@ -94,9 +96,9 @@ class Cda008SubjectCatalogApiTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        $this->curriculum(
-            $this->subjectId('mathematics'),
+        $this->createOwnedCurriculumFixture(
             'Primary Mathematics',
+            'mathematics',
             $this->stageId('primary'),
         );
 
@@ -139,7 +141,7 @@ class Cda008SubjectCatalogApiTest extends TestCase
         );
     }
 
-    public function test_admin_can_create_curriculum_with_active_stage_and_only_rename_it_later(): void
+    public function test_admin_curriculum_create_and_update_are_disabled_while_update_validation_remains_explicit(): void
     {
         $this->actingAs($this->admin());
 
@@ -151,50 +153,42 @@ class Cda008SubjectCatalogApiTest extends TestCase
             'primary'
         );
 
-        $middleId = $this->stageId(
-            'middle'
-        );
-
-        $response = $this->postJson(
+        $this->postJson(
             "/api/admin/subjects/{$subjectId}/curricula",
             [
                 'name' => 'Primary Mathematics',
                 'education_stage_id' => $primaryId,
             ]
-        );
-
-        $response
-            ->assertCreated()
+        )
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.subject_id',
-                $subjectId,
-            )
-            ->assertJsonPath(
-                'data.education_stage_id',
-                $primaryId,
+                'error.code',
+                'admin_curriculum_authoring_disabled',
             );
 
-        $curriculumId = $response->json(
-            'data.id'
-        );
-
         $this->putJson(
-            "/api/admin/curricula/{$curriculumId}",
+            '/api/admin/curricula/'.Str::uuid(),
             [
                 'name' => 'Primary Mathematics Core',
             ]
         )
-            ->assertOk()
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.education_stage_id',
-                $primaryId,
+                'error.code',
+                'admin_curriculum_authoring_disabled',
             );
 
+        /*
+         * UpdateCurriculumRequest rejects EducationStage mutation
+         * before the disabled compatibility controller executes.
+         */
         $this->putJson(
-            "/api/admin/curricula/{$curriculumId}",
+            '/api/admin/curricula/'.Str::uuid(),
             [
                 'name' => 'Illegal Reclassification',
-                'education_stage_id' => $middleId,
+                'education_stage_id' => $this->stageId(
+                    'middle'
+                ),
             ]
         )
             ->assertStatus(422)
@@ -203,77 +197,96 @@ class Cda008SubjectCatalogApiTest extends TestCase
                 'validation_failed',
             );
 
-        $this->assertDatabaseHas(
+        $this->assertDatabaseMissing(
             'curricula',
             [
-                'id' => $curriculumId,
-                'name' => 'Primary Mathematics Core',
-                'education_stage_id' => $primaryId,
+                'name' => 'Primary Mathematics',
             ],
         );
     }
 
-    public function test_curriculum_stage_is_optional_at_creation(): void
+    public function test_teacher_owned_curriculum_stage_remains_optional(): void
     {
-        $this->actingAs($this->admin());
-
-        $subjectId = $this->subjectId(
-            'mathematics'
-        );
-
-        $this->postJson(
-            "/api/admin/subjects/{$subjectId}/curricula",
-            [
-                'name' => 'Unclassified Curriculum',
-            ]
-        )
-            ->assertCreated()
-            ->assertJsonPath(
-                'data.education_stage_id',
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Unclassified Curriculum',
+                'mathematics',
                 null,
             );
+
+        $this->assertNull(
+            $curriculum->education_stage_id
+        );
+
+        $this->assertSame(
+            $this->subjectId('mathematics'),
+            $curriculum->subject_id
+        );
+
+        $this->assertNotNull(
+            $curriculum->teacher_subject_assignment_id
+        );
     }
 
-    public function test_new_curriculum_requires_active_canonical_subject(): void
+    public function test_legacy_subject_cannot_receive_teacher_assignment_for_new_content(): void
     {
-        $this->actingAs($this->admin());
+        $admin = $this->admin();
+        $teacher = $this->teacher();
 
         $legacyId = $this->legacySubject(
             'Legacy Compatibility Subject'
         );
 
-        $this->postJson(
-            "/api/admin/subjects/{$legacyId}/curricula",
-            [
-                'name' => 'Legacy Curriculum',
-            ]
-        )
-            ->assertStatus(409)
-            ->assertJsonPath(
-                'error.code',
-                'subject_not_available_for_new_content',
+        $this->expectException(
+            ModelNotFoundException::class
+        );
+
+        app(AssignTeacherSubject::class)
+            ->execute(
+                actorUserId: $admin->id,
+                teacherUserId: $teacher->id,
+                subjectId: $legacyId,
+                operationId: (string) Str::uuid(),
+                reason: 'Reject legacy Subject assignment.',
             );
+    }
+
+    public function test_inactive_canonical_subject_cannot_receive_new_owned_curriculum(): void
+    {
+        $admin = $this->admin();
+        $teacher = $this->teacher();
 
         $mathId = $this->subjectId(
             'mathematics'
+        );
+
+        $assignment = app(
+            AssignTeacherSubject::class
+        )->execute(
+            actorUserId: $admin->id,
+            teacherUserId: $teacher->id,
+            subjectId: $mathId,
+            operationId: (string) Str::uuid(),
+            reason: 'CDA owned Curriculum eligibility.',
         );
 
         DB::table('subjects')
             ->where('id', $mathId)
             ->update([
                 'status' => 'inactive',
+                'updated_at' => now(),
             ]);
 
-        $this->postJson(
-            "/api/admin/subjects/{$mathId}/curricula",
-            [
-                'name' => 'Inactive Subject Curriculum',
-            ]
-        )
-            ->assertStatus(409)
-            ->assertJsonPath(
-                'error.code',
-                'subject_not_available_for_new_content',
+        $this->expectException(
+            ModelNotFoundException::class
+        );
+
+        app(CreateOwnedCurriculum::class)
+            ->execute(
+                actorUserId: $teacher->id,
+                teacherSubjectAssignmentId: $assignment->id,
+                name: 'Inactive Subject Curriculum',
+                educationStageId: null,
             );
     }
 
@@ -446,6 +459,14 @@ class Cda008SubjectCatalogApiTest extends TestCase
         ]);
     }
 
+    private function teacher(): User
+    {
+        return User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+    }
+
     private function subjectId(
         string $code,
     ): string {
@@ -483,25 +504,6 @@ class Cda008SubjectCatalogApiTest extends TestCase
 
         DB::table('subjects')->insert([
             'id' => $id,
-            'name' => $name,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return $id;
-    }
-
-    private function curriculum(
-        string $subjectId,
-        string $name,
-        ?string $educationStageId,
-    ): string {
-        $id = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $id,
-            'subject_id' => $subjectId,
-            'education_stage_id' => $educationStageId,
             'name' => $name,
             'created_at' => now(),
             'updated_at' => now(),

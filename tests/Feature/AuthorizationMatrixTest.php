@@ -63,7 +63,7 @@ class AuthorizationMatrixTest extends TestCase
             ->assertJsonPath('error.code', 'management_forbidden');
     }
 
-    public function test_admin_has_management_capability(): void
+    public function test_admin_management_capability_reaches_curriculum_read_only_boundary(): void
     {
         $user = User::factory()->create([
             'role' => 'admin',
@@ -73,8 +73,11 @@ class AuthorizationMatrixTest extends TestCase
         $this
             ->actingAs($user)
             ->postJson('/api/curriculum-versions/'.Str::uuid().'/publish')
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'admin_curriculum_content_read_only'
+            );
     }
 
     public function test_disabled_student_is_rejected_from_learner_routes(): void

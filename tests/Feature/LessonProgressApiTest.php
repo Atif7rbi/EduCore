@@ -9,10 +9,15 @@ use App\Models\LearnerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class LessonProgressApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_authenticated_learner_can_read_current_lesson_progress(): void
     {
         [$user, $learner] = $this->createLearner();
@@ -357,7 +362,7 @@ class LessonProgressApiTest extends TestCase
 
         (new ReleaseLessonRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
 
@@ -407,18 +412,15 @@ class LessonProgressApiTest extends TestCase
             'lesson_id' => $lessonId,
             'curriculum_version_id' => $versionId,
             'revision_number' => 2,
-            'primary_topic_id' =>
-                $historicalRevision->primary_topic_id,
-            'content_payload' =>
-                json_encode([
-                    'blocks' => [
-                        [
-                            'type' => 'text',
-                            'value' =>
-                                'Current progress API content',
-                        ],
+            'primary_topic_id' => $historicalRevision->primary_topic_id,
+            'content_payload' => json_encode([
+                'blocks' => [
+                    [
+                        'type' => 'text',
+                        'value' => 'Current progress API content',
                     ],
-                ], JSON_THROW_ON_ERROR),
+                ],
+            ], JSON_THROW_ON_ERROR),
             'content_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -426,7 +428,7 @@ class LessonProgressApiTest extends TestCase
 
         $transactions =
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             );
 
         (new ReleaseLessonRevision(
@@ -445,8 +447,7 @@ class LessonProgressApiTest extends TestCase
             ->where('id', $lessonId)
             ->update([
                 'status' => 'published',
-                'published_revision_id' =>
-                    $currentRevisionId,
+                'published_revision_id' => $currentRevisionId,
                 'updated_at' => now(),
             ]);
 
@@ -497,20 +498,13 @@ class LessonProgressApiTest extends TestCase
         $lessonId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Progress API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Progress API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

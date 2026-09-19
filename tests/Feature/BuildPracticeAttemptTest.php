@@ -5,16 +5,20 @@ namespace Tests\Feature;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildPracticeAttempt;
 use App\Application\Curriculum\RetireCurriculumVersion;
-use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class BuildPracticeAttemptTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_active_practice_activity_builds_exact_attempt_snapshot(): void
     {
         [
@@ -124,8 +128,7 @@ class BuildPracticeAttemptTest extends TestCase
             $learnerId,
             $activityId,
         ] = $this->createPracticeFixture(
-            archiveBeforeCurriculumPublish:
-                true,
+            archiveBeforeCurriculumPublish: true,
         );
 
         try {
@@ -165,7 +168,7 @@ class BuildPracticeAttemptTest extends TestCase
 
         (new RetireCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($versionId);
 
@@ -418,7 +421,7 @@ PHP,
     {
         return new BuildPracticeAttempt(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -458,20 +461,13 @@ PHP,
             'created_at' => now(),
         ]);
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Practice Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Practice Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -549,7 +545,7 @@ PHP,
 
         (new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
 

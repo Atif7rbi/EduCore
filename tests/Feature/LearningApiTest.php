@@ -5,10 +5,15 @@ namespace Tests\Feature;
 use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class LearningApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -164,31 +169,31 @@ class LearningApiTest extends TestCase
             ]);
     }
 
-    public function test_missing_lesson_returns_not_found(): void
+    public function test_missing_lesson_fails_closed_for_management_write(): void
     {
         $lessonId = (string) Str::uuid();
 
         $this->postJson(
             "/api/lessons/{$lessonId}/unpublish"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
-    public function test_missing_revision_returns_not_found(): void
+    public function test_missing_revision_fails_closed_for_management_write(): void
     {
         $revisionId = (string) Str::uuid();
 
         $this->postJson(
             "/api/lesson-revisions/{$revisionId}/release"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
@@ -204,20 +209,13 @@ class LearningApiTest extends TestCase
         $lessonId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Learning API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Learning API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

@@ -5,10 +5,15 @@ namespace Tests\Feature;
 use App\Http\Middleware\RequireManagementAuthorization;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class CurriculumApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -119,18 +124,18 @@ class CurriculumApiTest extends TestCase
             ]);
     }
 
-    public function test_missing_curriculum_version_returns_api_not_found(): void
+    public function test_missing_curriculum_version_fails_closed_for_management_write(): void
     {
         $versionId = (string) Str::uuid();
 
         $this->postJson(
             "/api/curriculum-versions/{$versionId}/publish"
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertExactJson([
                 'error' => [
-                    'code' => 'not_found',
-                    'message' => 'The requested resource was not found.',
+                    'code' => 'admin_curriculum_content_read_only',
+                    'message' => 'Teacher-owned curriculum content is read-only for management users.',
                 ],
             ]);
     }
@@ -151,24 +156,18 @@ class CurriculumApiTest extends TestCase
 
     private function createCurriculumVersion(string $status): string
     {
-        $subjectId = (string) Str::uuid();
-        $curriculumId = (string) Str::uuid();
+        $subjectId =
+            $this->canonicalSubjectId();
+        $curriculumId = null;
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'API Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

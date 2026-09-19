@@ -14,6 +14,7 @@ class Curriculum extends Model
     protected $fillable = [
         'subject_id',
         'education_stage_id',
+        'teacher_subject_assignment_id',
         'name',
     ];
 
@@ -25,6 +26,14 @@ class Curriculum extends Model
     public function educationStage(): BelongsTo
     {
         return $this->belongsTo(EducationStage::class);
+    }
+
+    public function teacherSubjectAssignment(): BelongsTo
+    {
+        return $this->belongsTo(
+            TeacherSubjectAssignment::class,
+            'teacher_subject_assignment_id',
+        );
     }
 
     public function versions(): HasMany

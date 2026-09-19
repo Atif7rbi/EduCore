@@ -11,10 +11,15 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class AttemptApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_practice_attempt_can_be_built_via_api(): void
     {
         [
@@ -239,10 +244,8 @@ class AttemptApiTest extends TestCase
             'attempts',
             [
                 'id' => $otherAttemptId,
-                'learner_profile_id' =>
-                    $otherLearnerId,
-                'exam_generation_id' =>
-                    $otherGenerationId,
+                'learner_profile_id' => $otherLearnerId,
+                'exam_generation_id' => $otherGenerationId,
             ]
         );
     }
@@ -282,8 +285,7 @@ class AttemptApiTest extends TestCase
             ,
             $templateGenerationId,
         ] = $this->createExamFixture(
-            retireTemplateVersionBeforeCurriculumPublish:
-                true,
+            retireTemplateVersionBeforeCurriculumPublish: true,
         );
 
         $firstUserId = DB::table(
@@ -1236,7 +1238,7 @@ class AttemptApiTest extends TestCase
 
         $service = new AddRegradeCorrection(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 
@@ -1519,7 +1521,7 @@ class AttemptApiTest extends TestCase
 
         (new AddRegradeCorrection(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $attemptResponseId,
@@ -1655,8 +1657,7 @@ class AttemptApiTest extends TestCase
             $learnerId,
             $generationId,
         ] = $this->createExamFixture(
-            retireTemplateVersionBeforeCurriculumPublish:
-                true,
+            retireTemplateVersionBeforeCurriculumPublish: true,
         );
 
         $this->postJson(
@@ -1732,8 +1733,7 @@ class AttemptApiTest extends TestCase
             $learnerId,
             $activityId,
         ] = $this->createPracticeFixture(
-            archiveBeforeCurriculumPublish:
-                true,
+            archiveBeforeCurriculumPublish: true,
         );
 
         $this->postJson(
@@ -1922,7 +1922,7 @@ class AttemptApiTest extends TestCase
 
         $generation = (new BuildExamGeneration(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $templateVersionId,
@@ -1981,20 +1981,13 @@ class AttemptApiTest extends TestCase
         $itemId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Attempt API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Attempt API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -2072,7 +2065,7 @@ class AttemptApiTest extends TestCase
 
         (new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
 

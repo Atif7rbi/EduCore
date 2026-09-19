@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminAssessmentRevisionSkillApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_add_and_list_primary_and_supporting_skills(): void
@@ -32,8 +34,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $primary = $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $primaryPlacement,
+                'skill_version_placement_id' => $primaryPlacement,
                 'role' => 'primary',
             ]
         );
@@ -56,8 +57,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $supporting = $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $supportingPlacement,
+                'skill_version_placement_id' => $supportingPlacement,
                 'role' => 'supporting',
             ]
         );
@@ -74,13 +74,11 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         )
             ->assertOk()
             ->assertJsonFragment([
-                'skill_version_placement_id' =>
-                    $primaryPlacement,
+                'skill_version_placement_id' => $primaryPlacement,
                 'role' => 'primary',
             ])
             ->assertJsonFragment([
-                'skill_version_placement_id' =>
-                    $supportingPlacement,
+                'skill_version_placement_id' => $supportingPlacement,
                 'role' => 'supporting',
             ]);
     }
@@ -102,8 +100,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'secondary',
             ]
         )
@@ -131,8 +128,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'primary',
             ]
         )->assertCreated();
@@ -140,8 +136,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'supporting',
             ]
         )->assertStatus(409);
@@ -167,8 +162,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $wrongPlacement,
+                'skill_version_placement_id' => $wrongPlacement,
                 'role' => 'primary',
             ]
         )->assertStatus(409);
@@ -193,8 +187,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
             $this->postJson(
                 "/api/admin/assessment-item-revisions/{$revisionId}/skills",
                 [
-                    'skill_version_placement_id' =>
-                        $primaryPlacement,
+                    'skill_version_placement_id' => $primaryPlacement,
                     'role' => 'primary',
                 ]
             )->assertCreated();
@@ -214,8 +207,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $newPlacement,
+                'skill_version_placement_id' => $newPlacement,
                 'role' => 'supporting',
             ]
         )
@@ -253,8 +245,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/assessment-item-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
                 'role' => 'primary',
             ]
         )->assertCreated();
@@ -296,8 +287,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
             $this->postJson(
                 "/api/admin/assessment-item-revisions/{$revisionId}/skills",
                 [
-                    'skill_version_placement_id' =>
-                        $placementId,
+                    'skill_version_placement_id' => $placementId,
                     'role' => 'supporting',
                 ]
             )->assertCreated();
@@ -339,24 +329,13 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
 
     private function version(): string
     {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -380,11 +359,9 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
 
         DB::table('assessment_items')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                'Item '.Str::random(12),
+            'internal_label' => 'Item '.Str::random(12),
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -405,20 +382,17 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         )->insert([
             'id' => $id,
             'assessment_item_id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
             'primary_topic_id' => null,
             'difficulty' => 'medium',
-            'content_payload' =>
-                json_encode([
-                    'prompt' => 'Question',
-                ]),
+            'content_payload' => json_encode([
+                'prompt' => 'Question',
+            ]),
             'content_schema_version' => 1,
-            'scoring_payload' =>
-                json_encode([
-                    'correct_choice' => 0,
-                ]),
+            'scoring_payload' => json_encode([
+                'correct_choice' => 0,
+            ]),
             'scoring_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -447,8 +421,7 @@ class AdminAssessmentRevisionSkillApiTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'created_at' => now(),
         ]);
 

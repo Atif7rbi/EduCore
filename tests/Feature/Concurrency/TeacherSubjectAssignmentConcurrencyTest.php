@@ -9,10 +9,13 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class TeacherSubjectAssignmentConcurrencyTest extends TestCase
 {
+    use ResetsDedicatedTestDatabase;
+
     private ?string $signalFile = null;
 
     /** @var resource|null */

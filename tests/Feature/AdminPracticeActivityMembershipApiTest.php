@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminPracticeActivityMembershipApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_add_and_list_released_revision(): void
@@ -30,8 +32,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $response = $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         );
@@ -64,8 +65,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
             ->assertOk()
             ->assertJsonFragment([
                 'id' => $membershipId,
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
             ]);
     }
 
@@ -88,8 +88,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -127,8 +126,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertStatus(409);
@@ -136,12 +134,9 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->assertDatabaseMissing(
             'practice_activity_items',
             [
-                'practice_activity_id' =>
-                    $activityId,
-                'assessment_item_revision_id' =>
-                    $revisionId,
-                'assessment_item_id' =>
-                    $itemId,
+                'practice_activity_id' => $activityId,
+                'assessment_item_revision_id' => $revisionId,
+                'assessment_item_id' => $itemId,
             ]
         );
     }
@@ -166,8 +161,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertStatus(409);
@@ -197,8 +191,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionOne,
+                'assessment_item_revision_id' => $revisionOne,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -206,8 +199,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionOne,
+                'assessment_item_revision_id' => $revisionOne,
                 'display_order' => 1,
             ]
         )->assertStatus(409);
@@ -215,8 +207,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionTwo,
+                'assessment_item_revision_id' => $revisionTwo,
                 'display_order' => 0,
             ]
         )->assertStatus(409);
@@ -241,8 +232,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $membership = $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -286,8 +276,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $membership = $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )->assertCreated();
@@ -337,8 +326,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         $this->postJson(
             "/api/admin/practice-activities/{$activityId}/items",
             [
-                'assessment_item_revision_id' =>
-                    $revisionId,
+                'assessment_item_revision_id' => $revisionId,
                 'display_order' => 0,
             ]
         )
@@ -373,25 +361,13 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
 
     private function version(): string
     {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -399,8 +375,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
             'id' => $versionId,
             'curriculum_id' => $curriculumId,
             'version_number' => 1,
-            'label' =>
-                'Version '.Str::random(8),
+            'label' => 'Version '.Str::random(8),
             'status' => 'draft',
             'created_at' => now(),
             'updated_at' => now(),
@@ -417,11 +392,9 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
 
         DB::table('practice_activities')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
-            'name' =>
-                'Practice '.Str::random(12),
+            'name' => 'Practice '.Str::random(12),
             'description' => null,
             'status' => $status,
             'created_at' => now(),
@@ -438,11 +411,9 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
 
         DB::table('assessment_items')->insert([
             'id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'item_type' => 'multiple_choice',
-            'internal_label' =>
-                'Item '.Str::random(12),
+            'internal_label' => 'Item '.Str::random(12),
             'status' => 'draft',
             'published_revision_id' => null,
             'created_at' => now(),
@@ -456,20 +427,17 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         )->insert([
             'id' => $revisionId,
             'assessment_item_id' => $itemId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
             'primary_topic_id' => null,
             'difficulty' => 'easy',
-            'content_payload' =>
-                json_encode([
-                    'prompt' => 'Question',
-                ]),
+            'content_payload' => json_encode([
+                'prompt' => 'Question',
+            ]),
             'content_schema_version' => 1,
-            'scoring_payload' =>
-                json_encode([
-                    'correct_choice' => 0,
-                ]),
+            'scoring_payload' => json_encode([
+                'correct_choice' => 0,
+            ]),
             'scoring_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -493,8 +461,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
 
         DB::table('skills')->insert([
             'id' => $skillId,
-            'name' =>
-                'Skill '.Str::random(12),
+            'name' => 'Skill '.Str::random(12),
             'description' => null,
             'created_at' => now(),
             'updated_at' => now(),
@@ -508,8 +475,7 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'created_at' => now(),
         ]);
 
@@ -517,12 +483,9 @@ class AdminPracticeActivityMembershipApiTest extends TestCase
             'assessment_item_revision_skills'
         )->insert([
             'id' => (string) Str::uuid(),
-            'assessment_item_revision_id' =>
-                $revisionId,
-            'skill_version_placement_id' =>
-                $placementId,
-            'curriculum_version_id' =>
-                $versionId,
+            'assessment_item_revision_id' => $revisionId,
+            'skill_version_placement_id' => $placementId,
+            'curriculum_version_id' => $versionId,
             'role' => 'primary',
             'created_at' => now(),
         ]);
