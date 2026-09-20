@@ -2,10 +2,11 @@
 
 namespace App\Application\Attempt;
 
+use App\Application\Authorization\LockActiveLearnerCurriculumGrant;
 use App\Application\Support\TransactionManager;
+use App\Models\AssessmentItemRevision;
 use App\Models\Attempt;
 use App\Models\AttemptItem;
-use App\Models\AssessmentItemRevision;
 use App\Models\CurriculumVersion;
 use App\Models\ExamGeneration;
 use App\Models\ExamTemplateVersion;
@@ -17,8 +18,8 @@ class BuildExamAttempt
 {
     public function __construct(
         private readonly TransactionManager $transactions,
-    ) {
-    }
+        private readonly LockActiveLearnerCurriculumGrant $learnerGrant,
+    ) {}
 
     public function execute(
         string $learnerProfileId,
@@ -36,6 +37,11 @@ class BuildExamAttempt
                         'curriculum_version_id',
                         'exam_template_version_id',
                     ]);
+
+                $this->learnerGrant->execute(
+                    $learnerProfileId,
+                    $generationIdentity->curriculum_version_id,
+                );
 
                 /*
                  * Learner-facing eligibility must be revalidated

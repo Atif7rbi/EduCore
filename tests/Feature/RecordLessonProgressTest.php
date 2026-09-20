@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Application\Exceptions\IntegrityConstraintViolation;
+use App\Application\Authorization\LockActiveLearnerCurriculumGrant;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Learning\RecordLessonProgress;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
@@ -22,12 +25,13 @@ class RecordLessonProgressTest extends TestCase
     {
         [
             $learnerId,
+            $lessonId,
             $revisionId,
         ] = $this->createFixture(released: true);
 
         $progress = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
         );
 
         $this->assertSame(
@@ -58,17 +62,18 @@ class RecordLessonProgressTest extends TestCase
     {
         [
             $learnerId,
+            $lessonId,
             $revisionId,
         ] = $this->createFixture(released: true);
 
         $first = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
         );
 
         $second = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
         );
 
         $this->assertSame(
@@ -95,17 +100,18 @@ class RecordLessonProgressTest extends TestCase
     {
         [
             $learnerId,
+            $lessonId,
             $revisionId,
         ] = $this->createFixture(released: true);
 
         $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
         );
 
         $progress = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
             true,
         );
 
@@ -130,12 +136,13 @@ class RecordLessonProgressTest extends TestCase
     {
         [
             $learnerId,
+            $lessonId,
             $revisionId,
         ] = $this->createFixture(released: true);
 
         $first = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
             true,
         );
 
@@ -143,7 +150,7 @@ class RecordLessonProgressTest extends TestCase
 
         $second = $this->service()->execute(
             $learnerId,
-            $revisionId,
+            $lessonId,
             true,
         );
 
@@ -163,23 +170,21 @@ class RecordLessonProgressTest extends TestCase
     {
         [
             $learnerId,
+            $lessonId,
             $revisionId,
         ] = $this->createFixture(released: false);
 
         try {
             $this->service()->execute(
                 $learnerId,
-                $revisionId,
+                $lessonId,
             );
 
             $this->fail(
                 'Expected IntegrityConstraintViolation was not thrown.'
             );
-        } catch (IntegrityConstraintViolation $exception) {
-            $this->assertSame(
-                'P0001',
-                $exception->sqlState
-            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
         }
 
         $this->assertSame(
@@ -193,17 +198,56 @@ class RecordLessonProgressTest extends TestCase
         );
     }
 
+    private function activateEnrollment(
+        string $learnerId,
+        string $userId,
+        string $assignmentId,
+    ): void {
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'RecordLessonProgress authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $assignmentId,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString(
+            $teacherId
+        );
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'RecordLessonProgress fixture acceptance.',
+        );
+    }
+
     private function service(): RecordLessonProgress
     {
         return new RecordLessonProgress(
             new TransactionManager(
                 new PostgresExceptionTranslator
-            )
+            ),
+            new LockActiveLearnerCurriculumGrant,
         );
     }
 
     /**
-     * @return array{string, string}
+     * @return array{string, string, string}
      */
     private function createFixture(
         bool $released,
@@ -298,10 +342,39 @@ class RecordLessonProgressTest extends TestCase
                     new PostgresExceptionTranslator
                 )
             ))->execute($revisionId);
+
+            DB::table('lessons')
+                ->where(
+                    'id',
+                    $lessonId,
+                )
+                ->update([
+                    'status' => 'published',
+                    'published_revision_id' => $revisionId,
+                    'updated_at' => now(),
+                ]);
         }
+
+        DB::table('curriculum_versions')
+            ->where(
+                'id',
+                $versionId,
+            )
+            ->update([
+                'status' => 'published',
+                'updated_at' => now(),
+            ]);
+
+        $this->activateEnrollment(
+            $learnerId,
+            $userId,
+            $curriculum
+                ->teacher_subject_assignment_id,
+        );
 
         return [
             $learnerId,
+            $lessonId,
             $revisionId,
         ];
     }

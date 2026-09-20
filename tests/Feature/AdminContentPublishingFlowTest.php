@@ -314,8 +314,13 @@ class AdminContentPublishingFlowTest extends TestCase
         );
 
         /*
-         * Switch identity and prove learner visibility comes
-         * only after curriculum publication.
+         * Phase F current learner authorization intentionally
+         * excludes historical ownerless Curricula.
+         *
+         * This legacy Admin-authored source remains durable and
+         * published, but it has no TeacherSubjectAssignment
+         * ownership edge. Therefore no StudentEnrollment can
+         * form an effective current learner grant for it.
          */
         $learnerUser =
             User::factory()->create([
@@ -329,49 +334,19 @@ class AdminContentPublishingFlowTest extends TestCase
 
         $this->actingAs($learnerUser);
 
-        $this->getJson(
-            "/api/curriculum-versions/{$curriculumVersionId}"
-        )
-            ->assertOk()
-            ->assertJsonPath(
-                'data.status',
-                'published'
-            );
-
-        $this->getJson(
-            "/api/curriculum-versions/{$curriculumVersionId}/lessons"
-        )
-            ->assertOk()
-            ->assertJsonFragment([
-                'id' => $lessonId,
-                'title' => 'Ratios',
-            ]);
-
-        $this->getJson(
-            "/api/lessons/{$lessonId}"
-        )
-            ->assertOk()
-            ->assertJsonPath(
-                'data.id',
-                $lessonId
-            )
-            ->assertJsonPath(
-                'data.practice_activities.0.id',
-                $practiceActivityId
-            );
-
-        $this->getJson(
-            "/api/practice-activities/{$practiceActivityId}"
-        )
-            ->assertOk()
-            ->assertJsonPath(
-                'data.id',
-                $practiceActivityId
-            )
-            ->assertJsonPath(
-                'data.status',
-                'active'
-            );
+        foreach ([
+            "/api/curriculum-versions/{$curriculumVersionId}",
+            "/api/curriculum-versions/{$curriculumVersionId}/lessons",
+            "/api/lessons/{$lessonId}",
+            "/api/practice-activities/{$practiceActivityId}",
+        ] as $uri) {
+            $this->getJson($uri)
+                ->assertStatus(404)
+                ->assertJsonPath(
+                    'error.code',
+                    'not_found',
+                );
+        }
 
         /*
          * Historical pins must still point to the exact

@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\AddRegradeCorrection;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\DeactivateStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -219,18 +222,12 @@ class AttemptApiTest extends TestCase
             $firstGeneration
         );
 
-        $this->assertNotNull(
+        $this->assertNull(
             $otherGeneration
         );
 
         $this->assertNull(
             $firstGeneration[
-                'current_attempt'
-            ]
-        );
-
-        $this->assertNull(
-            $otherGeneration[
                 'current_attempt'
             ]
         );
@@ -286,6 +283,7 @@ class AttemptApiTest extends TestCase
             $templateGenerationId,
         ] = $this->createExamFixture(
             retireTemplateVersionBeforeCurriculumPublish: true,
+            learnerId: $learnerId,
         );
 
         $firstUserId = DB::table(
@@ -495,6 +493,169 @@ class AttemptApiTest extends TestCase
             ->assertJsonPath(
                 'data.time_spent_ms',
                 2400
+            );
+    }
+
+    public function test_attempt_response_is_rejected_after_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId =
+            $created->json('data.id');
+
+        $attemptItemId =
+            $created->json('data.items.0.id');
+
+        $versionId = DB::table('attempts')
+            ->where('id', $attemptId)
+            ->value('curriculum_version_id');
+
+        $this->deactivateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1000,
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'response_payload' => null,
+                'answer_change_count' => 0,
+                'time_spent_ms' => 0,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
+    public function test_attempt_finalization_is_rejected_after_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $created = $this->postJson(
+            "/api/exam-generations/{$generationId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId =
+            $created->json('data.id');
+
+        $attemptItemId =
+            $created->json('data.items.0.id');
+
+        $this->putJson(
+            "/api/attempt-items/{$attemptItemId}/response",
+            [
+                'response_payload' => [
+                    'selected_option' => 2,
+                ],
+                'time_spent_ms' => 1200,
+            ],
+        )->assertOk();
+
+        $versionId = DB::table('attempts')
+            ->where('id', $attemptId)
+            ->value('curriculum_version_id');
+
+        $this->deactivateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
+
+        $this->postJson(
+            "/api/attempts/{$attemptId}/finalize",
+            [
+                'final_status' => 'submitted',
+            ],
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $attemptId,
+                'status' => 'in_progress',
+                'finalized_at' => null,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
+    public function test_attempt_history_remains_readable_after_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $created = $this->postJson(
+            "/api/practice-activities/{$activityId}/attempts",
+            [],
+        )->assertStatus(201);
+
+        $attemptId =
+            $created->json('data.id');
+
+        $versionId = DB::table('attempts')
+            ->where('id', $attemptId)
+            ->value('curriculum_version_id');
+
+        $this->deactivateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
+
+        $this->getJson(
+            "/api/attempts/{$attemptId}"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.id',
+                $attemptId,
+            )
+            ->assertJsonPath(
+                'data.learner_profile_id',
+                $learnerId,
+            )
+            ->assertJsonPath(
+                'data.status',
+                'in_progress',
             );
     }
 
@@ -1424,7 +1585,9 @@ class AttemptApiTest extends TestCase
             );
 
             [, $activityId] =
-                $this->createPracticeFixture();
+                $this->createPracticeFixture(
+                    learnerId: $learnerId,
+                );
 
             $firstLearnerUserId = DB::table(
                 'learner_profiles'
@@ -1809,13 +1972,16 @@ class AttemptApiTest extends TestCase
      */
     private function createPracticeFixture(
         bool $archiveBeforeCurriculumPublish = false,
+        ?string $learnerId = null,
     ): array {
         [
             $learnerId,
             $versionId,
             $revisionId,
             $itemId,
-        ] = $this->createAssessmentFixture();
+        ] = $this->createAssessmentFixture(
+            $learnerId,
+        );
 
         $activityId = (string) Str::uuid();
 
@@ -1876,13 +2042,16 @@ class AttemptApiTest extends TestCase
      */
     private function createExamFixture(
         bool $retireTemplateVersionBeforeCurriculumPublish = false,
+        ?string $learnerId = null,
     ): array {
         [
             $learnerId,
             $versionId,
             $revisionId,
             $itemId,
-        ] = $this->createAssessmentFixture();
+        ] = $this->createAssessmentFixture(
+            $learnerId,
+        );
 
         $templateId = (string) Str::uuid();
         $templateVersionId = (string) Str::uuid();
@@ -1968,9 +2137,27 @@ class AttemptApiTest extends TestCase
     /**
      * @return array{string, string, string, string}
      */
-    private function createAssessmentFixture(): array
-    {
-        $learnerId = $this->createLearner();
+    private function createAssessmentFixture(
+        ?string $learnerId = null,
+    ): array {
+        if ($learnerId === null) {
+            $learnerId =
+                $this->createLearner();
+        } else {
+            $userId = DB::table(
+                'learner_profiles'
+            )
+                ->where('id', $learnerId)
+                ->value('user_id');
+
+            $this->assertIsString($userId);
+
+            $this->actingAs(
+                User::query()->findOrFail(
+                    $userId
+                )
+            );
+        }
 
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
@@ -1998,6 +2185,11 @@ class AttemptApiTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
 
         DB::table('topics')->insert([
             'id' => $topicId,
@@ -2075,6 +2267,109 @@ class AttemptApiTest extends TestCase
             $revisionId,
             $itemId,
         ];
+    }
+
+    private function activateEnrollmentForVersion(
+        string $learnerId,
+        string $versionId,
+    ): void {
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString($assignmentId);
+        $this->assertIsString($userId);
+
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'Attempt API authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Attempt API authorization fixture acceptance.',
+        );
+    }
+
+    private function deactivateEnrollmentForVersion(
+        string $learnerId,
+        string $versionId,
+    ): void {
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $this->assertIsString($assignmentId);
+
+        $enrollment = DB::table(
+            'student_enrollments'
+        )
+            ->where(
+                'learner_profile_id',
+                $learnerId,
+            )
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->where('status', 'active')
+            ->first();
+
+        $this->assertNotNull($enrollment);
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Phase F Attempt mutation authorization revocation.',
+        );
     }
 
     private function createLearner(): string

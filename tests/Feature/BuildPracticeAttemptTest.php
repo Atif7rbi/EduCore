@@ -4,7 +4,11 @@ namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\BuildPracticeAttempt;
+use App\Application\Authorization\LockActiveLearnerCurriculumGrant;
 use App\Application\Curriculum\RetireCurriculumVersion;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\DeactivateStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -194,6 +198,555 @@ class BuildPracticeAttemptTest extends TestCase
                 )
                 ->count()
         );
+    }
+
+    public function test_inactive_enrollment_rejects_new_practice_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            ,
+            ,
+            ,
+            $versionId,
+        ] = $this->createPracticeFixture();
+
+        $curriculumId = DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value('teacher_subject_assignment_id');
+
+        $enrollmentId = DB::table('student_enrollments')
+            ->where('learner_profile_id', $learnerId)
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->value('id');
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'Phase F practice authorization revocation.',
+        );
+
+        try {
+            $this->service()->execute(
+                $learnerId,
+                $activityId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where('learner_profile_id', $learnerId)
+                ->where('practice_activity_id', $activityId)
+                ->count()
+        );
+    }
+
+    public function test_enrollment_deactivation_serializes_before_new_practice_attempt(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            ,
+            ,
+            ,
+            $versionId,
+        ] = $this->createPracticeFixture();
+
+        $curriculumId = DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value('teacher_subject_assignment_id');
+
+        $enrollmentId = DB::table('student_enrollments')
+            ->where('learner_profile_id', $learnerId)
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->value('id');
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        $signalFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-practice-enrollment-race-',
+        );
+
+        if ($signalFile === false) {
+            $this->fail(
+                'Unable to allocate concurrency signal file.'
+            );
+        }
+
+        @unlink($signalFile);
+
+        $process = null;
+        $pipes = [];
+
+        DB::beginTransaction();
+
+        try {
+            app(
+                DeactivateStudentEnrollment::class
+            )->execute(
+                actorUserId: $teacherId,
+                enrollmentId: $enrollmentId,
+                operationId: (string) Str::uuid(),
+                reason: 'Practice deactivation-wins race.',
+            );
+
+            $this->assertSame(
+                'inactive',
+                DB::table('student_enrollments')
+                    ->where('id', $enrollmentId)
+                    ->value('status'),
+            );
+
+            $childCode = sprintf(
+                <<<'PHP'
+try {
+    app(\App\Application\Attempt\BuildPracticeAttempt::class)
+        ->execute(%s, %s);
+
+    file_put_contents(
+        %s,
+        json_encode(
+            ['result' => 'unexpected_success'],
+            JSON_THROW_ON_ERROR
+        )
+    );
+} catch (\Throwable $exception) {
+    file_put_contents(
+        %s,
+        json_encode(
+            [
+                'result' => 'exception',
+                'class' => $exception::class,
+                'message' => $exception->getMessage(),
+            ],
+            JSON_THROW_ON_ERROR
+        )
+    );
+}
+PHP,
+                var_export($learnerId, true),
+                var_export($activityId, true),
+                var_export($signalFile, true),
+                var_export($signalFile, true),
+            );
+
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ];
+
+            $process = proc_open(
+                [
+                    PHP_BINARY,
+                    base_path('artisan'),
+                    'tinker',
+                    '--env=testing',
+                    '--execute='.$childCode,
+                ],
+                $descriptors,
+                $pipes,
+                base_path(),
+            );
+
+            if (! is_resource($process)) {
+                $this->fail(
+                    'Unable to start independent PostgreSQL Session B.'
+                );
+            }
+
+            fclose($pipes[0]);
+
+            usleep(700000);
+
+            $statusWhileLocked =
+                proc_get_status($process);
+
+            $this->assertTrue(
+                $statusWhileLocked['running'],
+                'Practice Attempt did not wait for enrollment deactivation locks.',
+            );
+
+            $this->assertFileDoesNotExist(
+                $signalFile,
+                'Practice Attempt completed before deactivation committed.',
+            );
+
+            DB::commit();
+
+            $deadline = microtime(true) + 8.0;
+
+            do {
+                $statusAfterCommit =
+                    proc_get_status($process);
+
+                if (! $statusAfterCommit['running']) {
+                    break;
+                }
+
+                usleep(100000);
+            } while (microtime(true) < $deadline);
+
+            $this->assertFalse(
+                $statusAfterCommit['running'],
+                'Practice Attempt did not finish after deactivation commit.',
+            );
+
+            $stdout =
+                stream_get_contents($pipes[1]);
+
+            $stderr =
+                stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $this->assertFileExists(
+                $signalFile,
+                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
+            );
+
+            $result = json_decode(
+                (string) file_get_contents($signalFile),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null,
+            );
+
+            $this->assertSame(
+                0,
+                DB::table('attempts')
+                    ->where(
+                        'learner_profile_id',
+                        $learnerId,
+                    )
+                    ->where(
+                        'practice_activity_id',
+                        $activityId,
+                    )
+                    ->count(),
+            );
+
+            $this->assertSame(
+                'inactive',
+                DB::table('student_enrollments')
+                    ->where('id', $enrollmentId)
+                    ->value('status'),
+            );
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
+
+            if (is_resource($process)) {
+                $status = proc_get_status($process);
+
+                if ($status['running']) {
+                    proc_terminate($process);
+                }
+
+                proc_close($process);
+            }
+
+            @unlink($signalFile);
+        }
+    }
+
+    public function test_new_practice_attempt_serializes_before_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+            ,
+            ,
+            ,
+            $versionId,
+        ] = $this->createPracticeFixture();
+
+        $curriculumId = DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value('teacher_subject_assignment_id');
+
+        $enrollmentId = DB::table('student_enrollments')
+            ->where('learner_profile_id', $learnerId)
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->value('id');
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        $signalFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-practice-attempt-wins-',
+        );
+
+        if ($signalFile === false) {
+            $this->fail(
+                'Unable to allocate concurrency signal file.'
+            );
+        }
+
+        @unlink($signalFile);
+
+        $process = null;
+        $pipes = [];
+
+        DB::beginTransaction();
+
+        try {
+            $attempt = $this->service()->execute(
+                $learnerId,
+                $activityId,
+            );
+
+            $operationId = (string) Str::uuid();
+
+            $childCode = sprintf(
+                <<<'PHP'
+try {
+    $enrollment = app(
+        \App\Application\Enrollment\DeactivateStudentEnrollment::class
+    )->execute(
+        actorUserId: %s,
+        enrollmentId: %s,
+        operationId: %s,
+        reason: 'Practice attempt-wins race.',
+    );
+
+    file_put_contents(
+        %s,
+        json_encode(
+            [
+                'result' => 'success',
+                'status' => $enrollment->status,
+            ],
+            JSON_THROW_ON_ERROR
+        )
+    );
+} catch (\Throwable $exception) {
+    file_put_contents(
+        %s,
+        json_encode(
+            [
+                'result' => 'exception',
+                'class' => $exception::class,
+                'message' => $exception->getMessage(),
+            ],
+            JSON_THROW_ON_ERROR
+        )
+    );
+}
+PHP,
+                var_export($teacherId, true),
+                var_export($enrollmentId, true),
+                var_export($operationId, true),
+                var_export($signalFile, true),
+                var_export($signalFile, true),
+            );
+
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ];
+
+            $process = proc_open(
+                [
+                    PHP_BINARY,
+                    base_path('artisan'),
+                    'tinker',
+                    '--env=testing',
+                    '--execute='.$childCode,
+                ],
+                $descriptors,
+                $pipes,
+                base_path(),
+            );
+
+            if (! is_resource($process)) {
+                $this->fail(
+                    'Unable to start independent PostgreSQL Session B.'
+                );
+            }
+
+            fclose($pipes[0]);
+
+            usleep(700000);
+
+            $statusWhileLocked =
+                proc_get_status($process);
+
+            $this->assertTrue(
+                $statusWhileLocked['running'],
+                'Enrollment deactivation did not wait for Practice Attempt authorization locks.',
+            );
+
+            $this->assertFileDoesNotExist(
+                $signalFile,
+                'Enrollment deactivation completed before Practice Attempt committed.',
+            );
+
+            DB::commit();
+
+            $deadline = microtime(true) + 8.0;
+
+            do {
+                $statusAfterCommit =
+                    proc_get_status($process);
+
+                if (! $statusAfterCommit['running']) {
+                    break;
+                }
+
+                usleep(100000);
+            } while (microtime(true) < $deadline);
+
+            $this->assertFalse(
+                $statusAfterCommit['running'],
+                'Enrollment deactivation did not finish after Practice Attempt commit.',
+            );
+
+            $stdout =
+                stream_get_contents($pipes[1]);
+
+            $stderr =
+                stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $this->assertFileExists(
+                $signalFile,
+                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
+            );
+
+            $result = json_decode(
+                (string) file_get_contents($signalFile),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+
+            $this->assertSame(
+                'success',
+                $result['result'] ?? null,
+                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
+            );
+
+            $this->assertSame(
+                'inactive',
+                $result['status'] ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempts',
+                [
+                    'id' => $attempt->id,
+                    'learner_profile_id' => $learnerId,
+                    'practice_activity_id' => $activityId,
+                ],
+            );
+
+            $this->assertSame(
+                'inactive',
+                DB::table('student_enrollments')
+                    ->where('id', $enrollmentId)
+                    ->value('status'),
+            );
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
+
+            if (is_resource($process)) {
+                $status = proc_get_status($process);
+
+                if ($status['running']) {
+                    proc_terminate($process);
+                }
+
+                proc_close($process);
+            }
+
+            @unlink($signalFile);
+        }
     }
 
     public function test_curriculum_retirement_serializes_against_practice_attempt_construction(): void
@@ -422,7 +975,8 @@ PHP,
         return new BuildPracticeAttempt(
             new TransactionManager(
                 new PostgresExceptionTranslator
-            )
+            ),
+            new LockActiveLearnerCurriculumGrant,
         );
     }
 
@@ -468,6 +1022,36 @@ PHP,
 
         $curriculumId = $curriculum->id;
         $subjectId = $curriculum->subject_id;
+
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $curriculum->teacher_subject_assignment_id,
+            operationId: (string) Str::uuid(),
+            reason: 'Practice Attempt authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $curriculum->teacher_subject_assignment_id,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Practice Attempt authorization fixture acceptance.',
+        );
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

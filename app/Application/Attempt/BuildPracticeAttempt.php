@@ -2,10 +2,11 @@
 
 namespace App\Application\Attempt;
 
+use App\Application\Authorization\LockActiveLearnerCurriculumGrant;
 use App\Application\Support\TransactionManager;
+use App\Models\AssessmentItemRevision;
 use App\Models\Attempt;
 use App\Models\AttemptItem;
-use App\Models\AssessmentItemRevision;
 use App\Models\CurriculumVersion;
 use App\Models\PracticeActivity;
 use Carbon\CarbonImmutable;
@@ -16,8 +17,8 @@ class BuildPracticeAttempt
 {
     public function __construct(
         private readonly TransactionManager $transactions,
-    ) {
-    }
+        private readonly LockActiveLearnerCurriculumGrant $learnerGrant,
+    ) {}
 
     public function execute(
         string $learnerProfileId,
@@ -34,6 +35,11 @@ class BuildPracticeAttempt
                         'id',
                         'curriculum_version_id',
                     ]);
+
+                $this->learnerGrant->execute(
+                    $learnerProfileId,
+                    $activityIdentity->curriculum_version_id,
+                );
 
                 /*
                  * Learner-facing eligibility must be decided

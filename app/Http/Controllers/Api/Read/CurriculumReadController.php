@@ -2,18 +2,31 @@
 
 namespace App\Http\Controllers\Api\Read;
 
+use App\Application\Authorization\FilterActiveLearnerCurriculumRead;
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Models\Curriculum;
 use App\Models\CurriculumVersion;
 use App\Models\Lesson;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CurriculumReadController extends Controller
 {
-    public function index(): JsonResponse
-    {
-        $curricula = Curriculum::query()
+    public function index(
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
+    ): JsonResponse {
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
+        $curricula = $access->curricula(
+            Curriculum::query(),
+            $learner->id,
+        )
             ->join(
                 'subjects',
                 'subjects.id',
@@ -65,8 +78,18 @@ class CurriculumReadController extends Controller
 
     public function showVersion(
         string $curriculumVersionId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
-        $version = CurriculumVersion::query()
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
+        $version = $access->versions(
+            CurriculumVersion::query(),
+            $learner->id,
+        )
             ->where('status', 'published')
             ->with([
                 'topics' => fn ($query) => $query
@@ -93,8 +116,18 @@ class CurriculumReadController extends Controller
 
     public function lessons(
         string $curriculumVersionId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
-        CurriculumVersion::query()
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
+        $access->versions(
+            CurriculumVersion::query(),
+            $learner->id,
+        )
             ->where('status', 'published')
             ->findOrFail($curriculumVersionId);
 
@@ -102,6 +135,21 @@ class CurriculumReadController extends Controller
             ->where(
                 'curriculum_version_id',
                 $curriculumVersionId
+            )
+            ->whereHas(
+                'curriculumVersion',
+                function ($query) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $access->versions(
+                        $query,
+                        $learner->id,
+                    )->where(
+                        'status',
+                        'published',
+                    );
+                },
             )
             ->where('status', 'published')
             ->whereNotNull('published_revision_id')

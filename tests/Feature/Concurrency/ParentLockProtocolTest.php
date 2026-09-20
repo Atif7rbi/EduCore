@@ -11,6 +11,8 @@ use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
 use App\Application\Curriculum\EvaluateCurriculumVersionReadiness;
 use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Application\Learning\ReleaseLessonRevision;
@@ -577,9 +579,33 @@ PHP_CODE,
             $fixture['revision_id']
         );
 
+        DB::table('lessons')
+            ->where(
+                'id',
+                $fixture['lesson_id']
+            )
+            ->update([
+                'status' => 'published',
+                'published_revision_id' => $fixture['revision_id'],
+                'updated_at' => now(),
+            ]);
+
+        $this->ensureCurriculumPublishingReadiness(
+            $fixture['version_id']
+        );
+
+        $this->publishCurriculum(
+            $fixture['version_id']
+        );
+
         [
             $learnerId,
         ] = $this->createLearner();
+
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $fixture['version_id'],
+        );
 
         DB::beginTransaction();
 
@@ -620,7 +646,7 @@ try {
 PHP_CODE,
                     var_export($learnerId, true),
                     var_export(
-                        $fixture['revision_id'],
+                        $fixture['lesson_id'],
                         true
                     ),
                     'NULL_SIGNAL_FILE',
@@ -763,6 +789,11 @@ PHP_CODE,
         [
             $learnerId,
         ] = $this->createLearner();
+
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
 
         $attempt = app(
             BuildPracticeAttempt::class
@@ -969,7 +1000,8 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
-                $fixture['attempt_id']
+                $fixture['learner_id'],
+                $fixture['attempt_id'],
             );
 
             $classificationId =
@@ -1888,6 +1920,11 @@ PHP_CODE,
             $learnerId,
         ] = $this->createLearner();
 
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $generation['version_id'],
+        );
+
         $attempt = app(
             BuildExamAttempt::class
         )->execute(
@@ -1913,6 +1950,7 @@ PHP_CODE,
             app(
                 SaveAttemptResponse::class
             )->execute(
+                $learnerId,
                 $attemptItemId,
                 [
                     'selected_option' => 1,
@@ -1925,7 +1963,8 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
-                $attempt->id
+                $learnerId,
+                $attempt->id,
             );
         }
 
@@ -1951,6 +1990,84 @@ PHP_CODE,
             'generation_id' => $generation['generation_id'],
             'version_id' => $generation['version_id'],
         ];
+    }
+
+    private function activateEnrollmentForVersion(
+        string $learnerId,
+        string $versionId,
+    ): void {
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where(
+                'id',
+                $versionId,
+            )
+            ->value('curriculum_id');
+
+        $this->assertIsString(
+            $curriculumId
+        );
+
+        $assignmentId = DB::table(
+            'curricula'
+        )
+            ->where(
+                'id',
+                $curriculumId,
+            )
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $this->assertIsString(
+            $assignmentId
+        );
+
+        $userId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $learnerId,
+            )
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'Parent lock Phase F authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $assignmentId,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString(
+            $teacherId
+        );
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Parent lock Phase F fixture acceptance.',
+        );
     }
 
     /**

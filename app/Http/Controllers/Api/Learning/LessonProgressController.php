@@ -72,7 +72,7 @@ class LessonProgressController extends Controller
 
         $progress = $service->execute(
             $learner->id,
-            $lesson->published_revision_id,
+            $lesson->id,
         );
 
         return ApiResponse::success(
@@ -102,7 +102,7 @@ class LessonProgressController extends Controller
 
         $progress = $service->execute(
             $learner->id,
-            $lesson->published_revision_id,
+            $lesson->id,
             true,
         );
 
