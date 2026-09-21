@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\Read;
 
+use App\Application\Authorization\FilterActiveLearnerCurriculumRead;
 use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Models\Attempt;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,6 +16,7 @@ class AttemptReadController extends Controller
     public function index(
         Request $request,
         AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
         $learner = $learnerContext->resolve($request->user());
 
@@ -22,12 +25,56 @@ class AttemptReadController extends Controller
                 'learner_profile_id',
                 $learner->id
             )
+            ->where(
+                function (
+                    Builder $visibility
+                ) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $visibility
+                        ->whereIn(
+                            'status',
+                            [
+                                'submitted',
+                                'abandoned',
+                            ],
+                        )
+                        ->orWhere(
+                            function (
+                                Builder $current
+                            ) use (
+                                $access,
+                                $learner,
+                            ): void {
+                                $current
+                                    ->where(
+                                        'status',
+                                        'in_progress',
+                                    )
+                                    ->whereHas(
+                                        'curriculumVersion',
+                                        function (
+                                            Builder $versions
+                                        ) use (
+                                            $access,
+                                            $learner,
+                                        ): void {
+                                            $access->versions(
+                                                $versions,
+                                                $learner->id,
+                                            );
+                                        },
+                                    );
+                            },
+                        );
+                },
+            )
             ->with([
                 'items.response',
-                'items.response.regradeCorrections' => fn ($query) =>
-                    $query
-                        ->orderByDesc('correction_number')
-                        ->orderByDesc('id'),
+                'items.response.regradeCorrections' => fn ($query) => $query
+                    ->orderByDesc('correction_number')
+                    ->orderByDesc('id'),
             ])
             ->orderByDesc('started_at')
             ->orderByDesc('id')
@@ -43,17 +90,12 @@ class AttemptReadController extends Controller
 
                 $item = [
                     'id' => $attempt->id,
-                    'exam_generation_id' =>
-                        $attempt->exam_generation_id,
-                    'practice_activity_id' =>
-                        $attempt->practice_activity_id,
-                    'curriculum_version_id' =>
-                        $attempt->curriculum_version_id,
+                    'exam_generation_id' => $attempt->exam_generation_id,
+                    'practice_activity_id' => $attempt->practice_activity_id,
+                    'curriculum_version_id' => $attempt->curriculum_version_id,
                     'status' => $attempt->status,
-                    'started_at' =>
-                        $attempt->started_at?->toISOString(),
-                    'finalized_at' =>
-                        $attempt->finalized_at?->toISOString(),
+                    'started_at' => $attempt->started_at?->toISOString(),
+                    'finalized_at' => $attempt->finalized_at?->toISOString(),
                 ];
 
                 if (! $isFinalized) {
@@ -116,21 +158,66 @@ class AttemptReadController extends Controller
         string $attemptId,
         Request $request,
         AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
         $learner = $learnerContext->resolve($request->user());
 
         $attempt = Attempt::query()
             ->whereKey($attemptId)
             ->where('learner_profile_id', $learner->id)
+            ->where(
+                function (
+                    Builder $visibility
+                ) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $visibility
+                        ->whereIn(
+                            'status',
+                            [
+                                'submitted',
+                                'abandoned',
+                            ],
+                        )
+                        ->orWhere(
+                            function (
+                                Builder $current
+                            ) use (
+                                $access,
+                                $learner,
+                            ): void {
+                                $current
+                                    ->where(
+                                        'status',
+                                        'in_progress',
+                                    )
+                                    ->whereHas(
+                                        'curriculumVersion',
+                                        function (
+                                            Builder $versions
+                                        ) use (
+                                            $access,
+                                            $learner,
+                                        ): void {
+                                            $access->versions(
+                                                $versions,
+                                                $learner->id,
+                                            );
+                                        },
+                                    );
+                            },
+                        );
+                },
+            )
             ->with([
                 'items' => fn ($query) => $query
                     ->orderBy('presentation_position')
                     ->orderBy('id'),
                 'items.response',
-                'items.response.regradeCorrections' => fn ($query) =>
-                    $query
-                        ->orderByDesc('correction_number')
-                        ->orderByDesc('id'),
+                'items.response.regradeCorrections' => fn ($query) => $query
+                    ->orderByDesc('correction_number')
+                    ->orderByDesc('id'),
             ])
             ->firstOrFail();
 
@@ -146,26 +233,18 @@ class AttemptReadController extends Controller
 
                 $result = [
                     'id' => $item->id,
-                    'assessment_item_revision_id' =>
-                        $item->assessment_item_revision_id,
-                    'assessment_item_id' =>
-                        $item->assessment_item_id,
-                    'presentation_position' =>
-                        $item->presentation_position,
-                    'presented_payload' =>
-                        $item->presented_payload,
-                    'presented_schema_version' =>
-                        $item->presented_schema_version,
+                    'assessment_item_revision_id' => $item->assessment_item_revision_id,
+                    'assessment_item_id' => $item->assessment_item_id,
+                    'presentation_position' => $item->presentation_position,
+                    'presented_payload' => $item->presented_payload,
+                    'presented_schema_version' => $item->presented_schema_version,
                     'response' => $response === null
                         ? null
                         : [
                             'id' => $response->id,
-                            'response_payload' =>
-                                $response->response_payload,
-                            'answer_change_count' =>
-                                $response->answer_change_count,
-                            'time_spent_ms' =>
-                                $response->time_spent_ms,
+                            'response_payload' => $response->response_payload,
+                            'answer_change_count' => $response->answer_change_count,
+                            'time_spent_ms' => $response->time_spent_ms,
                         ],
                 ];
 
@@ -177,13 +256,10 @@ class AttemptReadController extends Controller
                         $response->regradeCorrections->first();
 
                     $result['result'] = [
-                        'original_is_correct' =>
-                            $response->original_is_correct,
-                        'effective_is_correct' =>
-                            $latestCorrection?->corrected_is_correct
+                        'original_is_correct' => $response->original_is_correct,
+                        'effective_is_correct' => $latestCorrection?->corrected_is_correct
                             ?? $response->original_is_correct,
-                        'correction_number' =>
-                            $latestCorrection?->correction_number,
+                        'correction_number' => $latestCorrection?->correction_number,
                     ];
                 }
 

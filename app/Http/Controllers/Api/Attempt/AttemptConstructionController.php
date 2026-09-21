@@ -21,7 +21,9 @@ class AttemptConstructionController extends Controller
         AuthenticatedLearner $learnerContext,
         BuildExamAttempt $service,
     ): JsonResponse {
-        $learner = $learnerContext->resolve($request->user());
+        $user = $request->user();
+
+        $learner = $learnerContext->resolve($user);
 
         ExamGeneration::query()
             ->whereKey($examGenerationId)
@@ -38,6 +40,7 @@ class AttemptConstructionController extends Controller
             ->firstOrFail();
 
         $attempt = $service->execute(
+            $user->id,
             $learner->id,
             $examGenerationId,
         );
@@ -51,7 +54,9 @@ class AttemptConstructionController extends Controller
         AuthenticatedLearner $learnerContext,
         BuildPracticeAttempt $service,
     ): JsonResponse {
-        $learner = $learnerContext->resolve($request->user());
+        $user = $request->user();
+
+        $learner = $learnerContext->resolve($user);
 
         PracticeActivity::query()
             ->whereKey($practiceActivityId)
@@ -64,6 +69,7 @@ class AttemptConstructionController extends Controller
             ->firstOrFail();
 
         $attempt = $service->execute(
+            $user->id,
             $learner->id,
             $practiceActivityId,
         );

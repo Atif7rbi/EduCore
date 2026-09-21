@@ -15,6 +15,7 @@ use RuntimeException;
 class LockActiveLearnerCurriculumGrant
 {
     public function execute(
+        string $authenticatedUserId,
         string $learnerProfileId,
         string $curriculumVersionId,
     ): StudentEnrollment {
@@ -82,8 +83,19 @@ class LockActiveLearnerCurriculumGrant
             ->lockForUpdate()
             ->firstOrFail();
 
+        if (
+            $learner->user_id
+                !== $authenticatedUserId
+        ) {
+            throw (new ModelNotFoundException)
+                ->setModel(
+                    LearnerProfile::class,
+                    [$learnerProfileId],
+                );
+        }
+
         $learnerUser = User::query()
-            ->whereKey($learner->user_id)
+            ->whereKey($authenticatedUserId)
             ->lockForUpdate()
             ->firstOrFail();
 

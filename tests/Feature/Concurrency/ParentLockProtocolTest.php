@@ -624,7 +624,7 @@ PHP_CODE,
 try {
     $result = app(
         \App\Application\Learning\RecordLessonProgress::class
-    )->execute(%s, %s);
+    )->execute(%s, %s, %s);
 
     file_put_contents(
         %s,
@@ -644,6 +644,10 @@ try {
     );
 }
 PHP_CODE,
+                    var_export(
+                        $this->authenticatedUserId($learnerId),
+                        true
+                    ),
                     var_export($learnerId, true),
                     var_export(
                         $fixture['lesson_id'],
@@ -798,6 +802,7 @@ PHP_CODE,
         $attempt = app(
             BuildPracticeAttempt::class
         )->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $activityId
         );
@@ -1000,6 +1005,9 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
+                $this->authenticatedUserId(
+                    $fixture['learner_id']
+                ),
                 $fixture['learner_id'],
                 $fixture['attempt_id'],
             );
@@ -1372,6 +1380,8 @@ PHP_CODE,
 
     private ?string $signalFile = null;
 
+    private ?string $readyFile = null;
+
     /** @var resource|null */
     private $childProcess = null;
 
@@ -1397,6 +1407,19 @@ PHP_CODE,
 
         @unlink($this->signalFile);
 
+        $this->readyFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-lock-ready-'
+        );
+
+        if ($this->readyFile === false) {
+            throw new RuntimeException(
+                'Unable to allocate concurrency READY file.'
+            );
+        }
+
+        @unlink($this->readyFile);
+
         /*
          * childCode was composed before signal allocation in
          * the caller, so substitute the placeholder path used
@@ -1410,6 +1433,47 @@ PHP_CODE,
             ),
             $childCode
         );
+
+        $readyPrelude = sprintf(
+            <<<'PHP'
+$__educoreReady =
+    \Illuminate\Support\Facades\DB::selectOne(
+        <<<'SQL'
+SELECT
+    pg_backend_pid() AS pid,
+    current_database() AS database_name,
+    current_user AS database_user
+SQL
+    );
+
+file_put_contents(
+    %s,
+    json_encode(
+        [
+            'pid' =>
+                (int) $__educoreReady->pid,
+            'database' =>
+                (string)
+                $__educoreReady->database_name,
+            'user' =>
+                (string)
+                $__educoreReady->database_user,
+        ],
+        JSON_THROW_ON_ERROR
+    ),
+    LOCK_EX
+);
+PHP,
+            var_export(
+                $this->readyFile,
+                true
+            ),
+        );
+
+        $childCode =
+            $readyPrelude
+            .PHP_EOL
+            .$childCode;
 
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -1451,13 +1515,180 @@ PHP_CODE,
         $process,
         string $message,
     ): void {
-        usleep(700000);
+        if (
+            DB::transactionLevel() < 1
+        ) {
+            throw new RuntimeException(
+                'ParentLockProtocol requires an open '
+                .'parent transaction while proving blocking.'
+            );
+        }
 
-        $status =
-            proc_get_status($process);
+        if ($this->readyFile === null) {
+            throw new RuntimeException(
+                'Child READY file was not allocated.'
+            );
+        }
+
+        $readyDeadline =
+            microtime(true) + 8.0;
+
+        do {
+            if (
+                is_file(
+                    $this->readyFile
+                )
+            ) {
+                break;
+            }
+
+            $status =
+                proc_get_status($process);
+
+            if (! $status['running']) {
+                $this->fail(
+                    $message
+                    .' Child exited before READY.'
+                );
+            }
+
+            usleep(10_000);
+        } while (
+            microtime(true)
+                < $readyDeadline
+        );
+
+        $this->assertFileExists(
+            $this->readyFile,
+            $message
+            .' Child never reached PostgreSQL READY.'
+        );
+
+        $ready = json_decode(
+            (string) file_get_contents(
+                $this->readyFile
+            ),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_test',
+            $ready['database'] ?? null,
+            $message
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_Admin',
+            $ready['user'] ?? null,
+            $message
+        );
+
+        $childPid =
+            (int) (
+                $ready['pid']
+                ?? 0
+            );
+
+        $this->assertGreaterThan(
+            0,
+            $childPid,
+            $message
+        );
+
+        $parent =
+            DB::selectOne(
+                'SELECT pg_backend_pid() AS pid'
+            );
+
+        $this->assertNotNull(
+            $parent,
+            $message
+        );
+
+        $parentPid =
+            (int) $parent->pid;
+
+        $blocked = false;
+        $wait = null;
+
+        $waitDeadline =
+            microtime(true) + 8.0;
+
+        do {
+            $wait =
+                DB::selectOne(
+                    <<<'SQL'
+SELECT
+    a.pid,
+    a.state,
+    a.wait_event_type,
+    a.wait_event,
+    (
+        ?::integer
+        = ANY(
+            pg_blocking_pids(a.pid)
+        )
+    ) AS blocked_by_parent
+FROM pg_stat_activity AS a
+WHERE a.pid = ?::integer
+SQL,
+                    [
+                        $parentPid,
+                        $childPid,
+                    ],
+                );
+
+            if (
+                $wait !== null
+                && $wait->wait_event_type
+                    === 'Lock'
+                && in_array(
+                    $wait->blocked_by_parent,
+                    [
+                        true,
+                        1,
+                        '1',
+                        't',
+                        'true',
+                    ],
+                    true,
+                )
+            ) {
+                $blocked = true;
+
+                break;
+            }
+
+            $status =
+                proc_get_status($process);
+
+            if (! $status['running']) {
+                $this->fail(
+                    $message
+                    .' Child exited before PostgreSQL '
+                    .'reported the expected lock wait.'
+                );
+            }
+
+            usleep(10_000);
+        } while (
+            microtime(true)
+                < $waitDeadline
+        );
 
         $this->assertTrue(
-            $status['running'],
+            $blocked,
+            $message
+            .' PostgreSQL never reported the child '
+            .'blocked by the exact parent backend.'
+        );
+
+        $this->assertSame(
+            'Lock',
+            $wait->wait_event_type
+                ?? null,
             $message
         );
 
@@ -1568,6 +1799,12 @@ PHP_CODE,
         }
 
         $this->signalFile = null;
+
+        if ($this->readyFile !== null) {
+            @unlink($this->readyFile);
+        }
+
+        $this->readyFile = null;
     }
 
     private function rollbackIfNeeded(): void
@@ -1928,6 +2165,7 @@ PHP_CODE,
         $attempt = app(
             BuildExamAttempt::class
         )->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generation['generation_id'],
         );
@@ -1950,6 +2188,7 @@ PHP_CODE,
             app(
                 SaveAttemptResponse::class
             )->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $attemptItemId,
                 [
@@ -1963,6 +2202,7 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $attempt->id,
             );
@@ -2068,6 +2308,20 @@ PHP_CODE,
             operationId: (string) Str::uuid(),
             reason: 'Parent lock Phase F fixture acceptance.',
         );
+    }
+
+    private function authenticatedUserId(
+        string $learnerId,
+    ): string {
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        return $userId;
     }
 
     /**

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\PostgresProcessBarrier;
 use Tests\TestCase;
 
 class LockActiveLearnerCurriculumGrantTest extends TestCase
@@ -182,10 +183,388 @@ class LockActiveLearnerCurriculumGrantTest extends TestCase
         );
     }
 
+    public function test_mismatched_authenticated_user_rejects_current_access(): void
+    {
+        [
+            $learnerId,
+            $versionId,
+            $curriculum,
+        ] = $this->createBaseFixture();
+
+        $this->activateEnrollment(
+            $learnerId,
+            $curriculum,
+        );
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->expectException(
+            ModelNotFoundException::class,
+        );
+
+        $this->authorize(
+            $learnerId,
+            $versionId,
+            $otherStudent->id,
+        );
+    }
+
+    public function test_disabled_learner_owner_rejects_current_access(): void
+    {
+        [
+            $learnerId,
+            $versionId,
+            $curriculum,
+        ] = $this->createBaseFixture();
+
+        $this->activateEnrollment(
+            $learnerId,
+            $curriculum,
+        );
+
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString($userId);
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'status' => 'disabled',
+                'updated_at' => now(),
+            ]);
+
+        $this->expectException(
+            ModelNotFoundException::class,
+        );
+
+        $this->authorize(
+            $learnerId,
+            $versionId,
+            $userId,
+        );
+    }
+
+    public function test_non_student_learner_owner_rejects_current_access(): void
+    {
+        [
+            $learnerId,
+            $versionId,
+            $curriculum,
+        ] = $this->createBaseFixture();
+
+        $this->activateEnrollment(
+            $learnerId,
+            $curriculum,
+        );
+
+        $teacher = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+
+        DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->update([
+                'user_id' => $teacher->id,
+            ]);
+
+        $this->assertSame(
+            $teacher->id,
+            DB::table('learner_profiles')
+                ->where('id', $learnerId)
+                ->value('user_id'),
+        );
+
+        $this->expectException(
+            ModelNotFoundException::class,
+        );
+
+        $this->authorize(
+            $learnerId,
+            $versionId,
+            $teacher->id,
+        );
+    }
+
+    public function test_current_learner_grant_serializes_before_assignment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $versionId,
+            $curriculum,
+        ] = $this->createBaseFixture();
+
+        $enrollment =
+            $this->activateEnrollment(
+                $learnerId,
+                $curriculum,
+            );
+
+        $authenticatedUserId =
+            DB::table('learner_profiles')
+                ->where('id', $learnerId)
+                ->value('user_id');
+
+        $assignmentId =
+            $curriculum
+                ->teacher_subject_assignment_id;
+
+        $this->assertIsString(
+            $authenticatedUserId
+        );
+
+        $this->assertIsString(
+            $assignmentId
+        );
+
+        $admin =
+            User::factory()->create([
+                'role' => 'admin',
+                'status' => 'active',
+            ]);
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            $lockedEnrollment = app(
+                LockActiveLearnerCurriculumGrant::class
+            )->execute(
+                $authenticatedUserId,
+                $learnerId,
+                $versionId,
+            );
+
+            $this->assertSame(
+                $enrollment->id,
+                $lockedEnrollment->id,
+            );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_teacher_subject_assignment',
+                    'actor_user_id' => $admin->id,
+                    'assignment_id' => $assignmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'PF-004 grant-wins assignment race.',
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $wait =
+                $barrier
+                    ->awaitBlockedByCurrentConnection(
+                        $ready['pid']
+                    );
+
+            $this->assertSame(
+                'Lock',
+                $wait['wait_event_type'],
+            );
+
+            $this->assertTrue(
+                $wait['blocked_by_parent'],
+            );
+
+            $this->assertSame(
+                $ready['pid'],
+                $wait['child_pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'success',
+                $result['result'] ?? null,
+                "STDOUT:\n"
+                .($result['_stdout'] ?? '')
+                ."\nSTDERR:\n"
+                .($result['_stderr'] ?? ''),
+            );
+
+            $this->assertSame(
+                'inactive',
+                $result['data']['status']
+                    ?? null,
+            );
+
+            $this->assertSame(
+                'inactive',
+                DB::table(
+                    'teacher_subject_assignments'
+                )
+                    ->where(
+                        'id',
+                        $assignmentId,
+                    )
+                    ->value('status'),
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    public function test_assignment_deactivation_serializes_before_current_learner_grant_and_grant_rechecks_status(): void
+    {
+        [
+            $learnerId,
+            $versionId,
+            $curriculum,
+        ] = $this->createBaseFixture();
+
+        $this->activateEnrollment(
+            $learnerId,
+            $curriculum,
+        );
+
+        $authenticatedUserId =
+            DB::table('learner_profiles')
+                ->where('id', $learnerId)
+                ->value('user_id');
+
+        $assignmentId =
+            $curriculum
+                ->teacher_subject_assignment_id;
+
+        $this->assertIsString(
+            $authenticatedUserId
+        );
+
+        $this->assertIsString(
+            $assignmentId
+        );
+
+        $admin =
+            User::factory()->create([
+                'role' => 'admin',
+                'status' => 'active',
+            ]);
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            $deactivated = app(
+                DeactivateTeacherSubjectAssignment::class
+            )->execute(
+                actorUserId: $admin->id,
+                assignmentId: $assignmentId,
+                operationId: (string) Str::uuid(),
+                reason: 'PF-004 deactivation-wins grant race.',
+            );
+
+            $this->assertSame(
+                'inactive',
+                $deactivated->status,
+            );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'lock_active_learner_curriculum_grant',
+                    'authenticated_user_id' => $authenticatedUserId,
+                    'learner_profile_id' => $learnerId,
+                    'curriculum_version_id' => $versionId,
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $wait =
+                $barrier
+                    ->awaitBlockedByCurrentConnection(
+                        $ready['pid']
+                    );
+
+            $this->assertSame(
+                'Lock',
+                $wait['wait_event_type'],
+            );
+
+            $this->assertTrue(
+                $wait['blocked_by_parent'],
+            );
+
+            $this->assertSame(
+                $ready['pid'],
+                $wait['child_pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+                "STDOUT:\n"
+                .($result['_stdout'] ?? '')
+                ."\nSTDERR:\n"
+                .($result['_stderr'] ?? ''),
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null,
+            );
+
+            $this->assertSame(
+                'inactive',
+                DB::table(
+                    'teacher_subject_assignments'
+                )
+                    ->where(
+                        'id',
+                        $assignmentId,
+                    )
+                    ->value('status'),
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
     private function authorize(
         string $learnerId,
         string $versionId,
+        ?string $authenticatedUserId = null,
     ) {
+        $authenticatedUserId ??=
+            DB::table('learner_profiles')
+                ->where('id', $learnerId)
+                ->value('user_id');
+
+        $this->assertIsString(
+            $authenticatedUserId
+        );
+
         $transactions = new TransactionManager(
             new PostgresExceptionTranslator,
         );
@@ -194,6 +573,7 @@ class LockActiveLearnerCurriculumGrantTest extends TestCase
             fn () => app(
                 LockActiveLearnerCurriculumGrant::class
             )->execute(
+                $authenticatedUserId,
                 $learnerId,
                 $versionId,
             )

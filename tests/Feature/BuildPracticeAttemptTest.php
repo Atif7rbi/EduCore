@@ -11,11 +11,13 @@ use App\Application\Enrollment\DeactivateStudentEnrollment;
 use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\PostgresProcessBarrier;
 use Tests\TestCase;
 
 class BuildPracticeAttemptTest extends TestCase
@@ -35,6 +37,7 @@ class BuildPracticeAttemptTest extends TestCase
         ] = $this->createPracticeFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $activityId,
         );
@@ -137,6 +140,7 @@ class BuildPracticeAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $activityId,
             );
@@ -178,6 +182,7 @@ class BuildPracticeAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $activityId,
             );
@@ -247,6 +252,7 @@ class BuildPracticeAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $activityId,
             );
@@ -267,6 +273,83 @@ class BuildPracticeAttemptTest extends TestCase
         );
     }
 
+    public function test_mismatched_authenticated_user_rejects_new_practice_attempt_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->service()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $activityId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseMissing(
+            'attempts',
+            [
+                'learner_profile_id' => $learnerId,
+                'practice_activity_id' => $activityId,
+            ],
+        );
+    }
+
+    public function test_disabled_owner_rejects_new_practice_attempt_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $activityId,
+        ] = $this->createPracticeFixture();
+
+        $userId =
+            $this->authenticatedUserId(
+                $learnerId
+            );
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'status' => 'disabled',
+                'updated_at' => now(),
+            ]);
+
+        try {
+            $this->service()->execute(
+                $userId,
+                $learnerId,
+                $activityId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseMissing(
+            'attempts',
+            [
+                'learner_profile_id' => $learnerId,
+                'practice_activity_id' => $activityId,
+            ],
+        );
+    }
+
     public function test_enrollment_deactivation_serializes_before_new_practice_attempt(): void
     {
         [
@@ -278,46 +361,41 @@ class BuildPracticeAttemptTest extends TestCase
             $versionId,
         ] = $this->createPracticeFixture();
 
-        $curriculumId = DB::table('curriculum_versions')
-            ->where('id', $versionId)
-            ->value('curriculum_id');
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
 
-        $assignmentId = DB::table('curricula')
-            ->where('id', $curriculumId)
-            ->value('teacher_subject_assignment_id');
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
 
-        $enrollmentId = DB::table('student_enrollments')
-            ->where('learner_profile_id', $learnerId)
-            ->where(
-                'teacher_subject_assignment_id',
-                $assignmentId,
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('id');
-
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where('id', $assignmentId)
-            ->value('teacher_id');
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
 
         $this->assertIsString($enrollmentId);
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-practice-enrollment-race-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -334,130 +412,41 @@ class BuildPracticeAttemptTest extends TestCase
             $this->assertSame(
                 'inactive',
                 DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
+                    ->where(
+                        'id',
+                        $enrollmentId,
+                    )
                     ->value('status'),
             );
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Attempt\BuildPracticeAttempt::class)
-        ->execute(%s, %s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_practice_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'practice_activity_id' => $activityId,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learnerId, true),
-                var_export($activityId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Practice Attempt did not wait for enrollment deactivation locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Practice Attempt completed before deactivation committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Practice Attempt did not finish after deactivation commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -482,31 +471,20 @@ PHP,
             $this->assertSame(
                 'inactive',
                 DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
+                    ->where(
+                        'id',
+                        $enrollmentId,
+                    )
                     ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -521,192 +499,87 @@ PHP,
             $versionId,
         ] = $this->createPracticeFixture();
 
-        $curriculumId = DB::table('curriculum_versions')
-            ->where('id', $versionId)
-            ->value('curriculum_id');
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
 
-        $assignmentId = DB::table('curricula')
-            ->where('id', $curriculumId)
-            ->value('teacher_subject_assignment_id');
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
 
-        $enrollmentId = DB::table('student_enrollments')
-            ->where('learner_profile_id', $learnerId)
-            ->where(
-                'teacher_subject_assignment_id',
-                $assignmentId,
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('id');
-
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where('id', $assignmentId)
-            ->value('teacher_id');
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
 
         $this->assertIsString($enrollmentId);
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-practice-attempt-wins-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
-            $attempt = $this->service()->execute(
-                $learnerId,
-                $activityId,
-            );
-
-            $operationId = (string) Str::uuid();
-
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $enrollment = app(
-        \App\Application\Enrollment\DeactivateStudentEnrollment::class
-    )->execute(
-        actorUserId: %s,
-        enrollmentId: %s,
-        operationId: %s,
-        reason: 'Practice attempt-wins race.',
-    );
-
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $enrollment->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($teacherId, true),
-                var_export($enrollmentId, true),
-                var_export($operationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
-
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
+            $attempt =
+                $this->service()->execute(
+                    $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    $learnerId,
+                    $activityId,
                 );
-            }
 
-            fclose($pipes[0]);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'Practice attempt-wins race.',
+                ]);
 
-            usleep(700000);
+            $ready =
+                $barrier->awaitReady();
 
-            $statusWhileLocked =
-                proc_get_status($process);
+            $barrier->release();
 
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Enrollment deactivation did not wait for Practice Attempt authorization locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Enrollment deactivation completed before Practice Attempt committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Enrollment deactivation did not finish after Practice Attempt commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'inactive',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -721,31 +594,20 @@ PHP,
             $this->assertSame(
                 'inactive',
                 DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
+                    ->where(
+                        'id',
+                        $enrollmentId,
+                    )
                     ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -760,34 +622,24 @@ PHP,
             $versionId,
         ] = $this->createPracticeFixture();
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-practice-race-'
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
-            $lockedVersion = DB::table('curriculum_versions')
-                ->where('id', $versionId)
-                ->lockForUpdate()
-                ->first();
+            $lockedVersion =
+                DB::table('curriculum_versions')
+                    ->where('id', $versionId)
+                    ->lockForUpdate()
+                    ->first();
 
-            $this->assertNotNull($lockedVersion);
+            $this->assertNotNull(
+                $lockedVersion
+            );
+
             $this->assertSame(
                 'published',
-                $lockedVersion->status
+                $lockedVersion->status,
             );
 
             DB::table('curriculum_versions')
@@ -797,136 +649,39 @@ PHP,
                     'updated_at' => now(),
                 ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Attempt\BuildPracticeAttempt::class)
-        ->execute(%s, %s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_practice_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'practice_activity_id' => $activityId,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learnerId, true),
-                var_export($activityId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            /*
-             * Session B is a completely separate PHP process.
-             * It must block on CurriculumVersion FOR UPDATE
-             * while Session A owns the lifecycle row.
-             */
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Attempt construction process exited before the lifecycle lock was released.'
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Attempt construction completed before the lifecycle lock was released.'
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Attempt construction process did not finish after retirement committed.'
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
             );
 
             $this->assertSame(
                 ModelNotFoundException::class,
-                $result['class'] ?? null
+                $result['class'] ?? null,
             );
 
             $this->assertSame(
@@ -936,38 +691,63 @@ PHP,
                         'practice_activity_id',
                         $activityId,
                     )
-                    ->count()
+                    ->count(),
             );
 
             $this->assertSame(
                 'retired',
                 DB::table('curriculum_versions')
                     ->where('id', $versionId)
-                    ->value('status')
+                    ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
+    }
+
+    private function assertPostgresBlockedByParent(
+        PostgresProcessBarrier $barrier,
+        int $childPid,
+    ): void {
+        $wait =
+            $barrier
+                ->awaitBlockedByCurrentConnection(
+                    $childPid
+                );
+
+        $this->assertSame(
+            'Lock',
+            $wait['wait_event_type'],
+        );
+
+        $this->assertTrue(
+            $wait['blocked_by_parent'],
+        );
+
+        $this->assertSame(
+            $childPid,
+            $wait['child_pid'],
+        );
+    }
+
+    private function authenticatedUserId(
+        string $learnerId,
+    ): string {
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        return $userId;
     }
 
     private function service(): BuildPracticeAttempt

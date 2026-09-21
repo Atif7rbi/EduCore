@@ -17,13 +17,16 @@ class AttemptResponseController extends Controller
         AuthenticatedLearner $learnerContext,
         SaveAttemptResponse $service,
     ): JsonResponse {
+        $user = $request->user();
+
         $learner = $learnerContext->resolve(
-            $request->user()
+            $user
         );
 
         $validated = $request->validated();
 
         $response = $service->execute(
+            $user->id,
             $learner->id,
             $attemptItemId,
             $validated['response_payload'] ?? null,

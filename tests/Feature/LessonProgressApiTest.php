@@ -9,6 +9,7 @@ use App\Application\Learning\RecordLessonProgress;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Learning\UnpublishLesson;
 use App\Application\Support\TransactionManager;
+use App\Application\TeacherAssignment\DeactivateTeacherSubjectAssignment;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use App\Models\LearnerProfile;
 use App\Models\User;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\PostgresProcessBarrier;
 use Tests\TestCase;
 
 class LessonProgressApiTest extends TestCase
@@ -27,7 +29,8 @@ class LessonProgressApiTest extends TestCase
     public function test_authenticated_learner_can_read_current_lesson_progress(): void
     {
         [$user, $learner] = $this->createLearner();
-        [$lessonId, $revisionId] = $this->createPublishedLesson();
+        [$lessonId, $revisionId] =
+            $this->createPublishedLesson($learner);
 
         DB::table('lesson_progresses')->insert([
             'id' => (string) Str::uuid(),
@@ -58,8 +61,9 @@ class LessonProgressApiTest extends TestCase
 
     public function test_lesson_progress_read_returns_null_when_current_revision_has_no_progress(): void
     {
-        [$user] = $this->createLearner();
-        [$lessonId] = $this->createPublishedLesson();
+        [$user, $learner] = $this->createLearner();
+        [$lessonId] =
+            $this->createPublishedLesson($learner);
 
         $this->actingAs($user);
 
@@ -74,9 +78,10 @@ class LessonProgressApiTest extends TestCase
 
     public function test_lesson_progress_read_is_scoped_to_authenticated_learner(): void
     {
-        [$user] = $this->createLearner();
+        [$user, $learner] = $this->createLearner();
         [, $otherLearner] = $this->createLearner();
-        [$lessonId, $revisionId] = $this->createPublishedLesson();
+        [$lessonId, $revisionId] =
+            $this->createPublishedLesson($learner);
 
         DB::table('lesson_progresses')->insert([
             'id' => (string) Str::uuid(),
@@ -107,7 +112,9 @@ class LessonProgressApiTest extends TestCase
         [
             $lessonId,
             $historicalRevisionId,
-        ] = $this->createPublishedLessonWithHistoricalRevision();
+        ] = $this->createPublishedLessonWithHistoricalRevision(
+            $learner
+        );
 
         DB::table('lesson_progresses')->insert([
             'id' => (string) Str::uuid(),
@@ -129,6 +136,186 @@ class LessonProgressApiTest extends TestCase
             ->assertExactJson([
                 'data' => null,
             ]);
+    }
+
+    public function test_missing_enrollment_hides_current_lesson_progress_read(): void
+    {
+        [$user] = $this->createLearner();
+
+        [$lessonId] =
+            $this->createPublishedLesson();
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
+    }
+
+    public function test_inactive_enrollment_hides_current_lesson_progress_read(): void
+    {
+        [$user, $learner] = $this->createLearner();
+
+        [$lessonId] =
+            $this->createPublishedLesson($learner);
+
+        $enrollment =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learner->id,
+                )
+                ->where('status', 'active')
+                ->first();
+
+        $this->assertNotNull($enrollment);
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
+            )
+                ->where(
+                    'id',
+                    $enrollment
+                        ->teacher_subject_assignment_id,
+                )
+                ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'PF-003 current progress read revocation.',
+        );
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
+    }
+
+    public function test_inactive_assignment_hides_current_lesson_progress_read(): void
+    {
+        [$user, $learner] = $this->createLearner();
+
+        [$lessonId] =
+            $this->createPublishedLesson($learner);
+
+        $versionId =
+            DB::table('lessons')
+                ->where('id', $lessonId)
+                ->value('curriculum_version_id');
+
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
+
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
+
+        $this->assertIsString($assignmentId);
+
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        app(
+            DeactivateTeacherSubjectAssignment::class
+        )->execute(
+            actorUserId: $admin->id,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'PF-003 current progress assignment revocation.',
+        );
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
+    }
+
+    public function test_ownerless_curriculum_hides_current_lesson_progress_read(): void
+    {
+        [$user, $learner] = $this->createLearner();
+
+        [$lessonId] =
+            $this->createPublishedLesson($learner);
+
+        $versionId =
+            DB::table('lessons')
+                ->where('id', $lessonId)
+                ->value('curriculum_version_id');
+
+        $this->assertIsString($versionId);
+
+        $database = DB::selectOne(
+            'SELECT current_database() AS database_name'
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_test',
+            $database->database_name ?? null,
+        );
+
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
+
+        DB::statement(
+            'ALTER TABLE curricula DISABLE TRIGGER trg_curricula_ownership_integrity'
+        );
+
+        try {
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->update([
+                    'teacher_subject_assignment_id' => null,
+                    'updated_at' => now(),
+                ]);
+        } finally {
+            DB::statement(
+                'ALTER TABLE curricula ENABLE TRIGGER trg_curricula_ownership_integrity'
+            );
+        }
+
+        $this->actingAs($user);
+
+        $this->getJson(
+            "/api/lessons/{$lessonId}/progress"
+        )
+            ->assertStatus(404)
+            ->assertJsonPath(
+                'error.code',
+                'not_found',
+            );
     }
 
     public function test_authenticated_learner_can_start_published_lesson(): void
@@ -393,46 +580,38 @@ class LessonProgressApiTest extends TestCase
 
     public function test_enrollment_deactivation_serializes_before_new_lesson_progress(): void
     {
-        [$user, $learner] = $this->createLearner();
+        [$user, $learner] =
+            $this->createLearner();
 
         [$lessonId] =
-            $this->createPublishedLesson($learner);
+            $this->createPublishedLesson(
+                $learner
+            );
 
-        $enrollment = DB::table('student_enrollments')
-            ->where(
-                'learner_profile_id',
-                $learner->id,
-            )
-            ->first();
+        $enrollment =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learner->id,
+                )
+                ->first();
 
         $this->assertNotNull($enrollment);
 
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where(
-                'id',
-                $enrollment->teacher_subject_assignment_id,
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('teacher_id');
+                ->where(
+                    'id',
+                    $enrollment
+                        ->teacher_subject_assignment_id,
+                )
+                ->value('teacher_id');
 
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-progress-enrollment-race-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -446,133 +625,33 @@ class LessonProgressApiTest extends TestCase
                 reason: 'Lesson Progress deactivation-wins race.',
             );
 
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollment->id)
-                    ->value('status'),
-            );
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'record_lesson_progress',
+                    'authenticated_user_id' => $user->id,
+                    'learner_profile_id' => $learner->id,
+                    'lesson_id' => $lessonId,
+                    'complete' => false,
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Learning\RecordLessonProgress::class)
-        ->execute(%s, %s);
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learner->id, true),
-                var_export($lessonId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Lesson Progress did not wait for enrollment deactivation locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Lesson Progress completed before deactivation committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Lesson Progress did not finish after deactivation commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -589,80 +668,51 @@ PHP,
                     )
                     ->count(),
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollment->id)
-                    ->value('status'),
-            );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
     public function test_new_lesson_progress_serializes_before_enrollment_deactivation(): void
     {
-        [$user, $learner] = $this->createLearner();
+        [$user, $learner] =
+            $this->createLearner();
 
         [$lessonId, $revisionId] =
-            $this->createPublishedLesson($learner);
+            $this->createPublishedLesson(
+                $learner
+            );
 
-        $enrollment = DB::table('student_enrollments')
-            ->where(
-                'learner_profile_id',
-                $learner->id,
-            )
-            ->first();
+        $enrollment =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learner->id,
+                )
+                ->first();
 
         $this->assertNotNull($enrollment);
 
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where(
-                'id',
-                $enrollment->teacher_subject_assignment_id,
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('teacher_id');
+                ->where(
+                    'id',
+                    $enrollment
+                        ->teacher_subject_assignment_id,
+                )
+                ->value('teacher_id');
 
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-progress-wins-enrollment-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -670,147 +720,44 @@ PHP,
             $progress = app(
                 RecordLessonProgress::class
             )->execute(
+                $user->id,
                 $learner->id,
                 $lessonId,
             );
 
-            $operationId = (string) Str::uuid();
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollment->id,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'Lesson Progress wins enrollment race.',
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $enrollment = app(
-        \App\Application\Enrollment\DeactivateStudentEnrollment::class
-    )->execute(
-        actorUserId: %s,
-        enrollmentId: %s,
-        operationId: %s,
-        reason: 'Lesson Progress wins enrollment race.',
-    );
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $enrollment->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($teacherId, true),
-                var_export($enrollment->id, true),
-                var_export($operationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Enrollment deactivation did not wait for Lesson Progress authorization locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Enrollment deactivation completed before Lesson Progress committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Enrollment deactivation did not finish after Lesson Progress commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'inactive',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -822,195 +769,65 @@ PHP,
                     'status' => 'in_progress',
                 ],
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollment->id)
-                    ->value('status'),
-            );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
     public function test_lesson_unpublish_serializes_before_new_lesson_progress(): void
     {
-        [$user, $learner] = $this->createLearner();
+        [$user, $learner] =
+            $this->createLearner();
 
         [$lessonId] =
-            $this->createPublishedLesson($learner);
-
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-progress-unpublish-race-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
+            $this->createPublishedLesson(
+                $learner
             );
-        }
 
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
             app(
                 UnpublishLesson::class
-            )->execute($lessonId);
-
-            $this->assertSame(
-                'unpublished',
-                DB::table('lessons')
-                    ->where('id', $lessonId)
-                    ->value('status'),
+            )->execute(
+                $lessonId
             );
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Learning\RecordLessonProgress::class)
-        ->execute(%s, %s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'record_lesson_progress',
+                    'authenticated_user_id' => $user->id,
+                    'learner_profile_id' => $learner->id,
+                    'lesson_id' => $lessonId,
+                    'complete' => false,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learner->id, true),
-                var_export($lessonId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Lesson Progress did not wait for Lesson lifecycle lock.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Lesson Progress completed before unpublish committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Lesson Progress did not finish after unpublish commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -1031,56 +848,34 @@ PHP,
             $this->assertSame(
                 'unpublished',
                 DB::table('lessons')
-                    ->where('id', $lessonId)
+                    ->where(
+                        'id',
+                        $lessonId,
+                    )
                     ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
     public function test_new_lesson_progress_serializes_before_lesson_unpublish(): void
     {
-        [$user, $learner] = $this->createLearner();
+        [$user, $learner] =
+            $this->createLearner();
 
         [$lessonId, $revisionId] =
-            $this->createPublishedLesson($learner);
-
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-progress-wins-unpublish-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
+            $this->createPublishedLesson(
+                $learner
             );
-        }
 
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -1088,138 +883,41 @@ PHP,
             $progress = app(
                 RecordLessonProgress::class
             )->execute(
+                $user->id,
                 $learner->id,
                 $lessonId,
             );
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $lesson = app(
-        \App\Application\Learning\UnpublishLesson::class
-    )->execute(%s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'unpublish_lesson',
+                    'lesson_id' => $lessonId,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $lesson->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($lessonId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Lesson unpublish did not wait for Lesson Progress source locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Lesson unpublish completed before Lesson Progress committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Lesson unpublish did not finish after Lesson Progress commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'unpublished',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -1235,31 +933,20 @@ PHP,
             $this->assertSame(
                 'unpublished',
                 DB::table('lessons')
-                    ->where('id', $lessonId)
+                    ->where(
+                        'id',
+                        $lessonId,
+                    )
                     ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -1340,6 +1027,31 @@ PHP,
     /**
      * @return array{User, LearnerProfile}
      */
+    private function assertPostgresBlockedByParent(
+        PostgresProcessBarrier $barrier,
+        int $childPid,
+    ): void {
+        $wait =
+            $barrier
+                ->awaitBlockedByCurrentConnection(
+                    $childPid
+                );
+
+        $this->assertSame(
+            'Lock',
+            $wait['wait_event_type'],
+        );
+
+        $this->assertTrue(
+            $wait['blocked_by_parent'],
+        );
+
+        $this->assertSame(
+            $childPid,
+            $wait['child_pid'],
+        );
+    }
+
     private function createLearner(): array
     {
         $user = User::factory()->create([
@@ -1400,8 +1112,9 @@ PHP,
     /**
      * @return array{string, string, string}
      */
-    private function createPublishedLessonWithHistoricalRevision(): array
-    {
+    private function createPublishedLessonWithHistoricalRevision(
+        ?LearnerProfile $learner = null,
+    ): array {
         [
             $lessonId,
             $historicalRevisionId,
@@ -1467,6 +1180,13 @@ PHP,
         $this->markCurriculumPublishedForFixture(
             $versionId
         );
+
+        if ($learner !== null) {
+            $this->activateEnrollmentForVersion(
+                $learner,
+                $versionId,
+            );
+        }
 
         return [
             $lessonId,

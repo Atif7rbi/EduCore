@@ -22,11 +22,13 @@ class BuildExamAttempt
     ) {}
 
     public function execute(
+        string $authenticatedUserId,
         string $learnerProfileId,
         string $examGenerationId,
     ): Attempt {
         return $this->transactions->run(
             function () use (
+                $authenticatedUserId,
                 $learnerProfileId,
                 $examGenerationId,
             ): Attempt {
@@ -39,6 +41,7 @@ class BuildExamAttempt
                     ]);
 
                 $this->learnerGrant->execute(
+                    $authenticatedUserId,
                     $learnerProfileId,
                     $generationIdentity->curriculum_version_id,
                 );

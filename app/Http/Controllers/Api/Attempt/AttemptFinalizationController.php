@@ -17,13 +17,16 @@ class AttemptFinalizationController extends Controller
         AuthenticatedLearner $learnerContext,
         FinalizeAttempt $service,
     ): JsonResponse {
+        $user = $request->user();
+
         $learner = $learnerContext->resolve(
-            $request->user()
+            $user
         );
 
         $validated = $request->validated();
 
         $attempt = $service->execute(
+            $user->id,
             $learner->id,
             $attemptId,
             $validated['final_status'],

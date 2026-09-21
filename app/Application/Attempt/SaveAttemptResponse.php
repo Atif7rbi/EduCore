@@ -20,6 +20,7 @@ class SaveAttemptResponse
      * @param  array<string, mixed>|null  $responsePayload
      */
     public function execute(
+        string $authenticatedUserId,
         string $learnerProfileId,
         string $attemptItemId,
         ?array $responsePayload,
@@ -27,6 +28,7 @@ class SaveAttemptResponse
     ): AttemptResponse {
         return $this->transactions->run(
             function () use (
+                $authenticatedUserId,
                 $learnerProfileId,
                 $attemptItemId,
                 $responsePayload,
@@ -53,6 +55,7 @@ class SaveAttemptResponse
                     ]);
 
                 $this->learnerGrant->execute(
+                    $authenticatedUserId,
                     $learnerProfileId,
                     $attemptIdentity->curriculum_version_id,
                 );

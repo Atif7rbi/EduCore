@@ -16,11 +16,13 @@ use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\PostgresProcessBarrier;
 use Tests\TestCase;
 
 class BuildExamAttemptTest extends TestCase
@@ -34,6 +36,7 @@ class BuildExamAttemptTest extends TestCase
             $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -134,6 +137,7 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $generationId,
             );
@@ -161,12 +165,14 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $generationId,
             );
@@ -191,6 +197,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -200,6 +207,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -220,6 +228,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -229,6 +238,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -236,6 +246,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -251,6 +262,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -260,6 +272,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
@@ -267,6 +280,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -287,6 +301,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -297,6 +312,7 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->responseService()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $attemptItemId,
                 ['selected_option' => 2],
@@ -326,6 +342,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -335,6 +352,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -342,6 +360,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -362,6 +381,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -371,6 +391,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
@@ -378,6 +399,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -395,6 +417,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -404,6 +427,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -425,6 +449,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -434,6 +459,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
@@ -441,6 +467,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
             'abandoned',
@@ -476,6 +503,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -485,6 +513,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -492,6 +521,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $firstFinalization = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -500,6 +530,7 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->finalizeService()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $attempt->id,
             );
@@ -524,6 +555,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -533,6 +565,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
@@ -540,6 +573,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -569,6 +603,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -578,6 +613,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -585,6 +621,7 @@ class BuildExamAttemptTest extends TestCase
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -621,6 +658,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -630,6 +668,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
@@ -667,6 +706,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -676,6 +716,7 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $attempt->id,
         );
@@ -753,6 +794,7 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $generationId,
             );
@@ -773,6 +815,184 @@ class BuildExamAttemptTest extends TestCase
         );
     }
 
+    public function test_mismatched_authenticated_user_rejects_new_exam_attempt_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->service()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $generationId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseMissing(
+            'attempts',
+            [
+                'learner_profile_id' => $learnerId,
+                'exam_generation_id' => $generationId,
+            ],
+        );
+    }
+
+    public function test_mismatched_authenticated_user_rejects_attempt_response_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $userId =
+            $this->authenticatedUserId(
+                $learnerId
+            );
+
+        $attempt = $this->service()->execute(
+            $userId,
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->responseService()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $attemptItemId,
+                [
+                    'selected_option' => 2,
+                ],
+                1900,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'response_payload' => null,
+                'answer_change_count' => 0,
+                'time_spent_ms' => 0,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
+    public function test_mismatched_authenticated_user_rejects_attempt_finalization_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $userId =
+            $this->authenticatedUserId(
+                $learnerId
+            );
+
+        $attempt = $this->service()->execute(
+            $userId,
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $this->responseService()->execute(
+            $userId,
+            $learnerId,
+            $attemptItemId,
+            [
+                'selected_option' => 2,
+            ],
+            1200,
+        );
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->finalizeService()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $attempt->id,
+                'submitted',
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $attempt->id,
+                'status' => 'in_progress',
+                'finalized_at' => null,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
     public function test_enrollment_deactivation_serializes_before_new_exam_attempt(): void
     {
         [
@@ -780,50 +1000,48 @@ class BuildExamAttemptTest extends TestCase
             $generationId,
         ] = $this->createExamFixture();
 
-        $versionId = DB::table('exam_generations')
-            ->where('id', $generationId)
-            ->value('curriculum_version_id');
+        $versionId =
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
 
-        $curriculumId = DB::table('curriculum_versions')
-            ->where('id', $versionId)
-            ->value('curriculum_id');
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
 
-        $assignmentId = DB::table('curricula')
-            ->where('id', $curriculumId)
-            ->value('teacher_subject_assignment_id');
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
 
-        $enrollmentId = DB::table('student_enrollments')
-            ->where('learner_profile_id', $learnerId)
-            ->where(
-                'teacher_subject_assignment_id',
-                $assignmentId,
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('id');
-
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where('id', $assignmentId)
-            ->value('teacher_id');
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
 
         $this->assertIsString($enrollmentId);
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-exam-enrollment-race-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -837,133 +1055,34 @@ class BuildExamAttemptTest extends TestCase
                 reason: 'Exam deactivation-wins race.',
             );
 
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
-                    ->value('status'),
-            );
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_exam_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'exam_generation_id' => $generationId,
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Attempt\BuildExamAttempt::class)
-        ->execute(%s, %s);
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learnerId, true),
-                var_export($generationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Exam Attempt did not wait for enrollment deactivation locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Exam Attempt completed before deactivation committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Exam Attempt did not finish after deactivation commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -984,35 +1103,14 @@ PHP,
                     )
                     ->count(),
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
-                    ->value('status'),
-            );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -1023,196 +1121,94 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $versionId = DB::table('exam_generations')
-            ->where('id', $generationId)
-            ->value('curriculum_version_id');
+        $versionId =
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
 
-        $curriculumId = DB::table('curriculum_versions')
-            ->where('id', $versionId)
-            ->value('curriculum_id');
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
 
-        $assignmentId = DB::table('curricula')
-            ->where('id', $curriculumId)
-            ->value('teacher_subject_assignment_id');
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
 
-        $enrollmentId = DB::table('student_enrollments')
-            ->where('learner_profile_id', $learnerId)
-            ->where(
-                'teacher_subject_assignment_id',
-                $assignmentId,
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
             )
-            ->value('id');
-
-        $teacherId = DB::table(
-            'teacher_subject_assignments'
-        )
-            ->where('id', $assignmentId)
-            ->value('teacher_id');
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
 
         $this->assertIsString($enrollmentId);
         $this->assertIsString($teacherId);
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-exam-attempt-wins-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
-            $attempt = $this->service()->execute(
-                $learnerId,
-                $generationId,
-            );
-
-            $operationId = (string) Str::uuid();
-
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $enrollment = app(
-        \App\Application\Enrollment\DeactivateStudentEnrollment::class
-    )->execute(
-        actorUserId: %s,
-        enrollmentId: %s,
-        operationId: %s,
-        reason: 'Exam attempt-wins race.',
-    );
-
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $enrollment->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($teacherId, true),
-                var_export($enrollmentId, true),
-                var_export($operationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
-
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
+            $attempt =
+                $this->service()->execute(
+                    $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    $learnerId,
+                    $generationId,
                 );
-            }
 
-            fclose($pipes[0]);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'Exam attempt-wins race.',
+                ]);
 
-            usleep(700000);
+            $ready =
+                $barrier->awaitReady();
 
-            $statusWhileLocked =
-                proc_get_status($process);
+            $barrier->release();
 
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Enrollment deactivation did not wait for Exam Attempt authorization locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Enrollment deactivation completed before Exam Attempt committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Enrollment deactivation did not finish after Exam Attempt commit.',
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'inactive',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -1223,35 +1219,14 @@ PHP,
                     'exam_generation_id' => $generationId,
                 ],
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table('student_enrollments')
-                    ->where('id', $enrollmentId)
-                    ->value('status'),
-            );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -1262,43 +1237,33 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $generation = DB::table('exam_generations')
-            ->where('id', $generationId)
-            ->first();
-
-        $this->assertNotNull($generation);
-
         $versionId =
-            $generation->curriculum_version_id;
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-exam-race-'
-        );
+        $this->assertIsString($versionId);
 
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
-            $lockedVersion = DB::table('curriculum_versions')
-                ->where('id', $versionId)
-                ->lockForUpdate()
-                ->first();
+            $lockedVersion =
+                DB::table('curriculum_versions')
+                    ->where('id', $versionId)
+                    ->lockForUpdate()
+                    ->first();
 
-            $this->assertNotNull($lockedVersion);
+            $this->assertNotNull(
+                $lockedVersion
+            );
+
             $this->assertSame(
                 'published',
-                $lockedVersion->status
+                $lockedVersion->status,
             );
 
             DB::table('curriculum_versions')
@@ -1308,135 +1273,39 @@ PHP,
                     'updated_at' => now(),
                 ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Attempt\BuildExamAttempt::class)
-        ->execute(%s, %s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_exam_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'exam_generation_id' => $generationId,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learnerId, true),
-                var_export($generationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            /*
-             * Session B must remain blocked on the same
-             * CurriculumVersion lifecycle row.
-             */
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Exam Attempt process exited before the lifecycle lock was released.'
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Exam Attempt construction completed before the lifecycle lock was released.'
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Exam Attempt process did not finish after retirement committed.'
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
             );
 
             $this->assertSame(
                 ModelNotFoundException::class,
-                $result['class'] ?? null
+                $result['class'] ?? null,
             );
 
             $this->assertSame(
@@ -1446,37 +1315,23 @@ PHP,
                         'exam_generation_id',
                         $generationId,
                     )
-                    ->count()
+                    ->count(),
             );
 
             $this->assertSame(
                 'retired',
                 DB::table('curriculum_versions')
                     ->where('id', $versionId)
-                    ->value('status')
+                    ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -1487,19 +1342,22 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $attempt = $this->service()->execute(
-            $learnerId,
-            $generationId,
-        );
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
 
-        $attemptItemId = DB::table(
-            'attempt_items'
-        )
-            ->where(
-                'attempt_id',
-                $attempt->id,
-            )
-            ->value('id');
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
 
         $this->assertIsString(
             $attemptItemId
@@ -1513,21 +1371,7 @@ PHP,
             $attempt->id,
         );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-response-deactivate-wins-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -1541,171 +1385,38 @@ PHP,
                 reason: 'F-C5B response deactivation-wins race.',
             );
 
-            $this->assertSame(
-                'inactive',
-                DB::table(
-                    'student_enrollments'
-                )
-                    ->where(
-                        'id',
-                        $enrollmentId,
-                    )
-                    ->value('status'),
-            );
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'save_attempt_response',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'attempt_item_id' => $attemptItemId,
+                    'response_payload' => [
+                        'selected_option' => 2,
+                    ],
+                    'time_spent_ms' => 1800,
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(
-        \App\Application\Attempt\SaveAttemptResponse::class
-    )->execute(
-        %s,
-        %s,
-        ['selected_option' => 2],
-        1800,
-    );
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'unexpected_success',
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export(
-                    $learnerId,
-                    true,
-                ),
-                var_export(
-                    $attemptItemId,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'SaveAttemptResponse did not wait for enrollment deactivation locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'SaveAttemptResponse completed before deactivation committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline =
-                microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (
-                    ! $statusAfterCommit[
-                        'running'
-                    ]
-                ) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (
-                microtime(true) < $deadline
-            );
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'SaveAttemptResponse did not finish after deactivation commit.',
-            );
-
-            $stdout =
-                stream_get_contents(
-                    $pipes[1]
-                );
-
-            $stderr =
-                stream_get_contents(
-                    $pipes[2]
-                );
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents(
-                    $signalFile
-                ),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -1723,18 +1434,6 @@ PHP,
                     'original_is_correct' => null,
                 ],
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table(
-                    'student_enrollments'
-                )
-                    ->where(
-                        'id',
-                        $enrollmentId,
-                    )
-                    ->value('status'),
-            );
         } finally {
             if (
                 DB::transactionLevel() > 0
@@ -1742,28 +1441,7 @@ PHP,
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status =
-                    proc_get_status(
-                        $process
-                    );
-
-                if ($status['running']) {
-                    proc_terminate(
-                        $process
-                    );
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -1774,19 +1452,22 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $attempt = $this->service()->execute(
-            $learnerId,
-            $generationId,
-        );
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
 
-        $attemptItemId = DB::table(
-            'attempt_items'
-        )
-            ->where(
-                'attempt_id',
-                $attempt->id,
-            )
-            ->value('id');
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
 
         $this->assertIsString(
             $attemptItemId
@@ -1800,21 +1481,7 @@ PHP,
             $attempt->id,
         );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-response-wins-deactivation-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -1823,6 +1490,9 @@ PHP,
                 $this
                     ->responseService()
                     ->execute(
+                        $this->authenticatedUserId(
+                            $learnerId
+                        ),
                         $learnerId,
                         $attemptItemId,
                         [
@@ -1831,172 +1501,39 @@ PHP,
                         1800,
                     );
 
-            $operationId =
-                (string) Str::uuid();
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'F-C5B response-wins race.',
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $enrollment = app(
-        \App\Application\Enrollment\DeactivateStudentEnrollment::class
-    )->execute(
-        actorUserId: %s,
-        enrollmentId: %s,
-        operationId: %s,
-        reason: 'F-C5B response-wins race.',
-    );
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $enrollment->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export(
-                    $teacherId,
-                    true,
-                ),
-                var_export(
-                    $enrollmentId,
-                    true,
-                ),
-                var_export(
-                    $operationId,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Enrollment deactivation did not wait for response authorization locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Enrollment deactivation completed before response commit.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline =
-                microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (
-                    ! $statusAfterCommit[
-                        'running'
-                    ]
-                ) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (
-                microtime(true) < $deadline
-            );
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Enrollment deactivation did not finish after response commit.',
-            );
-
-            $stdout =
-                stream_get_contents(
-                    $pipes[1]
-                );
-
-            $stderr =
-                stream_get_contents(
-                    $pipes[2]
-                );
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents(
-                    $signalFile
-                ),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'inactive',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -2004,27 +1541,13 @@ PHP,
                 [
                     'id' => $response->id,
                     'attempt_item_id' => $attemptItemId,
-                    'response_payload' => json_encode(
-                        [
-                            'selected_option' => 2,
-                        ]
-                    ),
+                    'response_payload' => json_encode([
+                        'selected_option' => 2,
+                    ]),
                     'answer_change_count' => 0,
                     'time_spent_ms' => 1800,
                     'original_is_correct' => null,
                 ],
-            );
-
-            $this->assertSame(
-                'inactive',
-                DB::table(
-                    'student_enrollments'
-                )
-                    ->where(
-                        'id',
-                        $enrollmentId,
-                    )
-                    ->value('status'),
             );
         } finally {
             if (
@@ -2033,28 +1556,7 @@ PHP,
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status =
-                    proc_get_status(
-                        $process
-                    );
-
-                if ($status['running']) {
-                    proc_terminate(
-                        $process
-                    );
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -2065,25 +1567,31 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $attempt = $this->service()->execute(
-            $learnerId,
-            $generationId,
-        );
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
 
-        $attemptItemId = DB::table(
-            'attempt_items'
-        )
-            ->where(
-                'attempt_id',
-                $attempt->id,
-            )
-            ->value('id');
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
 
         $this->assertIsString(
             $attemptItemId
         );
 
         $this->responseService()->execute(
+            $this->authenticatedUserId(
+                $learnerId
+            ),
             $learnerId,
             $attemptItemId,
             [
@@ -2100,21 +1608,7 @@ PHP,
             $attempt->id,
         );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-finalize-deactivate-wins-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -2128,170 +1622,35 @@ PHP,
                 reason: 'F-C5B finalization deactivation-wins race.',
             );
 
-            $this->assertSame(
-                'inactive',
-                DB::table(
-                    'student_enrollments'
-                )
-                    ->where(
-                        'id',
-                        $enrollmentId,
-                    )
-                    ->value('status'),
-            );
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'finalize_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'attempt_id' => $attempt->id,
+                    'final_status' => 'submitted',
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(
-        \App\Application\Attempt\FinalizeAttempt::class
-    )->execute(
-        %s,
-        %s,
-        'submitted',
-    );
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'unexpected_success',
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export(
-                    $learnerId,
-                    true,
-                ),
-                var_export(
-                    $attempt->id,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'FinalizeAttempt did not wait for enrollment deactivation locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'FinalizeAttempt completed before deactivation committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline =
-                microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (
-                    ! $statusAfterCommit[
-                        'running'
-                    ]
-                ) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (
-                microtime(true) < $deadline
-            );
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'FinalizeAttempt did not finish after deactivation commit.',
-            );
-
-            $stdout =
-                stream_get_contents(
-                    $pipes[1]
-                );
-
-            $stderr =
-                stream_get_contents(
-                    $pipes[2]
-                );
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents(
-                    $signalFile
-                ),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
@@ -2322,28 +1681,7 @@ PHP,
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status =
-                    proc_get_status(
-                        $process
-                    );
-
-                if ($status['running']) {
-                    proc_terminate(
-                        $process
-                    );
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -2354,25 +1692,31 @@ PHP,
             $generationId,
         ] = $this->createExamFixture();
 
-        $attempt = $this->service()->execute(
-            $learnerId,
-            $generationId,
-        );
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
 
-        $attemptItemId = DB::table(
-            'attempt_items'
-        )
-            ->where(
-                'attempt_id',
-                $attempt->id,
-            )
-            ->value('id');
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
 
         $this->assertIsString(
             $attemptItemId
         );
 
         $this->responseService()->execute(
+            $this->authenticatedUserId(
+                $learnerId
+            ),
             $learnerId,
             $attemptItemId,
             [
@@ -2389,21 +1733,7 @@ PHP,
             $attempt->id,
         );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-finalize-wins-deactivation-',
-        );
-
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
@@ -2412,177 +1742,47 @@ PHP,
                 $this
                     ->finalizeService()
                     ->execute(
+                        $this->authenticatedUserId(
+                            $learnerId
+                        ),
                         $learnerId,
                         $attempt->id,
                         'submitted',
                     );
 
-            $operationId =
-                (string) Str::uuid();
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'F-C5B finalization-wins race.',
+                ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    $enrollment = app(
-        \App\Application\Enrollment\DeactivateStudentEnrollment::class
-    )->execute(
-        actorUserId: %s,
-        enrollmentId: %s,
-        operationId: %s,
-        reason: 'F-C5B finalization-wins race.',
-    );
+            $ready =
+                $barrier->awaitReady();
 
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'success',
-                'status' => $enrollment->status,
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export(
-                    $teacherId,
-                    true,
-                ),
-                var_export(
-                    $enrollmentId,
-                    true,
-                ),
-                var_export(
-                    $operationId,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-                var_export(
-                    $signalFile,
-                    true,
-                ),
-            );
+            $barrier->release();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Enrollment deactivation did not wait for finalization authorization locks.',
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Enrollment deactivation completed before finalization committed.',
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline =
-                microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (
-                    ! $statusAfterCommit[
-                        'running'
-                    ]
-                ) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (
-                microtime(true) < $deadline
-            );
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Enrollment deactivation did not finish after finalization commit.',
-            );
-
-            $stdout =
-                stream_get_contents(
-                    $pipes[1]
-                );
-
-            $stderr =
-                stream_get_contents(
-                    $pipes[2]
-                );
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
-            );
-
-            $result = json_decode(
-                (string) file_get_contents(
-                    $signalFile
-                ),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'success',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}",
             );
 
             $this->assertSame(
                 'inactive',
-                $result['status'] ?? null,
+                $result['data']['status']
+                    ?? null,
             );
 
             $this->assertDatabaseHas(
@@ -2600,18 +1800,6 @@ PHP,
                     'original_is_correct' => true,
                 ],
             );
-
-            $this->assertSame(
-                'inactive',
-                DB::table(
-                    'student_enrollments'
-                )
-                    ->where(
-                        'id',
-                        $enrollmentId,
-                    )
-                    ->value('status'),
-            );
         } finally {
             if (
                 DB::transactionLevel() > 0
@@ -2619,28 +1807,7 @@ PHP,
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status =
-                    proc_get_status(
-                        $process
-                    );
-
-                if ($status['running']) {
-                    proc_terminate(
-                        $process
-                    );
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
     }
 
@@ -2733,6 +1900,45 @@ PHP,
                 new PostgresExceptionTranslator
             )
         );
+    }
+
+    private function assertPostgresBlockedByParent(
+        PostgresProcessBarrier $barrier,
+        int $childPid,
+    ): void {
+        $wait =
+            $barrier
+                ->awaitBlockedByCurrentConnection(
+                    $childPid
+                );
+
+        $this->assertSame(
+            'Lock',
+            $wait['wait_event_type'],
+        );
+
+        $this->assertTrue(
+            $wait['blocked_by_parent'],
+        );
+
+        $this->assertSame(
+            $childPid,
+            $wait['child_pid'],
+        );
+    }
+
+    private function authenticatedUserId(
+        string $learnerId,
+    ): string {
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        return $userId;
     }
 
     private function finalizeService(): FinalizeAttempt

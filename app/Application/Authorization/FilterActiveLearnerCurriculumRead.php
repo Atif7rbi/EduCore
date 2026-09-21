@@ -17,6 +17,33 @@ class FilterActiveLearnerCurriculumRead
             )
             ->whereExists(
                 function (
+                    QueryBuilder $identity
+                ) use ($learnerProfileId): void {
+                    $identity
+                        ->selectRaw('1')
+                        ->from('learner_profiles')
+                        ->join(
+                            'users',
+                            'users.id',
+                            '=',
+                            'learner_profiles.user_id',
+                        )
+                        ->where(
+                            'learner_profiles.id',
+                            $learnerProfileId,
+                        )
+                        ->where(
+                            'users.role',
+                            'student',
+                        )
+                        ->where(
+                            'users.status',
+                            'active',
+                        );
+                },
+            )
+            ->whereExists(
+                function (
                     QueryBuilder $grant
                 ) use ($learnerProfileId): void {
                     $grant

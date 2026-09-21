@@ -18,12 +18,14 @@ class FinalizeAttempt
     ) {}
 
     public function execute(
+        string $authenticatedUserId,
         string $learnerProfileId,
         string $attemptId,
         string $finalStatus = 'submitted',
     ): Attempt {
         return $this->transactions->run(
             function () use (
+                $authenticatedUserId,
                 $learnerProfileId,
                 $attemptId,
                 $finalStatus,
@@ -42,6 +44,7 @@ class FinalizeAttempt
                     ]);
 
                 $this->learnerGrant->execute(
+                    $authenticatedUserId,
                     $learnerProfileId,
                     $attemptIdentity->curriculum_version_id,
                 );

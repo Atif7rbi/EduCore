@@ -18,12 +18,14 @@ class RecordLessonProgress
     ) {}
 
     public function execute(
+        string $authenticatedUserId,
         string $learnerProfileId,
         string $lessonId,
         bool $complete = false,
     ): LessonProgress {
         return $this->transactions->run(
             function () use (
+                $authenticatedUserId,
                 $learnerProfileId,
                 $lessonId,
                 $complete,
@@ -41,6 +43,7 @@ class RecordLessonProgress
                     ]);
 
                 $this->learnerGrant->execute(
+                    $authenticatedUserId,
                     $learnerProfileId,
                     $lessonIdentity->curriculum_version_id,
                 );
