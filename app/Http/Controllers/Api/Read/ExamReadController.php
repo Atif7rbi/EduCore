@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Read;
 
+use App\Application\Authorization\FilterActiveLearnerCurriculumRead;
 use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
@@ -15,6 +16,7 @@ class ExamReadController extends Controller
     public function index(
         Request $request,
         AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
         $learner = $learnerContext->resolve(
             $request->user()
@@ -28,8 +30,18 @@ class ExamReadController extends Controller
             )
             ->whereHas(
                 'curriculumVersion',
-                fn ($query) => $query
-                    ->where('status', 'published')
+                function ($query) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $access->versions(
+                        $query,
+                        $learner->id,
+                    )->where(
+                        'status',
+                        'published',
+                    );
+                },
             )
             ->with([
                 'examTemplateVersion.examTemplate',
@@ -72,53 +84,37 @@ class ExamReadController extends Controller
                         );
 
                     return [
-                        'id' =>
-                            $generation->id,
-                        'curriculum_version_id' =>
-                            $generation
-                                ->curriculum_version_id,
-                        'exam_template_version_id' =>
-                            $generation
-                                ->exam_template_version_id,
+                        'id' => $generation->id,
+                        'curriculum_version_id' => $generation
+                            ->curriculum_version_id,
+                        'exam_template_version_id' => $generation
+                            ->exam_template_version_id,
                         'template' => [
-                            'id' =>
-                                $template->id,
-                            'name' =>
-                                $template->name,
-                            'description' =>
-                                $template->description,
+                            'id' => $template->id,
+                            'name' => $template->name,
+                            'description' => $template->description,
                         ],
                         'template_version' => [
-                            'id' =>
-                                $version->id,
-                            'version_number' =>
-                                $version->version_number,
-                            'label' =>
-                                $version->label,
+                            'id' => $version->id,
+                            'version_number' => $version->version_number,
+                            'label' => $version->label,
                         ],
-                        'generated_at' =>
-                            $generation
-                                ->generated_at
-                                ?->toISOString(),
-                        'item_count' =>
-                            $generation
-                                ->items_count,
-                        'current_attempt' =>
-                            $attempt === null
+                        'generated_at' => $generation
+                            ->generated_at
+                            ?->toISOString(),
+                        'item_count' => $generation
+                            ->items_count,
+                        'current_attempt' => $attempt === null
                                 ? null
                                 : [
-                                    'id' =>
-                                        $attempt->id,
-                                    'status' =>
-                                        $attempt->status,
-                                    'started_at' =>
-                                        $attempt
-                                            ->started_at
-                                            ?->toISOString(),
-                                    'finalized_at' =>
-                                        $attempt
-                                            ->finalized_at
-                                            ?->toISOString(),
+                                    'id' => $attempt->id,
+                                    'status' => $attempt->status,
+                                    'started_at' => $attempt
+                                        ->started_at
+                                        ?->toISOString(),
+                                    'finalized_at' => $attempt
+                                        ->finalized_at
+                                        ?->toISOString(),
                                 ],
                     ];
                 })

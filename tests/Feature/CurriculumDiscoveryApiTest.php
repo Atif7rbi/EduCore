@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\DeactivateStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
+use App\Application\TeacherAssignment\DeactivateTeacherSubjectAssignment;
 use App\Models\LearnerProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +18,8 @@ class CurriculumDiscoveryApiTest extends TestCase
 {
     use CreatesOwnedCurriculumFixtures;
     use ResetsDedicatedTestDatabase;
+
+    private ?LearnerProfile $authenticatedLearner = null;
 
     public function test_curriculum_discovery_requires_authentication(): void
     {
@@ -245,6 +251,181 @@ class CurriculumDiscoveryApiTest extends TestCase
         );
     }
 
+    public function test_discovery_filters_curricula_without_effective_grant(): void
+    {
+        $this->authenticateLearner();
+
+        $authorized = $this->createCurriculum(
+            'mathematics',
+            'F-C4A Authorized '.Str::uuid(),
+            [
+                [
+                    'number' => 1,
+                    'label' => 'published',
+                    'status' => 'published',
+                ],
+            ],
+        );
+
+        $unauthorized = $this->createCurriculum(
+            'physics',
+            'F-C4A Unauthorized '.Str::uuid(),
+            [
+                [
+                    'number' => 1,
+                    'label' => 'published',
+                    'status' => 'published',
+                ],
+            ],
+            authorizeCurrentLearner: false,
+        );
+
+        $ids = collect(
+            $this->getJson('/api/curricula')
+                ->assertOk()
+                ->json('data')
+        )->pluck('curriculum.id');
+
+        $this->assertTrue(
+            $ids->contains(
+                $authorized['curriculum_id']
+            )
+        );
+
+        $this->assertFalse(
+            $ids->contains(
+                $unauthorized['curriculum_id']
+            )
+        );
+    }
+
+    public function test_discovery_hides_curriculum_after_enrollment_deactivation(): void
+    {
+        $this->authenticateLearner();
+
+        $fixture = $this->createCurriculum(
+            'chemistry',
+            'F-C4A Revoked Enrollment '.Str::uuid(),
+            [
+                [
+                    'number' => 1,
+                    'label' => 'published',
+                    'status' => 'published',
+                ],
+            ],
+        );
+
+        $assignmentId = DB::table('curricula')
+            ->where(
+                'id',
+                $fixture['curriculum_id'],
+            )
+            ->value(
+                'teacher_subject_assignment_id',
+            );
+
+        $this->assertIsString($assignmentId);
+
+        $enrollment = DB::table(
+            'student_enrollments'
+        )
+            ->where(
+                'learner_profile_id',
+                $this->authenticatedLearner->id,
+            )
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->first();
+
+        $this->assertNotNull($enrollment);
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A discovery enrollment revocation.',
+        );
+
+        $ids = collect(
+            $this->getJson('/api/curricula')
+                ->assertOk()
+                ->json('data')
+        )->pluck('curriculum.id');
+
+        $this->assertFalse(
+            $ids->contains(
+                $fixture['curriculum_id']
+            )
+        );
+    }
+
+    public function test_discovery_hides_curriculum_when_assignment_is_inactive(): void
+    {
+        $this->authenticateLearner();
+
+        $fixture = $this->createCurriculum(
+            'biology',
+            'F-C4A Inactive Assignment '.Str::uuid(),
+            [
+                [
+                    'number' => 1,
+                    'label' => 'published',
+                    'status' => 'published',
+                ],
+            ],
+        );
+
+        $assignmentId = DB::table('curricula')
+            ->where(
+                'id',
+                $fixture['curriculum_id'],
+            )
+            ->value(
+                'teacher_subject_assignment_id',
+            );
+
+        $adminId = User::query()
+            ->where('role', 'admin')
+            ->where('status', 'active')
+            ->value('id');
+
+        $this->assertIsString($assignmentId);
+        $this->assertIsString($adminId);
+
+        app(
+            DeactivateTeacherSubjectAssignment::class
+        )->execute(
+            actorUserId: $adminId,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A discovery assignment revocation.',
+        );
+
+        $ids = collect(
+            $this->getJson('/api/curricula')
+                ->assertOk()
+                ->json('data')
+        )->pluck('curriculum.id');
+
+        $this->assertFalse(
+            $ids->contains(
+                $fixture['curriculum_id']
+            )
+        );
+    }
+
     private function authenticateLearner(): LearnerProfile
     {
         $user = User::factory()->create([
@@ -256,9 +437,43 @@ class CurriculumDiscoveryApiTest extends TestCase
             'user_id' => $user->id,
         ]);
 
+        $this->authenticatedLearner = $learner;
+
         $this->actingAs($user);
 
         return $learner;
+    }
+
+    private function activateEnrollment(
+        LearnerProfile $learner,
+        string $assignmentId,
+    ): void {
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $learner->user_id,
+            learnerProfileId: $learner->id,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A discovery authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A discovery fixture acceptance.',
+        );
     }
 
     /**
@@ -277,6 +492,7 @@ class CurriculumDiscoveryApiTest extends TestCase
         string $subjectCode,
         string $curriculumName,
         array $versions,
+        bool $authorizeCurrentLearner = true,
     ): array {
         $curriculum =
             $this->createOwnedCurriculumFixture(
@@ -286,6 +502,24 @@ class CurriculumDiscoveryApiTest extends TestCase
 
         $subjectId = $curriculum->subject_id;
         $curriculumId = $curriculum->id;
+
+        if (
+            $authorizeCurrentLearner
+            && $this->authenticatedLearner !== null
+        ) {
+            $assignmentId =
+                $curriculum
+                    ->teacher_subject_assignment_id;
+
+            $this->assertIsString(
+                $assignmentId
+            );
+
+            $this->activateEnrollment(
+                $this->authenticatedLearner,
+                $assignmentId,
+            );
+        }
 
         $versionIds = [];
 

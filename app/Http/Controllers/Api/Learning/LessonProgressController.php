@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Learning;
 
+use App\Application\Authorization\FilterActiveLearnerCurriculumRead;
 use App\Application\Identity\AuthenticatedLearner;
 use App\Application\Learning\RecordLessonProgress;
 use App\Http\Controllers\Controller;
@@ -17,9 +18,12 @@ class LessonProgressController extends Controller
         string $lessonId,
         Request $request,
         AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
+        $user = $request->user();
+
         $learner = $learnerContext->resolve(
-            $request->user()
+            $user
         );
 
         $lesson = Lesson::query()
@@ -27,8 +31,22 @@ class LessonProgressController extends Controller
             ->whereNotNull('published_revision_id')
             ->whereHas(
                 'curriculumVersion',
-                fn ($query) => $query
-                    ->where('status', 'published')
+                function (
+                    $query
+                ) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $query->where(
+                        'status',
+                        'published',
+                    );
+
+                    $access->versions(
+                        $query,
+                        $learner->id,
+                    );
+                },
             )
             ->findOrFail($lessonId);
 
@@ -56,8 +74,10 @@ class LessonProgressController extends Controller
         AuthenticatedLearner $learnerContext,
         RecordLessonProgress $service,
     ): JsonResponse {
+        $user = $request->user();
+
         $learner = $learnerContext->resolve(
-            $request->user()
+            $user
         );
 
         $lesson = Lesson::query()
@@ -71,8 +91,9 @@ class LessonProgressController extends Controller
             ->findOrFail($lessonId);
 
         $progress = $service->execute(
+            $user->id,
             $learner->id,
-            $lesson->published_revision_id,
+            $lesson->id,
         );
 
         return ApiResponse::success(
@@ -86,8 +107,10 @@ class LessonProgressController extends Controller
         AuthenticatedLearner $learnerContext,
         RecordLessonProgress $service,
     ): JsonResponse {
+        $user = $request->user();
+
         $learner = $learnerContext->resolve(
-            $request->user()
+            $user
         );
 
         $lesson = Lesson::query()
@@ -101,8 +124,9 @@ class LessonProgressController extends Controller
             ->findOrFail($lessonId);
 
         $progress = $service->execute(
+            $user->id,
             $learner->id,
-            $lesson->published_revision_id,
+            $lesson->id,
             true,
         );
 

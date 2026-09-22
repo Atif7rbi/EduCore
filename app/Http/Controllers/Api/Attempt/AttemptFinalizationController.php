@@ -7,7 +7,6 @@ use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attempt\FinalizeAttemptRequest;
 use App\Http\Responses\ApiResponse;
-use App\Models\Attempt;
 use Illuminate\Http\JsonResponse;
 
 class AttemptFinalizationController extends Controller
@@ -18,19 +17,17 @@ class AttemptFinalizationController extends Controller
         AuthenticatedLearner $learnerContext,
         FinalizeAttempt $service,
     ): JsonResponse {
-        $learner = $learnerContext->resolve($request->user());
+        $user = $request->user();
 
-        Attempt::query()
-            ->whereKey($attemptId)
-            ->where(
-                'learner_profile_id',
-                $learner->id
-            )
-            ->firstOrFail();
+        $learner = $learnerContext->resolve(
+            $user
+        );
 
         $validated = $request->validated();
 
         $attempt = $service->execute(
+            $user->id,
+            $learner->id,
             $attemptId,
             $validated['final_status'],
         );

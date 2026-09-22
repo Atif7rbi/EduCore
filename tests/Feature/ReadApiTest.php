@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\DeactivateStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
@@ -18,6 +21,8 @@ class ReadApiTest extends TestCase
 {
     use CreatesOwnedCurriculumFixtures;
     use ResetsDedicatedTestDatabase;
+
+    private ?LearnerProfile $authenticatedLearner = null;
 
     public function test_catalog_routes_require_authentication(): void
     {
@@ -401,6 +406,158 @@ class ReadApiTest extends TestCase
             ->assertJsonPath('error.code', 'not_found');
     }
 
+    public function test_direct_catalog_resources_require_effective_grant(): void
+    {
+        $this->authenticateLearner();
+
+        $versionId =
+            $this->createCurriculumVersion(
+                authorizeCurrentLearner: false,
+            );
+
+        $topicId = $this->createTopic(
+            $versionId,
+            'Unauthorized Direct Read Topic',
+            0,
+        );
+
+        $lessonId = $this->createPublishedLesson(
+            $versionId,
+            $topicId,
+            'Unauthorized Direct Read Lesson',
+            0,
+        );
+
+        [$revisionId, $itemId] =
+            $this->createReleasedAssessmentRevision(
+                $versionId,
+                $topicId,
+            );
+
+        $activityId = $this->createPracticeActivity(
+            $versionId,
+            $lessonId,
+            $revisionId,
+            $itemId,
+            true,
+        );
+
+        $this->markCurriculumPublishedForFixture(
+            $versionId
+        );
+
+        foreach ([
+            "/api/curriculum-versions/{$versionId}",
+            "/api/curriculum-versions/{$versionId}/lessons",
+            "/api/lessons/{$lessonId}",
+            "/api/practice-activities/{$activityId}",
+        ] as $uri) {
+            $this->getJson($uri)
+                ->assertStatus(404)
+                ->assertJsonPath(
+                    'error.code',
+                    'not_found',
+                );
+        }
+    }
+
+    public function test_direct_catalog_resources_fail_closed_after_enrollment_deactivation(): void
+    {
+        $learner = $this->authenticateLearner();
+
+        $versionId =
+            $this->createCurriculumVersion();
+
+        $topicId = $this->createTopic(
+            $versionId,
+            'Revoked Direct Read Topic',
+            0,
+        );
+
+        $lessonId = $this->createPublishedLesson(
+            $versionId,
+            $topicId,
+            'Revoked Direct Read Lesson',
+            0,
+        );
+
+        [$revisionId, $itemId] =
+            $this->createReleasedAssessmentRevision(
+                $versionId,
+                $topicId,
+            );
+
+        $activityId = $this->createPracticeActivity(
+            $versionId,
+            $lessonId,
+            $revisionId,
+            $itemId,
+            true,
+        );
+
+        $this->markCurriculumPublishedForFixture(
+            $versionId
+        );
+
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $enrollment = DB::table(
+            'student_enrollments'
+        )
+            ->where(
+                'learner_profile_id',
+                $learner->id,
+            )
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->first();
+
+        $this->assertNotNull($enrollment);
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A direct read revocation.',
+        );
+
+        foreach ([
+            "/api/curriculum-versions/{$versionId}",
+            "/api/curriculum-versions/{$versionId}/lessons",
+            "/api/lessons/{$lessonId}",
+            "/api/practice-activities/{$activityId}",
+        ] as $uri) {
+            $this->getJson($uri)
+                ->assertStatus(404)
+                ->assertJsonPath(
+                    'error.code',
+                    'not_found',
+                );
+        }
+    }
+
     private function authenticateLearner(): LearnerProfile
     {
         $user = User::factory()->create([
@@ -412,13 +569,16 @@ class ReadApiTest extends TestCase
             'user_id' => $user->id,
         ]);
 
+        $this->authenticatedLearner = $learner;
+
         $this->actingAs($user);
 
         return $learner;
     }
 
-    private function createCurriculumVersion(): string
-    {
+    private function createCurriculumVersion(
+        bool $authorizeCurrentLearner = true,
+    ): string {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
@@ -431,6 +591,24 @@ class ReadApiTest extends TestCase
         $curriculumId = $curriculum->id;
         $subjectId = $curriculum->subject_id;
 
+        if (
+            $authorizeCurrentLearner
+            && $this->authenticatedLearner !== null
+        ) {
+            $assignmentId =
+                $curriculum
+                    ->teacher_subject_assignment_id;
+
+            $this->assertIsString(
+                $assignmentId
+            );
+
+            $this->activateEnrollment(
+                $this->authenticatedLearner,
+                $assignmentId,
+            );
+        }
+
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
             'curriculum_id' => $curriculumId,
@@ -442,6 +620,38 @@ class ReadApiTest extends TestCase
         ]);
 
         return $versionId;
+    }
+
+    private function activateEnrollment(
+        LearnerProfile $learner,
+        string $assignmentId,
+    ): void {
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $learner->user_id,
+            learnerProfileId: $learner->id,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A direct-read authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'F-C4A direct-read fixture acceptance.',
+        );
     }
 
     private function markCurriculumPublishedForFixture(
