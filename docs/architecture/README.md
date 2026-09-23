@@ -19,6 +19,8 @@ Project: EduCore
 ## Authority
 Architecture → Domain Model → Measurement Semantics → Schema Design → Physical Schema Contract → DDL Plan → Integrity Rules → Deferred Decisions → Engineering Review Guide.
 
+Approved amendments in the Amendment register are part of the Architecture Pack. When an amendment explicitly supersedes a named clause in an earlier FROZEN document, the amendment controls for that clause. Unnamed clauses retain their existing authority.
+
 ## Status vocabulary
 FROZEN = approved current decision.
 IMPLEMENTED = physically applied.
@@ -57,8 +59,10 @@ CDA-005 Exact Attempt source-set completeness.
 CDA-006 Exact Classification Snapshot validation.
 CDA-007 Current ExamTemplateVersion retirement guard.
 CDA-008 Canonical Subjects and Education Stages.
+CDA-009 Teacher / Student Access Model v1 reconciliation; supersedes named legacy Identity, DD-008, DD-009, and DD-010 clauses for Student total participation, TeacherSubjectAssignment, StudentEnrollment, Teacher-owned Curriculum authority, and Phase F current learner authorization.
 
 CDA-008 specification reconciliation: COMPLETE.
+CDA-009 Teacher / Student access reconciliation: FROZEN; Phase G external remediation verification pending.
 
 Final reconciliation:
 - education_stages added by CDA-008 with stable UNIQUE code and active|inactive lifecycle.
