@@ -24,6 +24,7 @@ class PostgresProcessBarrier
      */
     public static function start(
         array $payload,
+        string $worker = 'phase_f_concurrency_worker.php',
     ): self {
         self::assertDedicatedTestDatabase();
 
@@ -66,13 +67,33 @@ class PostgresProcessBarrier
             2 => ['pipe', 'w'],
         ];
 
+        if (
+            basename($worker) !== $worker
+            || ! str_ends_with($worker, '.php')
+        ) {
+            $instance->cleanupFiles();
+
+            throw new RuntimeException(
+                'Invalid PostgreSQL concurrency worker path.'
+            );
+        }
+
+        $workerPath = base_path(
+            'tests/Support/'.$worker
+        );
+
+        if (! is_file($workerPath)) {
+            $instance->cleanupFiles();
+
+            throw new RuntimeException(
+                'PostgreSQL concurrency worker does not exist.'
+            );
+        }
+
         $process = proc_open(
             [
                 PHP_BINARY,
-                base_path(
-                    'tests/Support/'
-                    .'phase_f_concurrency_worker.php'
-                ),
+                $workerPath,
                 $encoded,
             ],
             $descriptors,
