@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController;
 use App\Http\Controllers\Api\Admin\AdminExamTemplateController;
 use App\Http\Controllers\Api\Admin\AdminLessonAuthoringController;
 use App\Http\Controllers\Api\Admin\AdminPracticeActivityController;
+use App\Http\Controllers\Api\Admin\AdminStudentEnrollmentReadController;
 use App\Http\Controllers\Api\Admin\AdminStudentReadController;
 use App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController;
 use App\Http\Controllers\Api\Admin\AdminTeacherController;
@@ -881,6 +882,22 @@ Route::middleware([
             'show',
         ]
     )->whereUuid('studentUserId');
+
+    Route::get(
+        '/students/{studentUserId}/enrollments',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'index',
+        ]
+    )->whereUuid('studentUserId');
+
+    Route::get(
+        '/student-enrollments/{enrollmentId}',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'show',
+        ]
+    )->whereUuid('enrollmentId');
 
     Route::post(
         '/student-enrollments/{enrollmentId}/deactivate',
