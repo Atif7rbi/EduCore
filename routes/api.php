@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\AdminStudentReadController;
 use App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController;
 use App\Http\Controllers\Api\Admin\AdminTeacherController;
 use App\Http\Controllers\Api\Admin\AdminTeacherReadController;
+use App\Http\Controllers\Api\Admin\AdminTeacherSubjectAssignmentController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController;
 use App\Http\Controllers\Api\Attempt\AttemptConstructionController;
@@ -832,6 +833,38 @@ Route::middleware([
             'store',
         ]
     );
+
+    Route::get(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'index',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'store',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/deactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'deactivate',
+        ]
+    )->whereUuid('assignmentId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/reactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'reactivate',
+        ]
+    )->whereUuid('assignmentId');
 
     Route::get(
         '/students',
