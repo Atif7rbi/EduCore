@@ -7,8 +7,10 @@ use App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController;
 use App\Http\Controllers\Api\Admin\AdminExamTemplateController;
 use App\Http\Controllers\Api\Admin\AdminLessonAuthoringController;
 use App\Http\Controllers\Api\Admin\AdminPracticeActivityController;
+use App\Http\Controllers\Api\Admin\AdminStudentReadController;
 use App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController;
 use App\Http\Controllers\Api\Admin\AdminTeacherController;
+use App\Http\Controllers\Api\Admin\AdminTeacherReadController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController;
 use App\Http\Controllers\Api\Attempt\AttemptConstructionController;
@@ -807,6 +809,22 @@ Route::middleware([
     'web',
     'management',
 ])->prefix('admin')->group(function (): void {
+    Route::get(
+        '/teachers',
+        [
+            AdminTeacherReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/teachers/{teacherUserId}',
+        [
+            AdminTeacherReadController::class,
+            'show',
+        ]
+    )->whereUuid('teacherUserId');
+
     Route::post(
         '/teachers',
         [
@@ -814,6 +832,22 @@ Route::middleware([
             'store',
         ]
     );
+
+    Route::get(
+        '/students',
+        [
+            AdminStudentReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/students/{studentUserId}',
+        [
+            AdminStudentReadController::class,
+            'show',
+        ]
+    )->whereUuid('studentUserId');
 
     Route::post(
         '/student-enrollments/{enrollmentId}/deactivate',
