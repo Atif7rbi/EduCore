@@ -44,6 +44,12 @@ import {
     AdminDashboardPage,
 } from '../admin/AdminDashboardPage';
 import {
+    AdminTeachersPage,
+} from '../admin/AdminTeachersPage';
+import {
+    AdminStudentsPage,
+} from '../admin/AdminStudentsPage';
+import {
     PracticeActivityPage,
 } from '../learner/PracticeActivityPage';
 import {
@@ -172,6 +178,18 @@ export const router = createBrowserRouter([
                         index: true,
                         element: (
                             <AdminDashboardPage />
+                        ),
+                    },
+                    {
+                        path: 'teachers',
+                        element: (
+                            <AdminTeachersPage />
+                        ),
+                    },
+                    {
+                        path: 'students',
+                        element: (
+                            <AdminStudentsPage />
                         ),
                     },
                     {

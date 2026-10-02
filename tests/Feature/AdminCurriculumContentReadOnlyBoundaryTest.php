@@ -43,6 +43,246 @@ class AdminCurriculumContentReadOnlyBoundaryTest extends TestCase
         )->assertOk();
     }
 
+    public function test_admin_curriculum_read_model_exposes_teacher_ownership_provenance(): void
+    {
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'G4-C3 Ownership Provenance'
+            );
+
+        $assignment = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $curriculum
+                    ->teacher_subject_assignment_id,
+            )
+            ->first();
+
+        $this->assertNotNull($assignment);
+
+        $teacher = DB::table('users')
+            ->where(
+                'id',
+                $assignment->teacher_id,
+            )
+            ->first();
+
+        $this->assertNotNull($teacher);
+
+        $subject = DB::table('subjects')
+            ->where(
+                'id',
+                $curriculum->subject_id,
+            )
+            ->first();
+
+        $this->assertNotNull($subject);
+
+        $this->actingAs(
+            $this->admin()
+        );
+
+        $response = $this->getJson(
+            '/api/admin/subjects/'
+            .$curriculum->subject_id
+            .'/curricula'
+        )
+            ->assertOk();
+
+        $row = collect(
+            $response->json('data')
+        )->firstWhere(
+            'id',
+            $curriculum->id,
+        );
+
+        $this->assertIsArray($row);
+
+        $this->assertSame(
+            'teacher_owned',
+            $row['ownership_kind'] ?? null,
+        );
+
+        $this->assertSame(
+            $curriculum
+                ->teacher_subject_assignment_id,
+            $row[
+                'teacher_subject_assignment_id'
+            ] ?? null,
+        );
+
+        $this->assertSame(
+            $assignment->teacher_id,
+            $row['teacher_user_id'] ?? null,
+        );
+
+        $this->assertSame(
+            $assignment->status,
+            $row[
+                'teacher_subject_assignment_status'
+            ] ?? null,
+        );
+
+        $this->assertSame(
+            $teacher->id,
+            $row['teacher']['user_id']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $teacher->name,
+            $row['teacher']['name']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $teacher->email,
+            $row['teacher']['email']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $teacher->status,
+            $row['teacher']['status']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $subject->id,
+            $row['subject']['id']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $subject->code,
+            $row['subject']['code']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $subject->name,
+            $row['subject']['name']
+                ?? null,
+        );
+
+        $this->assertSame(
+            $subject->status,
+            $row['subject']['status']
+                ?? null,
+        );
+    }
+
+    public function test_admin_curriculum_read_model_explicitly_classifies_legacy_ownerless_content(): void
+    {
+        $identity = DB::selectOne(
+            'SELECT '
+            .'current_database() AS database_name, '
+            .'current_user AS database_user'
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_test',
+            $identity->database_name
+                ?? null,
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_Admin',
+            $identity->database_user
+                ?? null,
+        );
+
+        $subjectId =
+            $this->canonicalSubjectId();
+
+        $curriculumId =
+            (string) Str::uuid();
+
+        DB::statement(
+            'ALTER TABLE curricula '
+            .'DISABLE TRIGGER '
+            .'trg_curricula_ownership_integrity'
+        );
+
+        try {
+            DB::table('curricula')
+                ->insert([
+                    'id' => $curriculumId,
+                    'subject_id' => $subjectId,
+                    'education_stage_id' => null,
+                    'teacher_subject_assignment_id' => null,
+                    'name' => 'Historical Ownerless',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+        } finally {
+            DB::statement(
+                'ALTER TABLE curricula '
+                .'ENABLE TRIGGER '
+                .'trg_curricula_ownership_integrity'
+            );
+        }
+
+        $this->actingAs(
+            $this->admin()
+        );
+
+        $response = $this->getJson(
+            '/api/admin/subjects/'
+            .$subjectId
+            .'/curricula'
+        )
+            ->assertOk();
+
+        $row = collect(
+            $response->json('data')
+        )->firstWhere(
+            'id',
+            $curriculumId,
+        );
+
+        $this->assertIsArray($row);
+
+        $this->assertSame(
+            'legacy_ownerless',
+            $row['ownership_kind'] ?? null,
+        );
+
+        $this->assertNull(
+            $row[
+                'teacher_subject_assignment_id'
+            ] ?? null,
+        );
+
+        $this->assertNull(
+            $row['teacher_user_id'] ?? null,
+        );
+
+        $this->assertNull(
+            $row[
+                'teacher_subject_assignment_status'
+            ] ?? null,
+        );
+
+        $this->assertNull(
+            $row['teacher'] ?? null,
+        );
+
+        $this->assertSame(
+            $subjectId,
+            $row['subject']['id']
+                ?? null,
+        );
+
+        $this->assertSame(
+            'mathematics',
+            $row['subject']['code']
+                ?? null,
+        );
+    }
+
     public function test_admin_curriculum_descendant_mutation_surface_is_fail_closed(): void
     {
         $this->actingAs($this->admin());

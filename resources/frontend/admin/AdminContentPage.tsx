@@ -22,6 +22,9 @@ import {
     ContentContextSelector,
 } from './content/ContentContextSelector';
 import {
+    TeacherOwnedContentInspection,
+} from './content/TeacherOwnedContentInspection';
+import {
     TopicsPanel,
 } from './content/TopicsPanel';
 import {
@@ -53,6 +56,7 @@ import type {
 } from './content/ContentReadinessPanel';
 
 import type {
+    Curriculum,
     CurriculumVersion,
 } from './content/types';
 
@@ -299,6 +303,8 @@ export function AdminContentPage() {
         useState<string | null>(null);
     const [curriculumVersionId, setCurriculumVersionId] =
         useState<string | null>(null);
+    const [selectedCurriculum, setSelectedCurriculum] =
+        useState<Curriculum | null>(null);
     const [selectedVersion, setSelectedVersion] =
         useState<CurriculumVersion | null>(null);
     const [activeSection, setActiveSection] =
@@ -307,6 +313,11 @@ export function AdminContentPage() {
                 searchParams.get('section'),
             )
         );
+
+    const isTeacherOwned =
+        selectedCurriculum
+            ?.teacher_subject_assignment_id
+        != null;
 
     const publishingReadiness = useQuery({
         queryKey: contentReadinessKey(
@@ -317,9 +328,19 @@ export function AdminContentPage() {
                 selectedVersion!.id,
             ),
         enabled:
-            selectedVersion?.status
+            !isTeacherOwned
+            && selectedVersion?.status
             === 'draft',
     });
+
+    const resolveCurriculum = useCallback(
+        (curriculum: Curriculum | null) => {
+            setSelectedCurriculum(
+                curriculum,
+            );
+        },
+        [],
+    );
 
     const resolveVersion = useCallback(
         (version: CurriculumVersion | null) => {
@@ -384,10 +405,14 @@ export function AdminContentPage() {
             <header className="admin-authoring__header">
                 <div>
                     <h1 id="admin-content-title">
-                        إدارة المحتوى
+                        {isTeacherOwned
+                            ? 'استعراض المحتوى'
+                            : 'إدارة المحتوى'}
                     </h1>
                     <p>
-                        إنشاء وإدارة محتوى المناهج والدروس والأنشطة التعليمية.
+                        {isTeacherOwned
+                            ? 'استعراض حالة المحتوى المملوك للمعلم دون صلاحيات التأليف أو النشر.'
+                            : 'إنشاء وإدارة المحتوى التاريخي غير المملوك للمعلمين.'}
                     </p>
                 </div>
             </header>
@@ -399,13 +424,97 @@ export function AdminContentPage() {
                 onSubjectChange={setSubjectId}
                 onCurriculumChange={setCurriculumId}
                 onCurriculumVersionChange={setCurriculumVersionId}
+                onCurriculumResolved={resolveCurriculum}
                 onVersionResolved={resolveVersion}
             />
 
             {!curriculumVersionId ? (
                 <Feedback>
-                    اختر منهجًا للبدء في إدارة المحتوى.
+                    اختر منهجًا لعرض المحتوى.
                 </Feedback>
+            ) : isTeacherOwned ? (
+                <div className="admin-authoring__workspace">
+                    <Feedback tone="info">
+                        <div className="foundation-stack">
+                            <strong>
+                                محتوى مملوك للمعلم —
+                                استعراض فقط
+                            </strong>
+
+                            <span>
+                                المعلم:
+                                {' '}
+                                {selectedCurriculum
+                                    ?.teacher?.name
+                                    ?? 'غير متاح'}
+                                {' — '}
+                                {selectedCurriculum
+                                    ?.teacher?.email
+                                    ?? '—'}
+                            </span>
+
+                            <span>
+                                Teacher UUID:
+                                {' '}
+                                {selectedCurriculum
+                                    ?.teacher_user_id
+                                    ?? '—'}
+                            </span>
+
+                            <span>
+                                TeacherSubjectAssignment:
+                                {' '}
+                                {selectedCurriculum
+                                    ?.teacher_subject_assignment_id
+                                    ?? '—'}
+                                {' — '}
+                                الحالة:
+                                {' '}
+                                {selectedCurriculum
+                                    ?.teacher_subject_assignment_status
+                                    ?? '—'}
+                            </span>
+
+                            <span>
+                                المادة:
+                                {' '}
+                                {selectedCurriculum
+                                    ?.subject.name
+                                    ?? '—'}
+                                {' '}
+                                (
+                                {selectedCurriculum
+                                    ?.subject.code
+                                    ?? '—'}
+                                )
+                            </span>
+
+                            <span>
+                                واجهة الـAdmin هنا
+                                للاستعراض فقط، ولا تعرض
+                                أي أدوات تأليف أو نشر
+                                أو تغيير دورة حياة.
+                            </span>
+                        </div>
+                    </Feedback>
+
+                    {selectedVersion ? (
+                        <>
+                            <TeacherOwnedContentInspection
+                                version={selectedVersion}
+                            />
+
+                            <ContentReadinessPanel
+                                version={selectedVersion}
+                                readOnly
+                            />
+                        </>
+                    ) : (
+                        <div className="admin-authoring__loading">
+                            جار تجهيز وضع الاستعراض…
+                        </div>
+                    )}
+                </div>
             ) : (
                 <div className="admin-authoring__workspace">
                     <nav
