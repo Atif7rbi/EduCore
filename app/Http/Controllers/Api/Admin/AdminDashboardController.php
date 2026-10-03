@@ -15,6 +15,12 @@ class AdminDashboardController extends Controller
             'counts' => [
                 'subjects' => DB::table('subjects')->count(),
                 'curricula' => DB::table('curricula')->count(),
+                'teacher_owned_curricula' => DB::table('curricula')
+                    ->whereNotNull('teacher_subject_assignment_id')
+                    ->count(),
+                'legacy_ownerless_curricula' => DB::table('curricula')
+                    ->whereNull('teacher_subject_assignment_id')
+                    ->count(),
                 'curriculum_versions' => DB::table('curriculum_versions')->count(),
                 'topics' => DB::table('topics')->count(),
                 'lessons' => DB::table('lessons')->count(),
@@ -27,6 +33,34 @@ class AdminDashboardController extends Controller
             'readiness' => [
                 'published_curriculum_versions' => DB::table('curriculum_versions')
                     ->where('status', 'published')
+                    ->count(),
+                'published_teacher_owned_curriculum_versions' => DB::table(
+                    'curriculum_versions as version'
+                )
+                    ->join(
+                        'curricula as curriculum',
+                        'curriculum.id',
+                        '=',
+                        'version.curriculum_id'
+                    )
+                    ->where('version.status', 'published')
+                    ->whereNotNull(
+                        'curriculum.teacher_subject_assignment_id'
+                    )
+                    ->count(),
+                'published_legacy_ownerless_curriculum_versions' => DB::table(
+                    'curriculum_versions as version'
+                )
+                    ->join(
+                        'curricula as curriculum',
+                        'curriculum.id',
+                        '=',
+                        'version.curriculum_id'
+                    )
+                    ->where('version.status', 'published')
+                    ->whereNull(
+                        'curriculum.teacher_subject_assignment_id'
+                    )
                     ->count(),
                 'published_lessons' => DB::table('lessons')
                     ->where('status', 'published')

@@ -116,16 +116,55 @@ function curriculum(
         subjectId = 'subject-math',
         stageId = 'stage-primary',
         name,
+        teacherAssignmentId = null,
     }: {
         subjectId?: string;
         stageId?: string | null;
         name?: string;
+        teacherAssignmentId?:
+            string | null;
     } = {},
 ) {
     return {
         id: `curriculum-${index}`,
         subject_id: subjectId,
         education_stage_id: stageId,
+        teacher_subject_assignment_id:
+            teacherAssignmentId,
+
+        ownership_kind:
+            teacherAssignmentId
+                ? 'teacher_owned'
+                : 'legacy_ownerless',
+
+        teacher_user_id:
+            teacherAssignmentId
+                ? 'teacher-1'
+                : null,
+
+        teacher_subject_assignment_status:
+            teacherAssignmentId
+                ? 'active'
+                : null,
+
+        teacher:
+            teacherAssignmentId
+                ? {
+                    user_id: 'teacher-1',
+                    name: 'معلم الرياضيات',
+                    email:
+                        'teacher@example.test',
+                    status: 'active',
+                }
+                : null,
+
+        subject: {
+            id: subjectId,
+            code: 'mathematics',
+            name: 'الرياضيات',
+            status: 'active',
+        },
+
         name:
             name
             ?? `منهج ${String(index).padStart(2, '0')}`,
@@ -227,13 +266,13 @@ describe('AdminCurriculaPage', () => {
 
         expect(
             await screen.findByRole('heading', {
-                name: 'إدارة المناهج',
+                name: 'استعراض المناهج',
             }),
         ).toBeInTheDocument();
 
         expect(
             screen.getByText(
-                /استعرض المواد المعتمدة وأدر المناهج/,
+                /استعرض المواد المعتمدة وهوية المناهج وملكية المحتوى/,
             ),
         ).toBeInTheDocument();
 
@@ -417,10 +456,10 @@ describe('AdminCurriculaPage', () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole('button', {
+            screen.queryByRole('button', {
                 name: '+ إضافة منهج',
             }),
-        ).toBeDisabled();
+        ).not.toBeInTheDocument();
 
         expect(
             screen.getByText('غير نشط'),
@@ -524,268 +563,7 @@ describe('AdminCurriculaPage', () => {
         ).toBeInTheDocument();
     });
 
-    it('creates a curriculum with an active education stage and prepares its initial draft', async () => {
-        installInventory({
-            curriculaBySubject: {
-                'subject-math': [],
-            },
-            onRequest: ({
-                method,
-                url,
-                data,
-            }) => {
-                if (
-                    method === 'POST'
-                    && url
-                        === '/api/admin/subjects/subject-math/curricula'
-                ) {
-                    expect(data).toEqual({
-                        name: 'منهج المرحلة المتوسطة',
-                        education_stage_id:
-                            'stage-middle',
-                    });
-
-                    return {
-                        id: 'curriculum-new',
-                        subject_id: 'subject-math',
-                        education_stage_id:
-                            'stage-middle',
-                        name: 'منهج المرحلة المتوسطة',
-                        created_at: null,
-                        updated_at: null,
-                    };
-                }
-
-                if (
-                    method === 'POST'
-                    && url
-                        === '/api/admin/curricula/curriculum-new/versions'
-                ) {
-                    expect(data).toEqual({
-                        version_number: 1,
-                        label: 'مسودة العمل',
-                    });
-
-                    return {
-                        id: 'version-1',
-                        curriculum_id:
-                            'curriculum-new',
-                        version_number: 1,
-                        label: 'مسودة العمل',
-                        status: 'draft',
-                    };
-                }
-
-                return undefined;
-            },
-        });
-
-        renderPage();
-
-        const addCurriculum =
-            await screen.findByRole(
-                'button',
-                {
-                    name: '+ إضافة منهج',
-                },
-            );
-
-        await waitFor(() => {
-            expect(addCurriculum).toBeEnabled();
-        });
-
-        fireEvent.click(addCurriculum);
-
-        fireEvent.change(
-            screen.getByLabelText('اسم المنهج'),
-            {
-                target: {
-                    value:
-                        'منهج المرحلة المتوسطة',
-                },
-            },
-        );
-
-        const stageSelect =
-            await screen.findByRole(
-                'combobox',
-                {
-                    name: 'المرحلة التعليمية',
-                },
-            );
-
-        fireEvent.change(stageSelect, {
-            target: {
-                value: 'stage-middle',
-            },
-        });
-
-        fireEvent.click(
-            screen.getByRole('button', {
-                name: 'إنشاء المنهج',
-            }),
-        );
-
-        await waitFor(() => {
-            expect(
-                apiRequestMock,
-            ).toHaveBeenCalledWith({
-                method: 'POST',
-                url:
-                    '/api/admin/curricula/curriculum-new/versions',
-                data: {
-                    version_number: 1,
-                    label: 'مسودة العمل',
-                },
-            });
-        });
-    });
-
-    it('supports an optional stage while excluding inactive stages from new-content selection', async () => {
-        installInventory({
-            stages: [
-                stage(),
-                stage({
-                    id: 'stage-middle',
-                    code: 'middle',
-                    name: 'المرحلة المتوسطة',
-                }),
-                stage({
-                    id: 'stage-secondary',
-                    code: 'secondary',
-                    name: 'المرحلة الثانوية',
-                    status: 'inactive',
-                }),
-            ],
-            curriculaBySubject: {
-                'subject-math': [],
-            },
-            onRequest: ({
-                method,
-                url,
-                data,
-            }) => {
-                if (
-                    method === 'POST'
-                    && url
-                        === '/api/admin/subjects/subject-math/curricula'
-                ) {
-                    expect(data).toEqual({
-                        name: 'منهج عام',
-                        education_stage_id: null,
-                    });
-
-                    return {
-                        id: 'curriculum-general',
-                        subject_id: 'subject-math',
-                        education_stage_id: null,
-                        name: 'منهج عام',
-                        created_at: null,
-                        updated_at: null,
-                    };
-                }
-
-                if (
-                    method === 'POST'
-                    && url
-                        === '/api/admin/curricula/curriculum-general/versions'
-                ) {
-                    return {
-                        id: 'version-general',
-                        curriculum_id:
-                            'curriculum-general',
-                        version_number: 1,
-                        label: 'مسودة العمل',
-                        status: 'draft',
-                    };
-                }
-
-                return undefined;
-            },
-        });
-
-        renderPage();
-
-        const addCurriculum =
-            await screen.findByRole(
-                'button',
-                {
-                    name: '+ إضافة منهج',
-                },
-            );
-
-        await waitFor(() => {
-            expect(addCurriculum).toBeEnabled();
-        });
-
-        fireEvent.click(addCurriculum);
-
-        const stageSelect =
-            await screen.findByRole(
-                'combobox',
-                {
-                    name: 'المرحلة التعليمية',
-                },
-            );
-
-        expect(
-            within(stageSelect).getByRole(
-                'option',
-                {
-                    name: 'بدون مرحلة محددة',
-                },
-            ),
-        ).toBeInTheDocument();
-
-        expect(
-            within(stageSelect).getByRole(
-                'option',
-                {
-                    name: 'المرحلة الابتدائية',
-                },
-            ),
-        ).toBeInTheDocument();
-
-        expect(
-            within(stageSelect).queryByRole(
-                'option',
-                {
-                    name: 'المرحلة الثانوية',
-                },
-            ),
-        ).not.toBeInTheDocument();
-
-        fireEvent.change(
-            screen.getByLabelText('اسم المنهج'),
-            {
-                target: {
-                    value: 'منهج عام',
-                },
-            },
-        );
-
-        fireEvent.click(
-            screen.getByRole('button', {
-                name: 'إنشاء المنهج',
-            }),
-        );
-
-        await waitFor(() => {
-            expect(
-                apiRequestMock,
-            ).toHaveBeenCalledWith({
-                method: 'POST',
-                url:
-                    '/api/admin/subjects/subject-math/curricula',
-                data: {
-                    name: 'منهج عام',
-                    education_stage_id: null,
-                },
-            });
-        });
-    });
-
-    it('allows curriculum name editing while keeping education stage read-only', async () => {
+    it('does not expose disabled Admin Curriculum root authoring controls', async () => {
         installInventory();
         renderPage();
 
@@ -793,55 +571,76 @@ describe('AdminCurriculaPage', () => {
             'منهج الرياضيات الأساسي',
         );
 
-        const editButtons =
-            screen.getAllByRole(
+        expect(
+            screen.queryByRole(
+                'button',
+                {
+                    name:
+                        '+ إضافة منهج',
+                },
+            ),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByRole(
                 'button',
                 {
                     name: 'تعديل',
                 },
-            );
-
-        expect(editButtons).toHaveLength(1);
-
-        fireEvent.click(editButtons[0]);
+            ),
+        ).not.toBeInTheDocument();
 
         expect(
-            screen.getByLabelText(
-                'تعديل اسم المنهج',
+            screen.queryByLabelText(
+                'اسم المنهج',
+            ),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /دون إنشاء أو تعديل المناهج/
+            ),
+        ).toBeInTheDocument();
+    });
+
+    it('labels teacher-owned curriculum ownership as read-only', async () => {
+        installInventory({
+            curriculaBySubject: {
+                'subject-math': [
+                    curriculum(
+                        1,
+                        {
+                            name:
+                                'منهج مملوك للمعلم',
+                            teacherAssignmentId:
+                                'assignment-owned-1',
+                        },
+                    ),
+                ],
+            },
+        });
+
+        renderPage();
+
+        expect(
+            await screen.findByText(
+                'منهج مملوك للمعلم',
             ),
         ).toBeInTheDocument();
 
         expect(
-            screen.queryByRole('combobox', {
-                name: 'المرحلة التعليمية',
-            }),
-        ).not.toBeInTheDocument();
-
-        const immutableNote =
-            document.querySelector(
-                '.admin-curricula__immutable-note',
-            );
-
-        expect(immutableNote).not.toBeNull();
-
-        expect(immutableNote).toHaveTextContent(
-            'المرحلة التعليمية ثابتة بعد إنشاء المنهج',
-        );
-
-        expect(immutableNote).toHaveTextContent(
-            'المرحلة الابتدائية',
-        );
+            screen.getByText(
+                'مملوك للمعلم — استعراض فقط',
+            ),
+        ).toBeInTheDocument();
 
         expect(
-            screen.queryByRole('button', {
-                name: 'نشر',
-            }),
-        ).not.toBeInTheDocument();
-
-        expect(
-            screen.queryByRole('button', {
-                name: 'تقاعد',
-            }),
+            screen.queryByRole(
+                'button',
+                {
+                    name: 'تعديل',
+                },
+            ),
         ).not.toBeInTheDocument();
     });
 });

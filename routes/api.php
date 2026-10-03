@@ -7,7 +7,12 @@ use App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController;
 use App\Http\Controllers\Api\Admin\AdminExamTemplateController;
 use App\Http\Controllers\Api\Admin\AdminLessonAuthoringController;
 use App\Http\Controllers\Api\Admin\AdminPracticeActivityController;
+use App\Http\Controllers\Api\Admin\AdminStudentEnrollmentReadController;
+use App\Http\Controllers\Api\Admin\AdminStudentReadController;
 use App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController;
+use App\Http\Controllers\Api\Admin\AdminTeacherController;
+use App\Http\Controllers\Api\Admin\AdminTeacherReadController;
+use App\Http\Controllers\Api\Admin\AdminTeacherSubjectAssignmentController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController;
 use App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController;
 use App\Http\Controllers\Api\Attempt\AttemptConstructionController;
@@ -806,6 +811,94 @@ Route::middleware([
     'web',
     'management',
 ])->prefix('admin')->group(function (): void {
+    Route::get(
+        '/teachers',
+        [
+            AdminTeacherReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/teachers/{teacherUserId}',
+        [
+            AdminTeacherReadController::class,
+            'show',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teachers',
+        [
+            AdminTeacherController::class,
+            'store',
+        ]
+    );
+
+    Route::get(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'index',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'store',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/deactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'deactivate',
+        ]
+    )->whereUuid('assignmentId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/reactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'reactivate',
+        ]
+    )->whereUuid('assignmentId');
+
+    Route::get(
+        '/students',
+        [
+            AdminStudentReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/students/{studentUserId}',
+        [
+            AdminStudentReadController::class,
+            'show',
+        ]
+    )->whereUuid('studentUserId');
+
+    Route::get(
+        '/students/{studentUserId}/enrollments',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'index',
+        ]
+    )->whereUuid('studentUserId');
+
+    Route::get(
+        '/student-enrollments/{enrollmentId}',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'show',
+        ]
+    )->whereUuid('enrollmentId');
+
     Route::post(
         '/student-enrollments/{enrollmentId}/deactivate',
         [

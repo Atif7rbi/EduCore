@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Application\Exceptions\InvalidPasswordResetToken;
+use App\Application\Identity\RedeemPasswordResetToken;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
-use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -21,14 +20,21 @@ class PasswordResetController extends Controller
     private const GENERIC_RESET_LINK_MESSAGE =
         'If an account exists for this email, a password reset link has been sent.';
 
-    public function requestResetLink(Request $request): JsonResponse
-    {
+    public function requestResetLink(
+        Request $request,
+    ): JsonResponse {
         $request->merge([
-            'email' => $this->normalizedEmail($request),
+            'email' => $this->normalizedEmail(
+                $request
+            ),
         ]);
 
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email'],
+            'email' => [
+                'required',
+                'string',
+                'email',
+            ],
         ]);
 
         try {
@@ -36,9 +42,12 @@ class PasswordResetController extends Controller
                 'email' => $validated['email'],
             ]);
         } catch (Throwable $exception) {
-            Log::warning('Password reset delivery failed.', [
-                'exception' => $exception::class,
-            ]);
+            Log::warning(
+                'Password reset delivery failed.',
+                [
+                    'exception' => $exception::class,
+                ],
+            );
         }
 
         return ApiResponse::success([
@@ -46,15 +55,26 @@ class PasswordResetController extends Controller
         ]);
     }
 
-    public function reset(Request $request): JsonResponse
-    {
+    public function reset(
+        Request $request,
+        RedeemPasswordResetToken $redeemPasswordResetToken,
+    ): JsonResponse {
         $request->merge([
-            'email' => $this->normalizedEmail($request),
+            'email' => $this->normalizedEmail(
+                $request
+            ),
         ]);
 
         $validated = $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'string', 'email'],
+            'token' => [
+                'required',
+                'string',
+            ],
+            'email' => [
+                'required',
+                'string',
+                'email',
+            ],
             'password' => [
                 'required',
                 'confirmed',
@@ -66,45 +86,45 @@ class PasswordResetController extends Controller
             ],
         ]);
 
-        $status = Password::broker()->reset(
-            [
-                'email' => $validated['email'],
-                'password' => $validated['password'],
-                'token' => $validated['token'],
-            ],
-            function (User $user, string $password): void {
-                DB::transaction(function () use ($user, $password): void {
-                    $user->forceFill([
-                        'password' => Hash::make($password),
-                        'remember_token' => Str::random(60),
-                    ])->save();
-
-                    DB::table('sessions')
-                        ->where('user_id', $user->id)
-                        ->delete();
-                });
-
-                event(new PasswordReset($user));
-            },
-        );
-
-        if ($status === Password::PASSWORD_RESET) {
-            return ApiResponse::success([
-                'reset' => true,
-            ]);
+        try {
+            $user =
+                $redeemPasswordResetToken
+                    ->execute(
+                        email: $validated['email'],
+                        token: $validated['token'],
+                        password: $validated['password'],
+                    );
+        } catch (
+            InvalidPasswordResetToken $exception
+        ) {
+            return ApiResponse::error(
+                'invalid_password_reset',
+                'The password reset link is invalid or has expired.',
+                422,
+            );
         }
 
-        return ApiResponse::error(
-            'invalid_password_reset',
-            'The password reset link is invalid or has expired.',
-            422,
-        );
+        /*
+         * Durable credential/status/token changes have
+         * committed before observers receive this event.
+         */
+        event(new PasswordReset($user));
+
+        return ApiResponse::success([
+            'reset' => true,
+        ]);
     }
 
-    private function normalizedEmail(Request $request): string
-    {
+    private function normalizedEmail(
+        Request $request,
+    ): string {
         return Str::lower(
-            trim((string) $request->input('email', ''))
+            trim(
+                (string) $request->input(
+                    'email',
+                    '',
+                )
+            )
         );
     }
 }

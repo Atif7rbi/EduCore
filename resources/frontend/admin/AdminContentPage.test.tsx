@@ -72,6 +72,14 @@ vi.mock('./content/ExamTemplatesPanel', () => ({
     ExamTemplatesPanel: () => <div data-testid="exam-templates-panel">لوحة الاختبارات</div>,
 }));
 
+vi.mock('./content/TeacherOwnedContentInspection', () => ({
+    TeacherOwnedContentInspection: () => (
+        <div data-testid="teacher-owned-content-inspection">
+            Teacher-owned content inspection
+        </div>
+    ),
+}));
+
 vi.mock('./content/ContentReadinessPanel', () => ({
     contentReadinessKey: (
         curriculumVersionId: string,
@@ -92,14 +100,21 @@ vi.mock('./content/ContentReadinessPanel', () => ({
                 `/api/admin/curriculum-versions/${curriculumVersionId}/readiness`,
         }),
 
-    ContentReadinessPanel: ({ version }: {
+    ContentReadinessPanel: ({
+        version,
+        readOnly = false,
+    }: {
         version: {
             status: 'draft' | 'published' | 'retired';
         };
+        readOnly?: boolean;
     }) => (
         <div
             data-testid="readiness-panel"
             data-version-status={version.status}
+            data-read-only={
+                readOnly ? 'true' : 'false'
+            }
         >
             مراجعة النشر
         </div>
@@ -224,6 +239,8 @@ function installContext(
         | 'retired' = 'draft',
     readinessData =
         readinessResponse(),
+    teacherSubjectAssignmentId:
+        string | null = null,
 ) {
     apiRequestMock.mockImplementation(({ method, url }: RequestConfig) => {
         if (method === 'GET' && url === '/api/admin/subjects') {
@@ -242,6 +259,45 @@ function installContext(
                 {
                     id: 'curriculum-1',
                     subject_id: 'subject-1',
+                    teacher_subject_assignment_id:
+                        teacherSubjectAssignmentId,
+
+                    ownership_kind:
+                        teacherSubjectAssignmentId
+                            ? 'teacher_owned'
+                            : 'legacy_ownerless',
+
+                    teacher_user_id:
+                        teacherSubjectAssignmentId
+                            ? 'teacher-1'
+                            : null,
+
+                    teacher_subject_assignment_status:
+                        teacherSubjectAssignmentId
+                            ? 'active'
+                            : null,
+
+                    teacher:
+                        teacherSubjectAssignmentId
+                            ? {
+                                user_id:
+                                    'teacher-1',
+                                name:
+                                    'معلم الرياضيات',
+                                email:
+                                    'teacher@example.test',
+                                status:
+                                    'active',
+                            }
+                            : null,
+
+                    subject: {
+                        id: 'subject-1',
+                        code: 'mathematics',
+                        name: 'القدرات الكمية',
+                        status: 'active',
+                    },
+
                     name: 'المنهج الكمي',
                     created_at: null,
                     updated_at: null,
@@ -516,5 +572,91 @@ describe('AdminContentPage', () => {
 
         expect(await screen.findByText('موقوف')).toBeInTheDocument();
         expect(screen.queryByText('الإصدار الأول')).not.toBeInTheDocument();
+    });
+    it('renders teacher-owned curriculum as read-only inspection without authoring workspace', async () => {
+        installContext(
+            'draft',
+            readinessResponse(),
+            'assignment-owned-1',
+        );
+
+        renderPage();
+
+        expect(
+            await screen.findByRole(
+                'heading',
+                {
+                    name:
+                        'استعراض المحتوى',
+                },
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /واجهة الـAdmin هنا للاستعراض فقط/
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            await screen.findByTestId(
+                'teacher-owned-content-inspection',
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /معلم الرياضيات/,
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /teacher-1/,
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /assignment-owned-1/,
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText(
+                /المادة:\s*القدرات الكمية\s*\(\s*mathematics\s*\)/,
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            await screen.findByTestId(
+                'readiness-panel',
+            ),
+        ).toHaveAttribute(
+            'data-read-only',
+            'true',
+        );
+
+        expect(
+            screen.queryByRole('tab')
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByTestId(
+                'lessons-panel'
+            )
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByTestId(
+                'assessment-items-panel'
+            )
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByTestId(
+                'exam-templates-panel'
+            )
+        ).not.toBeInTheDocument();
     });
 });

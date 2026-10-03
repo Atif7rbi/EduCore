@@ -1,12 +1,9 @@
 import {
-    FormEvent,
     useEffect,
     useState,
 } from 'react';
 import {
-    useMutation,
     useQuery,
-    useQueryClient,
 } from '@tanstack/react-query';
 
 import {
@@ -51,17 +48,31 @@ interface Curriculum {
     id: string;
     subject_id: string;
     education_stage_id: string | null;
+    teacher_subject_assignment_id:
+        string | null;
+    ownership_kind:
+        | 'teacher_owned'
+        | 'legacy_ownerless';
+    teacher_user_id: string | null;
+    teacher_subject_assignment_status:
+        | 'active'
+        | 'inactive'
+        | null;
+    teacher: {
+        user_id: string;
+        name: string;
+        email: string;
+        status: 'active' | 'disabled';
+    } | null;
+    subject: {
+        id: string;
+        code: string;
+        name: string;
+        status: CatalogStatus;
+    };
     name: string;
     created_at: string | null;
     updated_at: string | null;
-}
-
-interface CurriculumVersion {
-    id: string;
-    curriculum_id: string;
-    version_number: number;
-    label: string;
-    status: 'draft' | 'published' | 'retired';
 }
 
 const CURRICULA_PAGE_SIZE = 20;
@@ -252,27 +263,14 @@ function SubjectCatalogIcon({
 }
 
 export function AdminCurriculaPage() {
-    const queryClient = useQueryClient();
-
     const [selectedSubjectId, setSelectedSubjectId] =
         useState<string | null>(null);
     const [subjectSearch, setSubjectSearch] =
         useState('');
-    const [newCurriculumName, setNewCurriculumName] =
-        useState('');
-    const [
-        newEducationStageId,
-        setNewEducationStageId,
-    ] = useState('');
-    const [isCurriculumFormOpen, setIsCurriculumFormOpen] =
-        useState(false);
     const [curriculumSearch, setCurriculumSearch] =
         useState('');
     const [curriculumPage, setCurriculumPage] =
         useState(1);
-    const [editingCurriculum, setEditingCurriculum] =
-        useState<Curriculum | null>(null);
-
     const subjectsQuery = useQuery({
         queryKey: subjectsKey(),
         queryFn: fetchSubjects,
@@ -304,20 +302,12 @@ export function AdminCurriculaPage() {
     useEffect(() => {
         setCurriculumSearch('');
         setCurriculumPage(1);
-        setNewCurriculumName('');
-        setNewEducationStageId('');
-        setIsCurriculumFormOpen(false);
     }, [selectedSubjectId]);
 
     const selectedSubject =
         subjectsQuery.data?.find(
             (subject) => subject.id === selectedSubjectId,
         ) ?? null;
-
-    const activeEducationStages =
-        educationStagesQuery.data?.filter(
-            (stage) => stage.status === 'active',
-        ) ?? [];
 
     const normalizedSubjectSearch =
         subjectSearch.trim().toLocaleLowerCase('ar');
@@ -359,99 +349,6 @@ export function AdminCurriculaPage() {
         curriculumPageStart + CURRICULA_PAGE_SIZE,
     );
 
-    const createCurriculum = useMutation({
-        mutationFn: async ({
-            subjectId,
-            name,
-            educationStageId,
-        }: {
-            subjectId: string;
-            name: string;
-            educationStageId: string | null;
-        }) => {
-            const curriculum =
-                await apiRequest<Curriculum>({
-                    method: 'POST',
-                    url: `/api/admin/subjects/${subjectId}/curricula`,
-                    data: {
-                        name,
-                        education_stage_id:
-                            educationStageId,
-                    },
-                });
-
-            await apiRequest<CurriculumVersion>({
-                method: 'POST',
-                url: `/api/admin/curricula/${curriculum.id}/versions`,
-                data: {
-                    version_number: 1,
-                    label: 'مسودة العمل',
-                },
-            });
-
-            return curriculum;
-        },
-        onSuccess: async (curriculum) => {
-            setNewCurriculumName('');
-            setNewEducationStageId('');
-            setCurriculumSearch('');
-            setCurriculumPage(1);
-            setIsCurriculumFormOpen(false);
-
-            await queryClient.invalidateQueries({
-                queryKey: curriculaKey(
-                    curriculum.subject_id,
-                ),
-            });
-        },
-    });
-
-    const updateCurriculum = useMutation({
-        mutationFn: ({
-            id,
-            subjectId,
-            name,
-        }: {
-            id: string;
-            subjectId: string;
-            name: string;
-        }) =>
-            apiRequest<Curriculum>({
-                method: 'PUT',
-                url: `/api/admin/curricula/${id}`,
-                data: { name },
-            }).then((curriculum) => ({
-                curriculum,
-                subjectId,
-            })),
-        onSuccess: async ({ subjectId }) => {
-            setEditingCurriculum(null);
-
-            await queryClient.invalidateQueries({
-                queryKey: curriculaKey(subjectId),
-            });
-        },
-    });
-
-    function submitCurriculum(event: FormEvent) {
-        event.preventDefault();
-
-        if (!selectedSubjectId) {
-            return;
-        }
-
-        const name = newCurriculumName.trim();
-
-        if (name) {
-            createCurriculum.mutate({
-                subjectId: selectedSubjectId,
-                name,
-                educationStageId:
-                    newEducationStageId || null,
-            });
-        }
-    }
-
     function curriculumStageLabel(
         curriculum: Curriculum,
     ) {
@@ -474,9 +371,9 @@ export function AdminCurriculaPage() {
             <section
                 className="foundation-page"
                 aria-busy="true"
-                aria-label="جار تحميل إدارة المناهج"
+                aria-label="جار تحميل استعراض المناهج"
             >
-                <Surface>جار تحميل إدارة المناهج…</Surface>
+                <Surface>جار تحميل استعراض المناهج…</Surface>
             </section>
         );
     }
@@ -487,6 +384,7 @@ export function AdminCurriculaPage() {
                 <AdminFailure error={subjectsQuery.error}>
                     تعذر تحميل المواد.
                 </AdminFailure>
+
                 <Button
                     variant="secondary"
                     onClick={() => {
@@ -509,12 +407,13 @@ export function AdminCurriculaPage() {
                     id="admin-curricula-title"
                     className="foundation-page__title"
                 >
-                    إدارة المناهج
+                    استعراض المناهج
                 </h1>
 
                 <p className="foundation-page__description">
-                    استعرض المواد المعتمدة وأدر المناهج التي
-                    ستبني عليها الدروس والأسئلة والتدريبات.
+                    استعرض المواد المعتمدة وهوية المناهج
+                    وملكية المحتوى دون إنشاء أو تعديل
+                    المناهج من واجهة الإدارة.
                 </p>
             </div>
 
@@ -530,16 +429,17 @@ export function AdminCurriculaPage() {
                                     <h2 className="foundation-card__title">
                                         المواد
                                     </h2>
+
                                     <span className="admin-curricula__pane-total">
                                         {subjectsQuery.data.length}
                                     </span>
                                 </div>
+
                                 <p className="foundation-card__text">
-                                    اختر من المواد المعتمدة في المنصة
-                                    لإدارة مناهجها.
+                                    اختر من المواد المعتمدة
+                                    لاستعراض مناهجها.
                                 </p>
                             </div>
-
                         </div>
 
                         {subjectsQuery.data.length === 0 ? (
@@ -553,6 +453,7 @@ export function AdminCurriculaPage() {
                                         <span className="sr-only">
                                             بحث في المواد
                                         </span>
+
                                         <input
                                             type="search"
                                             aria-label="بحث في المواد"
@@ -582,76 +483,75 @@ export function AdminCurriculaPage() {
                                         className="admin-entity-list admin-curricula-browser__list"
                                         aria-label="قائمة المواد"
                                     >
-                                        {filteredSubjects.map((subject) => (
-                                            <div
-                                                key={subject.id}
-                                                className={
-                                                    subject.id
-                                                        === selectedSubjectId
-                                                        ? 'admin-entity-list__item admin-entity-list__item--selected'
-                                                        : 'admin-entity-list__item'
-                                                }
-                                            >
-                                                <button
-                                                    type="button"
-                                                    className="admin-entity-select admin-subject-select"
-                                                    aria-label={`اختيار مادة ${subject.name}`}
-                                                    aria-pressed={
+                                        {filteredSubjects.map(
+                                            (subject) => (
+                                                <div
+                                                    key={subject.id}
+                                                    className={
                                                         subject.id
                                                         === selectedSubjectId
+                                                            ? 'admin-entity-list__item admin-entity-list__item--selected'
+                                                            : 'admin-entity-list__item'
                                                     }
-                                                    onClick={() => {
-                                                        setSelectedSubjectId(
-                                                            subject.id,
-                                                        );
-                                                        setEditingCurriculum(
-                                                            null,
-                                                        );
-                                                    }}
                                                 >
-                                                    <span
-                                                        className="admin-subject-visual"
-                                                        data-icon-key={
-                                                            subject.icon_key
-                                                            ?? undefined
+                                                    <button
+                                                        type="button"
+                                                        className="admin-entity-select admin-subject-select"
+                                                        aria-label={`اختيار مادة ${subject.name}`}
+                                                        aria-pressed={
+                                                            subject.id
+                                                            === selectedSubjectId
                                                         }
-                                                        data-thumbnail-key={
-                                                            subject.thumbnail_key
-                                                            ?? undefined
+                                                        onClick={() =>
+                                                            setSelectedSubjectId(
+                                                                subject.id,
+                                                            )
                                                         }
                                                     >
-                                                        <SubjectCatalogIcon
-                                                            iconKey={
+                                                        <span
+                                                            className="admin-subject-visual"
+                                                            data-icon-key={
                                                                 subject.icon_key
+                                                                ?? undefined
                                                             }
-                                                        />
-                                                    </span>
-
-                                                    <span className="admin-subject-copy">
-                                                        <strong>
-                                                            {subject.name}
-                                                        </strong>
-
-                                                        <span className="admin-subject-meta">
-                                                            <span>
-                                                                {
-                                                                    subject.curricula_count
+                                                            data-thumbnail-key={
+                                                                subject.thumbnail_key
+                                                                ?? undefined
+                                                            }
+                                                        >
+                                                            <SubjectCatalogIcon
+                                                                iconKey={
+                                                                    subject.icon_key
                                                                 }
-                                                                {' '}
-                                                                منهج
-                                                            </span>
-
-                                                            {subject.status
-                                                            === 'inactive' ? (
-                                                                <span className="admin-subject-status admin-subject-status--inactive">
-                                                                    غير نشط
-                                                                </span>
-                                                            ) : null}
+                                                            />
                                                         </span>
-                                                    </span>
-                                                </button>
-                                            </div>
-                                        ))}
+
+                                                        <span className="admin-subject-copy">
+                                                            <strong>
+                                                                {subject.name}
+                                                            </strong>
+
+                                                            <span className="admin-subject-meta">
+                                                                <span>
+                                                                    {
+                                                                        subject.curricula_count
+                                                                    }
+                                                                    {' '}
+                                                                    منهج
+                                                                </span>
+
+                                                                {subject.status
+                                                                === 'inactive' ? (
+                                                                    <span className="admin-subject-status admin-subject-status--inactive">
+                                                                        غير نشط
+                                                                    </span>
+                                                                ) : null}
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            ),
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -670,17 +570,20 @@ export function AdminCurriculaPage() {
                                     <h2 className="foundation-card__title">
                                         المناهج
                                     </h2>
+
                                     <span className="admin-curricula__pane-total">
                                         {curriculaQuery.data?.length ?? 0}
                                     </span>
                                 </div>
 
                                 <p className="foundation-card__text">
-                                    المناهج التابعة للمادة المحددة.
+                                    قائمة قراءة فقط للمناهج
+                                    التابعة للمادة المحددة.
                                 </p>
 
                                 <p className="admin-curricula__current-context">
                                     <span>المادة الحالية</span>
+
                                     <strong>
                                         {selectedSubject?.name ?? '—'}
                                     </strong>
@@ -689,125 +592,20 @@ export function AdminCurriculaPage() {
                                 {selectedSubject?.status
                                 === 'inactive' ? (
                                     <p className="admin-curricula__readonly-note">
-                                        هذه المادة غير نشطة؛ يمكن
-                                        استعراض مناهجها الحالية فقط.
+                                        هذه المادة غير نشطة؛
+                                        يمكن استعراض مناهجها
+                                        التاريخية فقط.
                                     </p>
                                 ) : null}
                             </div>
-
-                            <Button
-                                size="sm"
-                                type="button"
-                                variant="secondary"
-                                disabled={
-                                    !selectedSubjectId
-                                    || selectedSubject?.status
-                                        !== 'active'
-                                }
-                                onClick={() => {
-                                    setIsCurriculumFormOpen(
-                                        !isCurriculumFormOpen,
-                                    );
-
-                                    if (isCurriculumFormOpen) {
-                                        setNewCurriculumName('');
-                                        setNewEducationStageId('');
-                                    }
-                                }}
-                            >
-                                {isCurriculumFormOpen
-                                    ? 'إلغاء'
-                                    : '+ إضافة منهج'}
-                            </Button>
                         </div>
-
-                        {selectedSubjectId
-                        && isCurriculumFormOpen ? (
-                            <form
-                                className="admin-inline-form admin-curricula__create-form"
-                                onSubmit={submitCurriculum}
-                            >
-                                <label>
-                                    اسم المنهج
-                                    <input
-                                        value={newCurriculumName}
-                                        maxLength={255}
-                                        required
-                                        autoFocus
-                                        onChange={(event) =>
-                                            setNewCurriculumName(
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </label>
-
-                                <label>
-                                    المرحلة التعليمية
-                                    <select
-                                        aria-label="المرحلة التعليمية"
-                                        value={newEducationStageId}
-                                        disabled={
-                                            educationStagesQuery.isPending
-                                            || educationStagesQuery.isError
-                                        }
-                                        onChange={(event) =>
-                                            setNewEducationStageId(
-                                                event.target.value,
-                                            )
-                                        }
-                                    >
-                                        <option value="">
-                                            بدون مرحلة محددة
-                                        </option>
-
-                                        {activeEducationStages.map(
-                                            (stage) => (
-                                                <option
-                                                    key={stage.id}
-                                                    value={stage.id}
-                                                >
-                                                    {stage.name}
-                                                </option>
-                                            ),
-                                        )}
-                                    </select>
-
-                                    <span className="admin-curricula__field-hint">
-                                        {educationStagesQuery.isPending
-                                            ? 'جار تحميل المراحل التعليمية…'
-                                            : educationStagesQuery.isError
-                                                ? 'تعذر تحميل المراحل؛ يمكن إنشاء المنهج دون تصنيف مرحلي.'
-                                                : 'اختياري، ويصبح ثابتًا بعد إنشاء المنهج.'}
-                                    </span>
-                                </label>
-
-                                <Button
-                                    type="submit"
-                                    disabled={
-                                        createCurriculum.isPending
-                                        || educationStagesQuery.isPending
-                                    }
-                                >
-                                    إنشاء المنهج
-                                </Button>
-                            </form>
-                        ) : null}
 
                         {educationStagesQuery.isError ? (
                             <Feedback tone="warning">
-                                تعذر تحميل المراحل التعليمية.
-                                يمكنك إنشاء المنهج بدون مرحلة
-                                محددة أو المحاولة لاحقًا.
+                                تعذر تحميل أسماء المراحل
+                                التعليمية؛ ستبقى هوية
+                                المناهج قابلة للاستعراض.
                             </Feedback>
-                        ) : null}
-
-                        {createCurriculum.isError ? (
-                            <AdminFailure
-                                error={createCurriculum.error}
-                            >
-                                تعذر إضافة المنهج.
-                            </AdminFailure>
                         ) : null}
 
                         {curriculaQuery.isPending ? (
@@ -821,7 +619,8 @@ export function AdminCurriculaPage() {
                         ) : !selectedSubjectId ? null
                         : curriculaQuery.data.length === 0 ? (
                             <Feedback>
-                                لا توجد مناهج لهذه المادة حتى الآن.
+                                لا توجد مناهج لهذه المادة
+                                حتى الآن.
                             </Feedback>
                         ) : (
                             <div className="admin-curricula-browser">
@@ -830,6 +629,7 @@ export function AdminCurriculaPage() {
                                         <span className="sr-only">
                                             بحث في المناهج
                                         </span>
+
                                         <input
                                             type="search"
                                             aria-label="بحث في المناهج"
@@ -853,7 +653,8 @@ export function AdminCurriculaPage() {
 
                                 {filteredCurricula.length === 0 ? (
                                     <Feedback>
-                                        لا توجد مناهج مطابقة للبحث.
+                                        لا توجد مناهج مطابقة
+                                        للبحث.
                                     </Feedback>
                                 ) : (
                                     <>
@@ -867,107 +668,65 @@ export function AdminCurriculaPage() {
                                                         key={curriculum.id}
                                                         className="admin-entity-list__item"
                                                     >
-                                                        {editingCurriculum?.id
-                                                        === curriculum.id ? (
-                                                            <form
-                                                                className="admin-edit-form"
-                                                                onSubmit={(event) => {
-                                                                    event.preventDefault();
-                                                                    const name =
-                                                                        editingCurriculum.name.trim();
+                                                        <div className="admin-curriculum-summary">
+                                                            <strong>
+                                                                {curriculum.name}
+                                                            </strong>
 
-                                                                    if (
-                                                                        name
-                                                                        && selectedSubjectId
-                                                                    ) {
-                                                                        updateCurriculum.mutate({
-                                                                            id: curriculum.id,
-                                                                            subjectId:
-                                                                                selectedSubjectId,
-                                                                            name,
-                                                                        });
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <label>
-                                                                    <span className="sr-only">
-                                                                        تعديل اسم المنهج
+                                                            <span className="admin-curriculum-stage">
+                                                                {
+                                                                    curriculumStageLabel(
+                                                                        curriculum,
+                                                                    )
+                                                                }
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="admin-curricula__readonly-note">
+                                                            <strong>
+                                                                {curriculum.ownership_kind
+                                                                    === 'teacher_owned'
+                                                                    ? 'مملوك للمعلم — استعراض فقط'
+                                                                    : 'Legacy ownerless — استعراض تاريخي'}
+                                                            </strong>
+
+                                                            {curriculum.ownership_kind
+                                                            === 'teacher_owned' ? (
+                                                                <>
+                                                                    <span>
+                                                                        المعلم:
+                                                                        {' '}
+                                                                        {curriculum.teacher?.name
+                                                                            ?? 'غير متاح'}
                                                                     </span>
-                                                                    <input
-                                                                        aria-label="تعديل اسم المنهج"
-                                                                        value={
-                                                                            editingCurriculum.name
-                                                                        }
-                                                                        onChange={(event) =>
-                                                                            setEditingCurriculum({
-                                                                                ...editingCurriculum,
-                                                                                name: event.target.value,
-                                                                            })
-                                                                        }
-                                                                    />
-                                                                </label>
 
-                                                                <span className="admin-curricula__immutable-note">
-                                                                    المرحلة التعليمية ثابتة بعد إنشاء المنهج:
-                                                                    {' '}
-                                                                    <strong>
-                                                                        {
-                                                                            curriculumStageLabel(
-                                                                                curriculum,
-                                                                            )
-                                                                        }
-                                                                    </strong>
-                                                                </span>
-
-                                                                <div className="admin-version-actions">
-                                                                    <Button
-                                                                        size="sm"
-                                                                        type="submit"
-                                                                    >
-                                                                        حفظ
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        type="button"
-                                                                        variant="secondary"
-                                                                        onClick={() =>
-                                                                            setEditingCurriculum(null)
-                                                                        }
-                                                                    >
-                                                                        إلغاء
-                                                                    </Button>
-                                                                </div>
-                                                            </form>
-                                                        ) : (
-                                                            <>
-                                                                <div className="admin-curriculum-summary">
-                                                                    <strong>
-                                                                        {curriculum.name}
-                                                                    </strong>
-
-                                                                    <span className="admin-curriculum-stage">
-                                                                        {
-                                                                            curriculumStageLabel(
-                                                                                curriculum,
-                                                                            )
-                                                                        }
+                                                                    <span>
+                                                                        Teacher UUID:
+                                                                        {' '}
+                                                                        {curriculum.teacher_user_id
+                                                                            ?? '—'}
                                                                     </span>
-                                                                </div>
 
-                                                                <Button
-                                                                    size="sm"
-                                                                    type="button"
-                                                                    variant="secondary"
-                                                                    onClick={() =>
-                                                                        setEditingCurriculum(
-                                                                            curriculum,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    تعديل
-                                                                </Button>
-                                                            </>
-                                                        )}
+                                                                    <span>
+                                                                        حالة الإسناد:
+                                                                        {' '}
+                                                                        {curriculum
+                                                                            .teacher_subject_assignment_status
+                                                                            ?? '—'}
+                                                                    </span>
+                                                                </>
+                                                            ) : null}
+
+                                                            <span>
+                                                                المادة:
+                                                                {' '}
+                                                                {curriculum.subject.name}
+                                                                {' '}
+                                                                (
+                                                                {curriculum.subject.code}
+                                                                )
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 ),
                                             )}
@@ -982,13 +741,15 @@ export function AdminCurriculaPage() {
                                                 type="button"
                                                 variant="secondary"
                                                 disabled={
-                                                    safeCurriculumPage === 1
+                                                    safeCurriculumPage
+                                                    === 1
                                                 }
                                                 onClick={() =>
                                                     setCurriculumPage(
                                                         Math.max(
                                                             1,
-                                                            safeCurriculumPage - 1,
+                                                            safeCurriculumPage
+                                                            - 1,
                                                         ),
                                                     )
                                                 }
@@ -1018,7 +779,8 @@ export function AdminCurriculaPage() {
                                                     setCurriculumPage(
                                                         Math.min(
                                                             curriculumPageCount,
-                                                            safeCurriculumPage + 1,
+                                                            safeCurriculumPage
+                                                            + 1,
                                                         ),
                                                     )
                                                 }
