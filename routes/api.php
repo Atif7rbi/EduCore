@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\Read\ExamReadController;
 use App\Http\Controllers\Api\Read\LearningReadController;
 use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
+use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -782,6 +783,30 @@ Route::middleware([
     'active',
     'teacher',
 ])->prefix('teacher')->group(function (): void {
+    Route::get(
+        '/subject-assignments',
+        [
+            TeacherWorkspaceReadController::class,
+            'subjectAssignments',
+        ]
+    );
+
+    Route::get(
+        '/education-stages',
+        [
+            TeacherWorkspaceReadController::class,
+            'educationStages',
+        ]
+    );
+
+    Route::get(
+        '/skills',
+        [
+            TeacherWorkspaceReadController::class,
+            'skills',
+        ]
+    );
+
     Route::post(
         '/enrollments/{enrollmentId}/accept',
         [
