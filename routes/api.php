@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
 use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherLessonAssessmentAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherPracticeExamAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
 
@@ -925,6 +926,22 @@ Route::middleware([
                             Route::post('/assessment-items/{assessmentItemId}/revisions/{revisionId}/release', [TeacherLessonAssessmentAuthoringController::class, 'releaseAssessmentRevision'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
                             Route::post('/assessment-items/{assessmentItemId}/publish', [TeacherLessonAssessmentAuthoringController::class, 'publishAssessment'])->whereUuid('assessmentItemId');
                             Route::post('/assessment-items/{assessmentItemId}/retire', [TeacherLessonAssessmentAuthoringController::class, 'retireAssessment'])->whereUuid('assessmentItemId');
+                            Route::post('/practice-activities', [TeacherPracticeExamAuthoringController::class, 'storePractice']);
+                            Route::put('/practice-activities/{practiceId}', [TeacherPracticeExamAuthoringController::class, 'updatePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/activate', [TeacherPracticeExamAuthoringController::class, 'activatePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/archive', [TeacherPracticeExamAuthoringController::class, 'archivePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/items', [TeacherPracticeExamAuthoringController::class, 'addPracticeItems'])->whereUuid('practiceId');
+                            Route::delete('/practice-activities/{practiceId}/items/{membershipId}', [TeacherPracticeExamAuthoringController::class, 'removePracticeItem'])->whereUuid('practiceId')->whereUuid('membershipId');
+
+                            Route::post('/exam-templates', [TeacherPracticeExamAuthoringController::class, 'storeTemplate']);
+                            Route::put('/exam-templates/{templateId}', [TeacherPracticeExamAuthoringController::class, 'updateTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/activate', [TeacherPracticeExamAuthoringController::class, 'activateTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/archive', [TeacherPracticeExamAuthoringController::class, 'archiveTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/versions', [TeacherPracticeExamAuthoringController::class, 'storeTemplateVersion'])->whereUuid('templateId');
+                            Route::put('/exam-templates/{templateId}/versions/{templateVersionId}', [TeacherPracticeExamAuthoringController::class, 'updateTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/publish', [TeacherPracticeExamAuthoringController::class, 'publishTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/retire', [TeacherPracticeExamAuthoringController::class, 'retireTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/generations', [TeacherPracticeExamAuthoringController::class, 'buildGeneration'])->whereUuid('templateId')->whereUuid('templateVersionId');
                         });
                 });
         });
