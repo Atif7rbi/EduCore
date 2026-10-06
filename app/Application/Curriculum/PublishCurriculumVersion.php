@@ -5,6 +5,8 @@ namespace App\Application\Curriculum;
 use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Application\Support\TransactionManager;
 use App\Models\CurriculumVersion;
+use Closure;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PublishCurriculumVersion
 {
@@ -16,17 +18,35 @@ class PublishCurriculumVersion
     ) {
         $this->readiness =
             $readiness
-            ?? new EvaluateCurriculumVersionReadiness();
+            ?? new EvaluateCurriculumVersionReadiness;
     }
 
-    public function execute(string $curriculumVersionId): CurriculumVersion
-    {
+    public function execute(
+        string $curriculumVersionId,
+        ?Closure $lockAuthority = null,
+    ): CurriculumVersion {
         return $this->transactions->run(
-            function () use ($curriculumVersionId): CurriculumVersion {
+            function () use (
+                $curriculumVersionId,
+                $lockAuthority,
+            ): CurriculumVersion {
+                $authorizedCurriculumId = $lockAuthority?->__invoke();
+
                 $version = CurriculumVersion::query()
                     ->whereKey($curriculumVersionId)
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                if (
+                    $authorizedCurriculumId !== null
+                    && $version->curriculum_id
+                        !== $authorizedCurriculumId
+                ) {
+                    throw (new ModelNotFoundException)->setModel(
+                        CurriculumVersion::class,
+                        [$curriculumVersionId],
+                    );
+                }
 
                 /*
                  * Preserve the existing idempotent published call.

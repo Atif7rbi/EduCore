@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\Read\ExamReadController;
 use App\Http\Controllers\Api\Read\LearningReadController;
 use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
+use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
 
@@ -806,6 +807,100 @@ Route::middleware([
             'skills',
         ]
     );
+
+    Route::prefix('subject-assignments/{assignmentId}')
+        ->whereUuid('assignmentId')
+        ->group(function (): void {
+            Route::get(
+                '/curricula',
+                [TeacherCurriculumAuthoringController::class, 'curricula'],
+            );
+
+            Route::post(
+                '/curricula',
+                [TeacherCurriculumAuthoringController::class, 'storeCurriculum'],
+            );
+
+            Route::put(
+                '/curricula/{curriculumId}',
+                [TeacherCurriculumAuthoringController::class, 'updateCurriculum'],
+            )->whereUuid('curriculumId');
+
+            Route::prefix('curricula/{curriculumId}')
+                ->whereUuid('curriculumId')
+                ->group(function (): void {
+                    Route::get(
+                        '/versions',
+                        [TeacherCurriculumAuthoringController::class, 'versions'],
+                    );
+
+                    Route::post(
+                        '/versions',
+                        [TeacherCurriculumAuthoringController::class, 'storeVersion'],
+                    );
+
+                    Route::prefix('versions/{versionId}')
+                        ->whereUuid('versionId')
+                        ->group(function (): void {
+                            Route::put(
+                                '/',
+                                [TeacherCurriculumAuthoringController::class, 'updateVersion'],
+                            );
+
+                            Route::post(
+                                '/publish',
+                                [TeacherCurriculumAuthoringController::class, 'publishVersion'],
+                            );
+
+                            Route::post(
+                                '/retire',
+                                [TeacherCurriculumAuthoringController::class, 'retireVersion'],
+                            );
+
+                            Route::get(
+                                '/topics',
+                                [TeacherCurriculumAuthoringController::class, 'topics'],
+                            );
+
+                            Route::post(
+                                '/topics',
+                                [TeacherCurriculumAuthoringController::class, 'storeTopic'],
+                            );
+
+                            Route::put(
+                                '/topics/{topicId}',
+                                [TeacherCurriculumAuthoringController::class, 'updateTopic'],
+                            )->whereUuid('topicId');
+
+                            Route::get(
+                                '/skill-placements',
+                                [TeacherCurriculumAuthoringController::class, 'placements'],
+                            );
+
+                            Route::post(
+                                '/skill-placements',
+                                [TeacherCurriculumAuthoringController::class, 'storePlacement'],
+                            );
+
+                            Route::delete(
+                                '/skill-placements/{placementId}',
+                                [TeacherCurriculumAuthoringController::class, 'destroyPlacement'],
+                            )->whereUuid('placementId');
+
+                            Route::post(
+                                '/skill-placements/{placementId}/home-topics',
+                                [TeacherCurriculumAuthoringController::class, 'storeHomeTopic'],
+                            )->whereUuid('placementId');
+
+                            Route::delete(
+                                '/skill-placements/{placementId}/home-topics/{homeTopicId}',
+                                [TeacherCurriculumAuthoringController::class, 'destroyHomeTopic'],
+                            )
+                                ->whereUuid('placementId')
+                                ->whereUuid('homeTopicId');
+                        });
+                });
+        });
 
     Route::post(
         '/enrollments/{enrollmentId}/accept',
