@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Read\LearningReadController;
 use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
 use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherLessonAssessmentAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
 
@@ -898,6 +899,32 @@ Route::middleware([
                             )
                                 ->whereUuid('placementId')
                                 ->whereUuid('homeTopicId');
+
+                            Route::get('/lessons', [TeacherLessonAssessmentAuthoringController::class, 'lessons']);
+                            Route::post('/lessons', [TeacherLessonAssessmentAuthoringController::class, 'storeLesson']);
+                            Route::put('/lessons/{lessonId}', [TeacherLessonAssessmentAuthoringController::class, 'updateLesson'])->whereUuid('lessonId');
+                            Route::get('/lessons/{lessonId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'lessonRevisions'])->whereUuid('lessonId');
+                            Route::post('/lessons/{lessonId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'storeLessonRevision'])->whereUuid('lessonId');
+                            Route::put('/lessons/{lessonId}/revisions/{revisionId}', [TeacherLessonAssessmentAuthoringController::class, 'updateLessonRevision'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::get('/lessons/{lessonId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'lessonRevisionSkills'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::post('/lessons/{lessonId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'storeLessonRevisionSkill'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::delete('/lessons/{lessonId}/revisions/{revisionId}/skills/{skillId}', [TeacherLessonAssessmentAuthoringController::class, 'destroyLessonRevisionSkill'])->whereUuid('lessonId')->whereUuid('revisionId')->whereUuid('skillId');
+                            Route::post('/lessons/{lessonId}/revisions/{revisionId}/release', [TeacherLessonAssessmentAuthoringController::class, 'releaseLessonRevision'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::post('/lessons/{lessonId}/publish', [TeacherLessonAssessmentAuthoringController::class, 'publishLesson'])->whereUuid('lessonId');
+                            Route::post('/lessons/{lessonId}/unpublish', [TeacherLessonAssessmentAuthoringController::class, 'unpublishLesson'])->whereUuid('lessonId');
+
+                            Route::get('/assessment-items', [TeacherLessonAssessmentAuthoringController::class, 'assessments']);
+                            Route::post('/assessment-items', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessment']);
+                            Route::put('/assessment-items/{assessmentItemId}', [TeacherLessonAssessmentAuthoringController::class, 'updateAssessment'])->whereUuid('assessmentItemId');
+                            Route::get('/assessment-items/{assessmentItemId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'assessmentRevisions'])->whereUuid('assessmentItemId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessmentRevision'])->whereUuid('assessmentItemId');
+                            Route::put('/assessment-items/{assessmentItemId}/revisions/{revisionId}', [TeacherLessonAssessmentAuthoringController::class, 'updateAssessmentRevision'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::get('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'assessmentRevisionSkills'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessmentRevisionSkill'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::delete('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills/{skillId}', [TeacherLessonAssessmentAuthoringController::class, 'destroyAssessmentRevisionSkill'])->whereUuid('assessmentItemId')->whereUuid('revisionId')->whereUuid('skillId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions/{revisionId}/release', [TeacherLessonAssessmentAuthoringController::class, 'releaseAssessmentRevision'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::post('/assessment-items/{assessmentItemId}/publish', [TeacherLessonAssessmentAuthoringController::class, 'publishAssessment'])->whereUuid('assessmentItemId');
+                            Route::post('/assessment-items/{assessmentItemId}/retire', [TeacherLessonAssessmentAuthoringController::class, 'retireAssessment'])->whereUuid('assessmentItemId');
                         });
                 });
         });
