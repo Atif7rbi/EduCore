@@ -192,6 +192,46 @@ class PostgresProcessBarrier
     }
 
     /**
+     * Proves that a worker PostgreSQL backend is waiting on a lock held
+     * by another worker backend.
+     */
+    public function awaitBlockedByProcess(
+        int $blockingPid,
+        int $childPid,
+        float $timeoutSeconds = 8.0,
+    ): void {
+        $deadline = microtime(true) + $timeoutSeconds;
+
+        do {
+            $row = DB::selectOne(
+                <<<'SQL'
+SELECT
+    (
+        ?::integer
+        = ANY(pg_blocking_pids(a.pid))
+    ) AS blocked_by_process
+FROM pg_stat_activity AS a
+WHERE a.pid = ?::integer
+SQL,
+                [$blockingPid, $childPid],
+            );
+
+            if ($row !== null && self::postgresBoolean($row->blocked_by_process ?? false)) {
+                return;
+            }
+
+            $this->assertProcessStillRunning(
+                'Worker exited before PostgreSQL lock wait was observed.',
+            );
+            usleep(10_000);
+        } while (microtime(true) < $deadline);
+
+        throw new RuntimeException(
+            'Timed out waiting for worker PostgreSQL lock wait.',
+        );
+    }
+
+    /**
      * Proves that the exact worker PostgreSQL backend
      * is waiting on a lock owned by this exact parent
      * PostgreSQL backend.
@@ -346,7 +386,11 @@ SQL,
 
         $this->closePipes();
 
-        proc_close($this->process);
+        $closeExitCode = proc_close($this->process);
+        $exitCode = is_int($status['exitcode'] ?? null)
+            && $status['exitcode'] >= 0
+            ? $status['exitcode']
+            : $closeExitCode;
         $this->process = null;
 
         if (! is_file($this->resultFile)) {
@@ -374,6 +418,7 @@ SQL,
 
         $result['_stdout'] = $stdout;
         $result['_stderr'] = $stderr;
+        $result['_exit_code'] = $exitCode;
 
         return $result;
     }
