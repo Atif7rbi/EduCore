@@ -1,0 +1,157 @@
+name: EduCore CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: educore-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-postgres:
+    name: Backend PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: sewaellf_educore_test
+      DB_USERNAME: sewaellf_educore_Admin
+      DB_PASSWORD: educore_ci_only
+      DB_SSLMODE: disable
+      TZ: UTC
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sewaellf_educore_test
+          POSTGRES_USER: sewaellf_educore_Admin
+          POSTGRES_PASSWORD: educore_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sewaellf_educore_Admin -d sewaellf_educore_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
+        with:
+          php-version: "8.5"
+          extensions: pdo_pgsql, pgsql, mbstring, xml, dom, fileinfo, intl, pcntl, posix
+          ini-values: date.timezone=UTC
+          tools: composer:2
+
+      - name: Generate CI application key
+        run: |
+          printf 'APP_KEY=base64:%s\n' "$(php -r 'echo base64_encode(random_bytes(32));')" >> "$GITHUB_ENV"
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Clear Laravel configuration cache
+        run: php artisan config:clear --ansi
+
+      - name: Verify disposable PostgreSQL identity and UTC session
+        run: |
+          php artisan tinker --execute="\$identity = DB::selectOne('SELECT current_database() AS database_name, current_user AS database_user'); \$timezone = DB::scalar('SHOW TIME ZONE'); if (\$identity === null || \$identity->database_name !== 'sewaellf_educore_test' || \$identity->database_user !== 'sewaellf_educore_Admin' || \$timezone !== 'UTC') { throw new RuntimeException('CI PostgreSQL identity or UTC session contract failed.'); } echo 'CI PostgreSQL identity and UTC session verified.'.PHP_EOL;"
+
+      - name: Run complete migration set
+        run: php artisan migrate --force --no-interaction
+
+      - name: Run complete backend suite serially
+        run: php artisan test
+
+  frontend-validation:
+    name: Frontend validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.23.3"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm run test
+
+      - name: Run TypeScript validation
+        run: npm run typecheck
+
+      - name: Build frontend assets
+        run: npm run build
+
+  pint-changed-php:
+    name: Pint changed PHP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
+        with:
+          php-version: "8.5"
+          extensions: mbstring, xml, dom, fileinfo, intl
+          tools: composer:2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Resolve comparison base
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$EVENT_BASE_SHA"
+          else
+            base="origin/$DEFAULT_BRANCH"
+          fi
+
+          git rev-parse --verify "$base^{commit}"
+          echo "BASE_SHA=$base" >> "$GITHUB_ENV"
+
+      - name: Check changed PHP files with Pint
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t PHP_FILES < <(
+            git diff --name-only --diff-filter=ACMR \
+              "$BASE_SHA"...HEAD -- '*.php'
+          )
+
+          if ((${#PHP_FILES[@]})); then
+            vendor/bin/pint --test "${PHP_FILES[@]}"
+          else
+            echo "No changed PHP files to check."
+          fi
