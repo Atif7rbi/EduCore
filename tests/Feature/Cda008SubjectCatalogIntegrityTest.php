@@ -268,8 +268,20 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
             'FK Restrict',
         );
 
+        $this->assertSame(
+            'FOREIGN KEY (education_stage_id) REFERENCES education_stages(id) ON DELETE RESTRICT',
+            DB::scalar(<<<'SQL'
+SELECT pg_get_constraintdef(catalog_constraint.oid, true)
+FROM pg_constraint AS catalog_constraint
+JOIN pg_class AS relation
+    ON relation.oid = catalog_constraint.conrelid
+WHERE catalog_constraint.conname = 'fk_curricula_education_stage'
+    AND relation.relname = 'curricula'
+SQL),
+        );
+
         $this->assertSqlState(
-            '23001',
+            $this->expectedCurriculumStageRestrictSqlState(),
             function () use ($primaryId): void {
                 DB::table('education_stages')
                     ->where('id', $primaryId)
@@ -553,6 +565,28 @@ SQL);
             '23514',
             $operation,
         );
+    }
+
+    private function expectedCurriculumStageRestrictSqlState(): string
+    {
+        $serverVersionNumber = (int) DB::scalar(
+            "SELECT current_setting('server_version_num')"
+        );
+
+        $serverMajor = intdiv(
+            $serverVersionNumber,
+            10000,
+        );
+
+        return match (true) {
+            $serverMajor >= 16 && $serverMajor < 18 => '23503',
+            $serverMajor === 18 => '23001',
+            default => throw new \RuntimeException(
+                "Unsupported PostgreSQL major version {$serverMajor} for "
+                .'the ON DELETE RESTRICT SQLSTATE contract. '
+                .'Verify the server behavior before extending this matrix.'
+            ),
+        };
     }
 
     private function assertSqlState(

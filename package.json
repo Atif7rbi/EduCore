@@ -6,7 +6,7 @@
         "build": "vite build",
         "dev": "vite",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run --config vitest.config.js"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
