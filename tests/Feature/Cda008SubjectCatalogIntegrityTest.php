@@ -262,19 +262,41 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
             'primary'
         );
 
-        $this->curriculum(
+        $curriculumId = $this->curriculum(
             $subjectId,
             $primaryId,
             'FK Restrict',
         );
 
         $this->assertSqlState(
-            '23503',
+            '23001',
             function () use ($primaryId): void {
                 DB::table('education_stages')
                     ->where('id', $primaryId)
                     ->delete();
             }
+        );
+
+        $this->assertDatabaseHas(
+            'curricula',
+            [
+                'id' => $curriculumId,
+                'education_stage_id' => $primaryId,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'education_stages',
+            [
+                'id' => $primaryId,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'subjects',
+            [
+                'id' => $subjectId,
+            ],
         );
     }
 
