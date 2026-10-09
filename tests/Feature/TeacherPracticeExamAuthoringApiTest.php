@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Curriculum\CreateOwnedCurriculum;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\TeacherAssignment\AssignTeacherSubject;
 use App\Models\AssessmentItem;
 use App\Models\AssessmentItemRevision;
@@ -160,6 +163,150 @@ class TeacherPracticeExamAuthoringApiTest extends TestCase
         foreach (['student', 'admin'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role, 'status' => 'active']))->postJson($uri, ['name' => 'x'])->assertStatus(403);
         }
+    }
+
+    public function test_teacher_preserves_submitted_revision_order_for_practice_memberships(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $first = $this->revision($version, true);
+        $second = $this->revision($version, true);
+        $submitted = [$first->id, $second->id];
+        sort($submitted, SORT_STRING);
+        $submitted = array_reverse($submitted);
+        $practiceId = $this->createPractice($teacher, $base);
+
+        $response = $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities/'.$practiceId.'/items', [
+                'assessment_item_revision_ids' => [
+                    $submitted[0],
+                    $submitted[1],
+                    $submitted[0],
+                ],
+                'display_order' => 4,
+            ])
+            ->assertCreated();
+
+        $created = $response->json('data');
+        $this->assertCount(2, $created);
+        $this->assertSame($submitted, array_column($created, 'assessment_item_revision_id'));
+        $this->assertSame(
+            $submitted,
+            DB::table('practice_activity_items')
+                ->where('practice_activity_id', $practiceId)
+                ->orderBy('display_order')
+                ->pluck('assessment_item_revision_id')
+                ->all(),
+        );
+        $this->assertSame(
+            [4, 5],
+            DB::table('practice_activity_items')
+                ->where('practice_activity_id', $practiceId)
+                ->orderBy('display_order')
+                ->pluck('display_order')
+                ->all(),
+        );
+    }
+
+    public function test_teacher_generation_and_exam_attempt_preserve_submitted_revision_order(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $first = $this->revision($version, true);
+        $second = $this->revision($version, true);
+        $submitted = [$first->id, $second->id];
+        sort($submitted, SORT_STRING);
+        $submitted = array_reverse($submitted);
+
+        $templateId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates', ['name' => 'Ordered Exam'])
+            ->assertCreated()
+            ->json('data.id');
+        $templateVersionId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions', [
+                'version_number' => 1,
+                'label' => 'v1',
+                'rules_payload' => [],
+                'rules_schema_version' => 1,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId.'/publish')
+            ->assertOk();
+
+        $generationId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId.'/generations', [
+                'generator_version' => 'h4',
+                'seed' => 'teacher-order',
+                'assessment_item_revision_ids' => $submitted,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertSame(
+            $submitted,
+            DB::table('exam_generation_items')
+                ->where('exam_generation_id', $generationId)
+                ->orderBy('selection_position')
+                ->pluck('assessment_item_revision_id')
+                ->all(),
+        );
+        $this->assertSame(
+            [0, 1],
+            DB::table('exam_generation_items')
+                ->where('exam_generation_id', $generationId)
+                ->orderBy('selection_position')
+                ->pluck('selection_position')
+                ->all(),
+        );
+
+        $learner = User::factory()->create(['role' => 'student', 'status' => 'active']);
+        $learnerProfileId = (string) Str::uuid();
+        DB::table('learner_profiles')->insert([
+            'id' => $learnerProfileId,
+            'user_id' => $learner->id,
+            'created_at' => now(),
+        ]);
+        $enrollment = app(RequestStudentEnrollment::class)->execute(
+            actorUserId: $learner->id,
+            learnerProfileId: $learnerProfileId,
+            assignmentId: $assignment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'FR-002 ordering fixture.',
+        );
+        app(AcceptStudentEnrollment::class)->execute(
+            actorUserId: $teacher->id,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'FR-002 ordering fixture.',
+        );
+        DB::table('curriculum_versions')
+            ->where('id', $version->id)
+            ->update(['status' => 'published']);
+
+        $attempt = app(BuildExamAttempt::class)->execute(
+            $learner->id,
+            $learnerProfileId,
+            $generationId,
+        );
+
+        $this->assertSame(
+            $submitted,
+            DB::table('attempt_items')
+                ->where('attempt_id', $attempt->id)
+                ->orderBy('presentation_position')
+                ->pluck('assessment_item_revision_id')
+                ->all(),
+        );
+        $this->assertSame(
+            [0, 1],
+            DB::table('attempt_items')
+                ->where('attempt_id', $attempt->id)
+                ->orderBy('presentation_position')
+                ->pluck('presentation_position')
+                ->all(),
+        );
     }
 
     private function fixture(): array

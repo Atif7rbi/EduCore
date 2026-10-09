@@ -294,16 +294,27 @@ class ManageTeacherPracticeExamAuthoring
     /** @return array<int, AssessmentItemRevision> */
     private function revisions(array $ids, CurriculumVersion $v): array
     {
-        $ids = array_values(array_unique($ids));
-        sort($ids, SORT_STRING);
-        if ($ids === []) {
+        $requestedIds = array_values(array_unique($ids));
+        if ($requestedIds === []) {
             $this->conflict('assessment_revisions_required', 'At least one assessment item revision is required.');
-        } $rows = AssessmentItemRevision::query()->whereIn('id', $ids)->where('curriculum_version_id', $v->id)->orderBy('id')->lockForUpdate()->get();
-        if ($rows->count() !== count($ids)) {
-            throw (new ModelNotFoundException)->setModel(AssessmentItemRevision::class, $ids);
         }
 
-        return $rows->all();
+        $lockIds = $requestedIds;
+        sort($lockIds, SORT_STRING);
+
+        $rows = AssessmentItemRevision::query()
+            ->whereIn('id', $lockIds)
+            ->where('curriculum_version_id', $v->id)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        if ($rows->count() !== count($lockIds)) {
+            throw (new ModelNotFoundException)->setModel(AssessmentItemRevision::class, $lockIds);
+        }
+
+        $rowsById = $rows->keyBy('id');
+
+        return array_map(fn (string $id): AssessmentItemRevision => $rowsById->get($id), $requestedIds);
     }
 
     /** @return array<int, AssessmentItemRevision> */
