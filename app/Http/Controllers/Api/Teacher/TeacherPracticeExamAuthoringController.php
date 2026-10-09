@@ -4,16 +4,67 @@ namespace App\Http\Controllers\Api\Teacher;
 
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\TeacherAuthoringConflict;
+use App\Application\TeacherAuthoring\FilterActiveTeacherCurriculumRead;
 use App\Application\TeacherAuthoring\ManageTeacherPracticeExamAuthoring;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
+use App\Models\CurriculumVersion;
 use App\Models\ExamGeneration;
+use App\Models\ExamTemplate;
+use App\Models\ExamTemplateVersion;
+use App\Models\PracticeActivity;
+use App\Models\PracticeActivityItem;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TeacherPracticeExamAuthoringController extends Controller
 {
-    public function __construct(private readonly ManageTeacherPracticeExamAuthoring $authoring, private readonly BuildExamGeneration $generations) {}
+    public function __construct(
+        private readonly ManageTeacherPracticeExamAuthoring $authoring,
+        private readonly BuildExamGeneration $generations,
+        private readonly FilterActiveTeacherCurriculumRead $reads,
+    ) {}
+
+    public function practiceActivities(Request $request, string $assignment, string $curriculum, string $version): JsonResponse
+    {
+        $authorized = $this->authorizedVersion($request, $assignment, $curriculum, $version);
+
+        return ApiResponse::success(PracticeActivity::query()->where('curriculum_version_id', $authorized->id)->orderBy('name')->orderBy('id')->get()->map(fn (PracticeActivity $practice): array => $this->practice($practice))->values());
+    }
+
+    public function practiceItems(Request $request, string $assignment, string $curriculum, string $version, string $practice): JsonResponse
+    {
+        $authorized = $this->authorizedVersion($request, $assignment, $curriculum, $version);
+        $this->practiceForVersion($practice, $authorized);
+
+        return ApiResponse::success(PracticeActivityItem::query()->where('practice_activity_id', $practice)->where('curriculum_version_id', $authorized->id)->orderBy('display_order')->orderBy('id')->get()->map(fn (PracticeActivityItem $item): array => $this->practiceItem($item))->values());
+    }
+
+    public function examTemplates(Request $request, string $assignment, string $curriculum, string $version): JsonResponse
+    {
+        $authorized = $this->authorizedVersion($request, $assignment, $curriculum, $version);
+
+        return ApiResponse::success(ExamTemplate::query()->where('curriculum_version_id', $authorized->id)->orderBy('name')->orderBy('id')->get()->map(fn (ExamTemplate $template): array => $this->template($template))->values());
+    }
+
+    public function templateVersions(Request $request, string $assignment, string $curriculum, string $version, string $template): JsonResponse
+    {
+        $authorized = $this->authorizedVersion($request, $assignment, $curriculum, $version);
+        $this->templateForVersion($template, $authorized);
+
+        return ApiResponse::success(ExamTemplateVersion::query()->where('exam_template_id', $template)->where('curriculum_version_id', $authorized->id)->orderBy('version_number')->orderBy('id')->get()->map(fn (ExamTemplateVersion $templateVersion): array => $this->templateVersionData($templateVersion))->values());
+    }
+
+    public function templateVersion(Request $request, string $assignment, string $curriculum, string $version, string $template, string $templateVersion): JsonResponse
+    {
+        $authorized = $this->authorizedVersion($request, $assignment, $curriculum, $version);
+        $this->templateForVersion($template, $authorized);
+        $resolved = ExamTemplateVersion::query()->whereKey($templateVersion)->where('exam_template_id', $template)->where('curriculum_version_id', $authorized->id)->firstOrFail();
+
+        return ApiResponse::success($this->templateVersionData($resolved));
+    }
 
     public function storePractice(Request $r, string $assignment, string $curriculum, string $version): JsonResponse
     {
@@ -79,24 +130,24 @@ class TeacherPracticeExamAuthoringController extends Controller
     {
         $x = $this->templateVersionInput($r, true);
 
-        return $this->mutate(fn () => $this->authoring->createTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $x['version_number'], $x['label'] ?? null, $x['rules_payload'], $x['rules_schema_version']), fn ($v) => $this->templateVersion($v), 201);
+        return $this->mutate(fn () => $this->authoring->createTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $x['version_number'], $x['label'] ?? null, $x['rules_payload'], $x['rules_schema_version']), fn ($v) => $this->templateVersionData($v), 201);
     }
 
     public function updateTemplateVersion(Request $r, string $assignment, string $curriculum, string $version, string $template, string $templateVersion): JsonResponse
     {
         $x = $this->templateVersionInput($r, false);
 
-        return $this->mutate(fn () => $this->authoring->updateTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion, $x['label'] ?? null, $x['rules_payload'], $x['rules_schema_version']), fn ($v) => $this->templateVersion($v));
+        return $this->mutate(fn () => $this->authoring->updateTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion, $x['label'] ?? null, $x['rules_payload'], $x['rules_schema_version']), fn ($v) => $this->templateVersionData($v));
     }
 
     public function publishTemplateVersion(Request $r, string $assignment, string $curriculum, string $version, string $template, string $templateVersion): JsonResponse
     {
-        return $this->mutate(fn () => $this->authoring->publishTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion), fn ($v) => $this->templateVersion($v));
+        return $this->mutate(fn () => $this->authoring->publishTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion), fn ($v) => $this->templateVersionData($v));
     }
 
     public function retireTemplateVersion(Request $r, string $assignment, string $curriculum, string $version, string $template, string $templateVersion): JsonResponse
     {
-        return $this->mutate(fn () => $this->authoring->retireTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion), fn ($v) => $this->templateVersion($v));
+        return $this->mutate(fn () => $this->authoring->retireTemplateVersion($r->user()->id, $assignment, $curriculum, $version, $template, $templateVersion), fn ($v) => $this->templateVersionData($v));
     }
 
     public function buildGeneration(Request $r, string $assignment, string $curriculum, string $version, string $template, string $templateVersion): JsonResponse
@@ -113,6 +164,33 @@ class TeacherPracticeExamAuthoringController extends Controller
     private function templateVersionInput(Request $r, bool $create): array
     {
         return $r->validate(array_merge($create ? ['version_number' => ['required', 'integer', 'min:1']] : [], ['label' => ['nullable', 'string', 'max:255'], 'rules_payload' => ['present', 'array'], 'rules_schema_version' => ['required', 'integer', 'min:1']]));
+    }
+
+    private function authorizedVersion(Request $request, string $assignment, string $curriculum, string $version): CurriculumVersion
+    {
+        return $this->reads->versions(CurriculumVersion::query(), $this->teacher($request)->id)
+            ->where('curriculum_versions.curriculum_id', $curriculum)
+            ->whereHas('curriculum', fn (Builder $query) => $query->where('teacher_subject_assignment_id', $assignment))
+            ->whereKey($version)
+            ->firstOrFail();
+    }
+
+    private function practiceForVersion(string $practice, CurriculumVersion $version): PracticeActivity
+    {
+        return PracticeActivity::query()->whereKey($practice)->where('curriculum_version_id', $version->id)->firstOrFail();
+    }
+
+    private function templateForVersion(string $template, CurriculumVersion $version): ExamTemplate
+    {
+        return ExamTemplate::query()->whereKey($template)->where('curriculum_version_id', $version->id)->firstOrFail();
+    }
+
+    private function teacher(Request $request): User
+    {
+        /** @var User $teacher */
+        $teacher = $request->user();
+
+        return $teacher;
     }
 
     private function mutate(\Closure $f, \Closure $out, int $status = 200): JsonResponse
@@ -139,7 +217,7 @@ class TeacherPracticeExamAuthoringController extends Controller
         return ['id' => $t->id, 'curriculum_version_id' => $t->curriculum_version_id, 'name' => $t->name, 'description' => $t->description, 'status' => $t->status, 'published_version_id' => $t->published_version_id];
     }
 
-    private function templateVersion($v): array
+    private function templateVersionData($v): array
     {
         return ['id' => $v->id, 'exam_template_id' => $v->exam_template_id, 'curriculum_version_id' => $v->curriculum_version_id, 'version_number' => $v->version_number, 'label' => $v->label, 'status' => $v->status, 'rules_payload' => $v->rules_payload, 'rules_schema_version' => $v->rules_schema_version];
     }

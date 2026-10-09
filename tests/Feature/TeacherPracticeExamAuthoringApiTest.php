@@ -309,6 +309,104 @@ class TeacherPracticeExamAuthoringApiTest extends TestCase
         );
     }
 
+    public function test_teacher_reads_authorized_h4_resources_without_mutation(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $first = $this->revision($version, true);
+        $second = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $this->addPracticeItem($teacher, $base, $practiceId, $first->id, 10);
+        $this->addPracticeItem($teacher, $base, $practiceId, $second->id, 2);
+        $templateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Read Template'])->assertCreated()->json('data.id');
+        $versionTwo = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 2, 'label' => 'v2', 'rules_payload' => ['two' => true], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $versionOne = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 1, 'label' => 'v1', 'rules_payload' => ['nested' => ['value' => 1]], 'rules_schema_version' => 2])->assertCreated()->json('data.id');
+        $before = [DB::table('practice_activities')->count(), DB::table('practice_activity_items')->count(), DB::table('exam_templates')->count(), DB::table('exam_template_versions')->count()];
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($teacher)->getJson($base.'/practice-activities')->assertOk()->assertJsonPath('data.0.id', $practiceId);
+        $this->actingAs($teacher)->getJson($base.'/practice-activities/'.$practiceId.'/items')->assertOk()->assertJsonPath('data.0.assessment_item_revision_id', $second->id)->assertJsonPath('data.0.display_order', 2)->assertJsonPath('data.1.assessment_item_revision_id', $first->id)->assertJsonPath('data.1.display_order', 10);
+        $this->actingAs($teacher)->getJson($base.'/exam-templates')->assertOk()->assertJsonPath('data.0.id', $templateId);
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$templateId.'/versions')->assertOk()->assertJsonPath('data.0.id', $versionOne)->assertJsonPath('data.1.id', $versionTwo);
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$versionOne)->assertOk()->assertJsonPath('data.rules_payload.nested.value', 1)->assertJsonPath('data.rules_schema_version', 2);
+        $this->assertSame($before, [DB::table('practice_activities')->count(), DB::table('practice_activity_items')->count(), DB::table('exam_templates')->count(), DB::table('exam_template_versions')->count()]);
+    }
+
+    public function test_teacher_h4_read_collections_are_empty_when_authorized(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $this->actingAs($teacher)->getJson($base.'/practice-activities')->assertOk()->assertJsonPath('data', []);
+        $this->actingAs($teacher)->getJson($base.'/exam-templates')->assertOk()->assertJsonPath('data', []);
+    }
+
+    public function test_teacher_h4_reads_hide_cross_scope_resources_and_enforce_middleware(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $this->createPractice($teacher, $base);
+        $templateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Scoped'])->assertCreated()->json('data.id');
+        $templateVersionId = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 1, 'label' => 'v1', 'rules_payload' => [], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $otherTemplateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Other'])->assertCreated()->json('data.id');
+        $otherTeacher = User::factory()->create(['role' => 'teacher', 'status' => 'active']);
+        $this->actingAs($otherTeacher)->getJson($base.'/practice-activities')->assertNotFound();
+        $this->actingAs($teacher)->getJson('/api/teacher/subject-assignments/'.Str::uuid().'/curricula/'.$curriculum->id.'/versions/'.$version->id.'/practice-activities')->assertNotFound();
+        $this->actingAs($teacher)->getJson($base.'/practice-activities/'.Str::uuid().'/items')->assertNotFound();
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$otherTemplateId.'/versions/'.$templateVersionId)->assertNotFound();
+        DB::table('teacher_subject_assignments')->where('id', $assignment->id)->update(['status' => 'inactive']);
+        $this->actingAs($teacher)->getJson($base.'/practice-activities')->assertNotFound();
+        DB::table('teacher_subject_assignments')->where('id', $assignment->id)->update(['status' => 'active']);
+        DB::table('users')->where('id', $teacher->id)->update(['status' => 'disabled']);
+        $this->actingAs($teacher)->getJson($base.'/practice-activities')->assertForbidden()->assertJsonPath('error.code', 'account_disabled');
+        $this->actingAs(User::factory()->create(['role' => 'student', 'status' => 'active']))->getJson($base.'/practice-activities')->assertForbidden()->assertJsonPath('error.code', 'teacher_forbidden');
+    }
+
+    public function test_teacher_h4_reads_hide_cross_curriculum_and_cross_version_resources(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $this->addPracticeItem($teacher, $base, $practiceId, $revision->id, 0);
+        $templateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Current'])->assertCreated()->json('data.id');
+        $templateVersionId = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 1, 'label' => 'v1', 'rules_payload' => [], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $otherCurriculum = app(CreateOwnedCurriculum::class)->execute(actorUserId: $teacher->id, teacherSubjectAssignmentId: $assignment->id, name: 'Other '.Str::random(6), educationStageId: null);
+        $otherVersion = CurriculumVersion::query()->create(['curriculum_id' => $otherCurriculum->id, 'version_number' => 1, 'label' => 'Other', 'status' => 'draft']);
+        $otherBase = $this->base($assignment, $otherCurriculum, $otherVersion);
+        $otherTemplateId = $this->actingAs($teacher)->postJson($otherBase.'/exam-templates', ['name' => 'Other'])->assertCreated()->json('data.id');
+        $otherTemplateVersionId = $this->actingAs($teacher)->postJson($otherBase.'/exam-templates/'.$otherTemplateId.'/versions', ['version_number' => 1, 'label' => 'other', 'rules_payload' => [], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $alternateTemplateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Alternate'])->assertCreated()->json('data.id');
+
+        $this->actingAs($teacher)->getJson($this->base($assignment, $otherCurriculum, $version).'/practice-activities')->assertNotFound()->assertJsonPath('error.code', 'not_found');
+        $this->actingAs($teacher)->getJson($this->base($assignment, $curriculum, $otherVersion).'/exam-templates')->assertNotFound()->assertJsonPath('error.code', 'not_found');
+        $this->actingAs($teacher)->getJson($otherBase.'/practice-activities/'.$practiceId.'/items')->assertNotFound()->assertJsonPath('error.code', 'not_found');
+        $this->actingAs($teacher)->getJson($otherBase.'/exam-templates/'.$templateId.'/versions')->assertNotFound()->assertJsonPath('error.code', 'not_found');
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$alternateTemplateId.'/versions/'.$templateVersionId)->assertNotFound()->assertJsonPath('error.code', 'not_found');
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$otherTemplateVersionId)->assertNotFound()->assertJsonPath('error.code', 'not_found');
+    }
+
+    public function test_teacher_h4_reads_preserve_legal_archived_and_retired_resources(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $this->addPracticeItem($teacher, $base, $practiceId, $revision->id, 0);
+        $this->actingAs($teacher)->postJson($base.'/practice-activities/'.$practiceId.'/activate')->assertOk();
+        $this->actingAs($teacher)->postJson($base.'/practice-activities/'.$practiceId.'/archive')->assertOk()->assertJsonPath('data.status', 'archived');
+        $templateId = $this->actingAs($teacher)->postJson($base.'/exam-templates', ['name' => 'Historical'])->assertCreated()->json('data.id');
+        $firstVersionId = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 1, 'label' => 'v1', 'rules_payload' => ['historical' => true], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $secondVersionId = $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions', ['version_number' => 2, 'label' => 'v2', 'rules_payload' => [], 'rules_schema_version' => 1])->assertCreated()->json('data.id');
+        $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$firstVersionId.'/publish')->assertOk();
+        $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$secondVersionId.'/publish')->assertOk();
+        $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$firstVersionId.'/retire')->assertOk()->assertJsonPath('data.status', 'retired');
+        $this->actingAs($teacher)->postJson($base.'/exam-templates/'.$templateId.'/archive')->assertOk()->assertJsonPath('data.status', 'archived');
+
+        $this->actingAs($teacher)->getJson($base.'/practice-activities')->assertOk()->assertJsonPath('data.0.id', $practiceId)->assertJsonPath('data.0.status', 'archived');
+        $this->actingAs($teacher)->getJson($base.'/exam-templates')->assertOk()->assertJsonPath('data.0.id', $templateId)->assertJsonPath('data.0.status', 'archived');
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$templateId.'/versions')->assertOk()->assertJsonPath('data.0.id', $firstVersionId)->assertJsonPath('data.0.status', 'retired')->assertJsonPath('data.1.id', $secondVersionId)->assertJsonPath('data.1.status', 'published');
+        $this->actingAs($teacher)->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$firstVersionId)->assertOk()->assertJsonPath('data.status', 'retired')->assertJsonPath('data.rules_payload.historical', true);
+    }
+
     private function fixture(): array
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
