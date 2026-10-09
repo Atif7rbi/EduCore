@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class PasswordResetFlowTest extends TestCase
@@ -150,6 +153,42 @@ class PasswordResetFlowTest extends TestCase
         $this->postJson('/auth/reset-password', $payload)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'invalid_password_reset');
+    }
+
+    public function test_reset_token_expires_after_its_configured_validity_window(): void
+    {
+        $issuedAt = CarbonImmutable::parse(
+            '2026-01-01 12:00:00',
+            'UTC',
+        );
+
+        Carbon::setTestNow($issuedAt);
+
+        try {
+            $user = User::factory()->create([
+                'email' => 'expiry@example.com',
+                'role' => 'admin',
+            ]);
+
+            $token = Password::broker()->createToken($user);
+
+            Carbon::setTestNow(
+                $issuedAt->addSeconds(3601),
+            );
+
+            $this->postJson('/auth/reset-password', [
+                'token' => $token,
+                'email' => $user->email,
+                'password' => 'EduCore!Expired2026',
+                'password_confirmation' => 'EduCore!Expired2026',
+            ])->assertStatus(422)
+                ->assertJsonPath(
+                    'error.code',
+                    'invalid_password_reset',
+                );
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_invalid_reset_token_is_rejected(): void

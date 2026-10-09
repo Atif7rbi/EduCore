@@ -3,35 +3,34 @@
 namespace Tests\Feature;
 
 use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class PublishCurriculumVersionTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_incomplete_draft_curriculum_version_cannot_be_published(): void
     {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Quantitative {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Qudrat Quantitative '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Qudrat Quantitative {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -45,7 +44,7 @@ class PublishCurriculumVersionTest extends TestCase
 
         $service = new PublishCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 
@@ -56,7 +55,7 @@ class PublishCurriculumVersionTest extends TestCase
                 'Expected CurriculumVersionNotReady was not thrown.'
             );
         } catch (
-            \App\Application\Exceptions\CurriculumVersionNotReady $exception
+            CurriculumVersionNotReady $exception
         ) {
             $this->assertSame(
                 [
@@ -89,20 +88,13 @@ class PublishCurriculumVersionTest extends TestCase
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Quantitative {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Qudrat Quantitative '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Qudrat Quantitative {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -124,7 +116,7 @@ class PublishCurriculumVersionTest extends TestCase
 
         $service = new PublishCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
 

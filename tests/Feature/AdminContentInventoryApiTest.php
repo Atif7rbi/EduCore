@@ -6,17 +6,19 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminContentInventoryApiTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_active_admin_can_list_canonical_subject_catalog_in_stable_order(): void
     {
         $this->actingAs($this->admin());
 
-        $this->createSubject('Legacy Subject');
+        $this->createLegacySubject('Legacy Subject');
 
         DB::table('subjects')
             ->where('code', 'physics')
@@ -73,17 +75,18 @@ class AdminContentInventoryApiTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        $subjectOne = $this->createSubject('Subject One');
-        $subjectTwo = $this->createSubject('Subject Two');
+        $subjectOne =
+            $this->canonicalSubjectId('mathematics');
 
-        $curriculumOne = $this->createCurriculum(
-            $subjectOne,
-            'Curriculum One',
-        );
+        $curriculumOne =
+            $this->createOwnedCurriculumFixture(
+                'Curriculum One',
+                'mathematics',
+            );
 
-        $this->createCurriculum(
-            $subjectTwo,
+        $this->createOwnedCurriculumFixture(
             'Other Curriculum',
+            'physics',
         );
 
         $response = $this->getJson(
@@ -95,7 +98,7 @@ class AdminContentInventoryApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath(
                 'data.0.id',
-                $curriculumOne
+                $curriculumOne->id
             )
             ->assertJsonPath(
                 'data.0.subject_id',
@@ -107,12 +110,13 @@ class AdminContentInventoryApiTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        $subjectId = $this->createSubject('Mathematics');
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Qudrat Quantitative',
+                'mathematics',
+            );
 
-        $curriculumId = $this->createCurriculum(
-            $subjectId,
-            'Qudrat Quantitative',
-        );
+        $curriculumId = $curriculum->id;
 
         $versionTwo = $this->createVersion(
             $curriculumId,
@@ -216,30 +220,13 @@ class AdminContentInventoryApiTest extends TestCase
         ]);
     }
 
-    private function createSubject(
+    private function createLegacySubject(
         string $name,
     ): string {
         $id = (string) Str::uuid();
 
         DB::table('subjects')->insert([
             'id' => $id,
-            'name' => $name,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return $id;
-    }
-
-    private function createCurriculum(
-        string $subjectId,
-        string $name,
-    ): string {
-        $id = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $id,
-            'subject_id' => $subjectId,
             'name' => $name,
             'created_at' => now(),
             'updated_at' => now(),

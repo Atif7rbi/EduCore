@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminExamTemplateApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_list_and_update_active_template(): void
@@ -24,8 +26,7 @@ class AdminExamTemplateApiTest extends TestCase
             "/api/admin/curriculum-versions/{$versionId}/exam-templates",
             [
                 'name' => 'Qudrat Quant Mock',
-                'description' =>
-                    'Quantitative mock exam',
+                'description' => 'Quantitative mock exam',
             ]
         );
 
@@ -64,8 +65,7 @@ class AdminExamTemplateApiTest extends TestCase
             "/api/admin/exam-templates/{$templateId}",
             [
                 'name' => 'Qudrat Quant Mock Updated',
-                'description' =>
-                    'Updated description',
+                'description' => 'Updated description',
             ]
         )
             ->assertOk()
@@ -470,36 +470,21 @@ SQL,
     private function curriculumVersion(
         string $status,
     ): string {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
-            'curriculum_id' =>
-                $curriculumId,
+            'curriculum_id' => $curriculumId,
             'version_number' => 1,
-            'label' =>
-                'Version '.Str::random(8),
+            'label' => 'Version '.Str::random(8),
             'status' => $status,
             'created_at' => now(),
             'updated_at' => now(),
@@ -516,10 +501,8 @@ SQL,
 
         DB::table('exam_templates')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
-            'name' =>
-                'Template '.Str::random(12),
+            'curriculum_version_id' => $curriculumVersionId,
+            'name' => 'Template '.Str::random(12),
             'description' => null,
             'status' => $status,
             'published_version_id' => null,
@@ -541,17 +524,14 @@ SQL,
             'exam_template_versions'
         )->insert([
             'id' => $id,
-            'exam_template_id' =>
-                $templateId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'exam_template_id' => $templateId,
+            'curriculum_version_id' => $curriculumVersionId,
             'version_number' => 1,
             'label' => 'v1',
             'status' => $status,
-            'rules_payload' =>
-                json_encode([
-                    'question_count' => 20,
-                ]),
+            'rules_payload' => json_encode([
+                'question_count' => 20,
+            ]),
             'rules_schema_version' => 1,
             'created_at' => now(),
             'updated_at' => now(),

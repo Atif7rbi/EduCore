@@ -10,10 +10,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class RebuildMaterializedSkillPerformanceTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_rebuild_materializes_single_primary_and_supporting_counts(): void
@@ -131,12 +133,9 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
         $this->assertDatabaseMissing(
             'materialized_skill_performances',
             [
-                'learner_profile_id' =>
-                    $fixture['learner_profile_id'],
-                'skill_id' =>
-                    $fixture['target_skill_id'],
-                'evidence_scope_id' =>
-                    $fixture['evidence_scope_id'],
+                'learner_profile_id' => $fixture['learner_profile_id'],
+                'skill_id' => $fixture['target_skill_id'],
+                'evidence_scope_id' => $fixture['evidence_scope_id'],
             ]
         );
     }
@@ -183,14 +182,11 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
         DB::table(
             'regrade_corrections'
         )->insert([
-            'id' =>
-                (string) Str::uuid(),
-            'attempt_response_id' =>
-                $responseId,
+            'id' => (string) Str::uuid(),
+            'attempt_response_id' => $responseId,
             'correction_number' => 1,
             'corrected_is_correct' => true,
-            'reason' =>
-                'A7.4 rebuild verification',
+            'reason' => 'A7.4 rebuild verification',
             'corrected_at' => now(),
             'created_at' => now(),
         ]);
@@ -386,29 +382,19 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
         $otherSkillId = (string) Str::uuid();
         $activityId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'A7.4 Subject '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'A7.4 Curriculum '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table(
             'curriculum_versions'
         )->insert([
             'id' => $versionId,
-            'curriculum_id' =>
-                $curriculumId,
+            'curriculum_id' => $curriculumId,
             'version_number' => 1,
             'label' => 'A7.4 v1',
             'status' => 'draft',
@@ -418,23 +404,19 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $topicId,
-            'curriculum_version_id' =>
-                $versionId,
-            'name' =>
-                'A7.4 Topic '.Str::random(8),
+            'curriculum_version_id' => $versionId,
+            'name' => 'A7.4 Topic '.Str::random(8),
             'display_order' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         foreach (
-            [$targetSkillId, $otherSkillId]
-            as $skillId
+            [$targetSkillId, $otherSkillId] as $skillId
         ) {
             DB::table('skills')->insert([
                 'id' => $skillId,
-                'name' =>
-                    'A7.4 Skill '.Str::random(8),
+                'name' => 'A7.4 Skill '.Str::random(8),
                 'description' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -445,11 +427,9 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
             'practice_activities'
         )->insert([
             'id' => $activityId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
-            'name' =>
-                'A7.4 Practice '.Str::random(8),
+            'name' => 'A7.4 Practice '.Str::random(8),
             'description' => null,
             'status' => 'archived',
             'created_at' => now(),
@@ -468,20 +448,13 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
         );
 
         return [
-            'learner_profile_id' =>
-                $learner->id,
-            'curriculum_version_id' =>
-                $versionId,
-            'primary_topic_id' =>
-                $topicId,
-            'target_skill_id' =>
-                $targetSkillId,
-            'other_skill_id' =>
-                $otherSkillId,
-            'practice_activity_id' =>
-                $activityId,
-            'evidence_scope_id' =>
-                $scope->id,
+            'learner_profile_id' => $learner->id,
+            'curriculum_version_id' => $versionId,
+            'primary_topic_id' => $topicId,
+            'target_skill_id' => $targetSkillId,
+            'other_skill_id' => $otherSkillId,
+            'practice_activity_id' => $activityId,
+            'evidence_scope_id' => $scope->id,
         ];
     }
 
@@ -501,17 +474,13 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
             'assessment_items'
         )->insert([
             'id' => $itemId,
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
-            'item_type' =>
-                'multiple_choice',
-            'internal_label' =>
-                'A7.4 Item '.Str::random(8),
+            'item_type' => 'multiple_choice',
+            'internal_label' => 'A7.4 Item '.Str::random(8),
             'status' => 'draft',
-            'published_revision_id' =>
-                null,
+            'published_revision_id' => null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -520,29 +489,24 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
             'assessment_item_revisions'
         )->insert([
             'id' => $revisionId,
-            'assessment_item_id' =>
-                $itemId,
-            'curriculum_version_id' =>
-                $fixture[
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
             'revision_number' => 1,
-            'primary_topic_id' =>
-                $fixture[
+            'primary_topic_id' => $fixture[
                     'primary_topic_id'
                 ],
             'difficulty' => 'easy',
-            'content_payload' =>
-                json_encode(
-                    ['stem' => 'A7.4'],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'content_payload' => json_encode(
+                ['stem' => 'A7.4'],
+                JSON_THROW_ON_ERROR,
+            ),
             'content_schema_version' => 1,
-            'scoring_payload' =>
-                json_encode(
-                    ['correct_option' => 0],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'scoring_payload' => json_encode(
+                ['correct_option' => 0],
+                JSON_THROW_ON_ERROR,
+            ),
             'scoring_schema_version' => 1,
             'released_at' => null,
             'created_at' => now(),
@@ -550,17 +514,14 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
 
         DB::table('attempts')->insert([
             'id' => $attemptId,
-            'learner_profile_id' =>
-                $fixture[
+            'learner_profile_id' => $fixture[
                     'learner_profile_id'
                 ],
             'exam_generation_id' => null,
-            'practice_activity_id' =>
-                $fixture[
+            'practice_activity_id' => $fixture[
                     'practice_activity_id'
                 ],
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
             'status' => 'in_progress',
@@ -573,47 +534,38 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
         DB::table('attempt_items')->insert([
             'id' => $attemptItemId,
             'attempt_id' => $attemptId,
-            'assessment_item_revision_id' =>
-                $revisionId,
-            'assessment_item_id' =>
-                $itemId,
-            'curriculum_version_id' =>
-                $fixture[
+            'assessment_item_revision_id' => $revisionId,
+            'assessment_item_id' => $itemId,
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
             'exam_generation_id' => null,
             'exam_generation_item_id' => null,
             'presentation_position' => 0,
-            'presented_payload' =>
-                json_encode(
-                    ['stem' => 'A7.4'],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'presented_payload' => json_encode(
+                ['stem' => 'A7.4'],
+                JSON_THROW_ON_ERROR,
+            ),
             'presented_schema_version' => 1,
-            'scoring_snapshot' =>
-                json_encode(
-                    ['correct_option' => 0],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'scoring_snapshot' => json_encode(
+                ['correct_option' => 0],
+                JSON_THROW_ON_ERROR,
+            ),
             'scoring_schema_version' => 1,
-            'primary_topic_id' =>
-                $fixture[
+            'primary_topic_id' => $fixture[
                     'primary_topic_id'
                 ],
             'created_at' => now(),
         ]);
 
         foreach (
-            $classifications
-            as [$skillId, $role]
+            $classifications as [$skillId, $role]
         ) {
             DB::table(
                 'attempt_item_classification_skills'
             )->insert([
-                'id' =>
-                    (string) Str::uuid(),
-                'attempt_item_id' =>
-                    $attemptItemId,
+                'id' => (string) Str::uuid(),
+                'attempt_item_id' => $attemptItemId,
                 'skill_id' => $skillId,
                 'role' => $role,
                 'created_at' => now(),
@@ -624,15 +576,12 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
             'attempt_responses'
         )->insert([
             'id' => $responseId,
-            'attempt_item_id' =>
-                $attemptItemId,
-            'response_payload' =>
-                $isCorrect === null
+            'attempt_item_id' => $attemptItemId,
+            'response_payload' => $isCorrect === null
                     ? null
                     : json_encode(
                         [
-                            'selected_option' =>
-                                $isCorrect
+                            'selected_option' => $isCorrect
                                     ? 0
                                     : 1,
                         ],
@@ -640,8 +589,7 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
                     ),
             'answer_change_count' => 0,
             'time_spent_ms' => 100,
-            'original_is_correct' =>
-                $isCorrect,
+            'original_is_correct' => $isCorrect,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -657,8 +605,7 @@ class RebuildMaterializedSkillPerformanceTest extends TestCase
             DB::table('attempts')
                 ->where('id', $attemptId)
                 ->update([
-                    'status' =>
-                        $finalStatus,
+                    'status' => $finalStatus,
                     'finalized_at' => now(),
                     'updated_at' => now(),
                 ]);

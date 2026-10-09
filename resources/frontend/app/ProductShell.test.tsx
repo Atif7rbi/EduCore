@@ -174,6 +174,30 @@ describe('ProductShell', () => {
         );
 
         expect(
+            screen.getByRole(
+                'link',
+                {
+                    name: 'المعلمون',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/admin/teachers',
+        );
+
+        expect(
+            screen.getByRole(
+                'link',
+                {
+                    name: 'الطلاب',
+                },
+            ),
+        ).toHaveAttribute(
+            'href',
+            '/admin/students',
+        );
+
+        expect(
             screen.queryByRole(
                 'link',
                 {

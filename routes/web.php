@@ -3,11 +3,17 @@
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\SessionController;
+use App\Http\Controllers\Auth\StudentRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
 Route::prefix('auth')->group(function (): void {
+    Route::post(
+        '/register',
+        StudentRegistrationController::class
+    )->middleware('throttle:6,1');
+
     Route::post(
         '/login',
         [SessionController::class, 'login']

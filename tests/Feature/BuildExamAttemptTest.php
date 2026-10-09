@@ -7,24 +7,36 @@ use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
+use App\Application\Authorization\LockActiveLearnerCurriculumGrant;
 use App\Application\Curriculum\RetireCurriculumVersion;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\DeactivateStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Exam\BuildExamGeneration;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\PostgresProcessBarrier;
 use Tests\TestCase;
 
 class BuildExamAttemptTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_exam_attempt_copies_exact_generation_and_revision_truth(): void
     {
         [$learnerId, $generationId, $revisionId, $itemId, $skillId] =
             $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -117,7 +129,7 @@ class BuildExamAttemptTest extends TestCase
 
         (new RetireCurriculumVersion(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $generation->curriculum_version_id
@@ -125,6 +137,7 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $generationId,
             );
@@ -152,12 +165,14 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
 
         try {
             $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
                 $learnerId,
                 $generationId,
             );
@@ -182,6 +197,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -191,6 +207,8 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1500,
@@ -210,6 +228,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -219,12 +238,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1000,
         );
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             2200,
@@ -239,6 +262,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -248,12 +272,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
             1000,
         );
 
         $response = $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             2500,
@@ -273,6 +301,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -283,6 +312,8 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->responseService()->execute(
+                $this->authenticatedUserId($learnerId),
+                $learnerId,
                 $attemptItemId,
                 ['selected_option' => 2],
                 -1,
@@ -311,6 +342,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -320,12 +352,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1800,
         );
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -345,6 +381,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -354,12 +391,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
             900,
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -376,6 +417,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -385,6 +427,8 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -405,6 +449,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -414,12 +459,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
             850,
         );
 
         $finalized = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
             'abandoned',
         );
@@ -454,6 +503,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -463,12 +513,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1000,
         );
 
         $firstFinalization = $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -476,8 +530,10 @@ class BuildExamAttemptTest extends TestCase
 
         try {
             $this->finalizeService()->execute(
-            $attempt->id,
-        );
+                $this->authenticatedUserId($learnerId),
+                $learnerId,
+                $attempt->id,
+            );
 
             $this->fail(
                 'Expected IntegrityConstraintViolation was not thrown.'
@@ -499,6 +555,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -508,12 +565,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 1],
             1000,
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -542,6 +603,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -551,12 +613,16 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1000,
         );
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -592,6 +658,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -601,6 +668,8 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->responseService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attemptItemId,
             ['selected_option' => 2],
             1000,
@@ -637,6 +706,7 @@ class BuildExamAttemptTest extends TestCase
         [$learnerId, $generationId] = $this->createExamFixture();
 
         $attempt = $this->service()->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generationId,
         );
@@ -646,6 +716,8 @@ class BuildExamAttemptTest extends TestCase
             ->value('id');
 
         $this->finalizeService()->execute(
+            $this->authenticatedUserId($learnerId),
+            $learnerId,
             $attempt->id,
         );
 
@@ -675,6 +747,489 @@ class BuildExamAttemptTest extends TestCase
         );
     }
 
+    public function test_inactive_enrollment_rejects_new_exam_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $versionId = DB::table('exam_generations')
+            ->where('id', $generationId)
+            ->value('curriculum_version_id');
+
+        $curriculumId = DB::table('curriculum_versions')
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $assignmentId = DB::table('curricula')
+            ->where('id', $curriculumId)
+            ->value('teacher_subject_assignment_id');
+
+        $enrollmentId = DB::table('student_enrollments')
+            ->where('learner_profile_id', $learnerId)
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->value('id');
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where('id', $assignmentId)
+            ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        app(
+            DeactivateStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'Phase F exam authorization revocation.',
+        );
+
+        try {
+            $this->service()->execute(
+                $this->authenticatedUserId($learnerId),
+                $learnerId,
+                $generationId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertSame(
+            0,
+            DB::table('attempts')
+                ->where('learner_profile_id', $learnerId)
+                ->where('exam_generation_id', $generationId)
+                ->count()
+        );
+    }
+
+    public function test_mismatched_authenticated_user_rejects_new_exam_attempt_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->service()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $generationId,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseMissing(
+            'attempts',
+            [
+                'learner_profile_id' => $learnerId,
+                'exam_generation_id' => $generationId,
+            ],
+        );
+    }
+
+    public function test_mismatched_authenticated_user_rejects_attempt_response_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $userId =
+            $this->authenticatedUserId(
+                $learnerId
+            );
+
+        $attempt = $this->service()->execute(
+            $userId,
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->responseService()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $attemptItemId,
+                [
+                    'selected_option' => 2,
+                ],
+                1900,
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'response_payload' => null,
+                'answer_change_count' => 0,
+                'time_spent_ms' => 0,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
+    public function test_mismatched_authenticated_user_rejects_attempt_finalization_without_mutation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $userId =
+            $this->authenticatedUserId(
+                $learnerId
+            );
+
+        $attempt = $this->service()->execute(
+            $userId,
+            $learnerId,
+            $generationId,
+        );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $this->responseService()->execute(
+            $userId,
+            $learnerId,
+            $attemptItemId,
+            [
+                'selected_option' => 2,
+            ],
+            1200,
+        );
+
+        $otherStudent = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        try {
+            $this->finalizeService()->execute(
+                $otherStudent->id,
+                $learnerId,
+                $attempt->id,
+                'submitted',
+            );
+
+            $this->fail(
+                'Expected ModelNotFoundException was not thrown.'
+            );
+        } catch (ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertDatabaseHas(
+            'attempts',
+            [
+                'id' => $attempt->id,
+                'status' => 'in_progress',
+                'finalized_at' => null,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'attempt_responses',
+            [
+                'attempt_item_id' => $attemptItemId,
+                'original_is_correct' => null,
+            ],
+        );
+    }
+
+    public function test_enrollment_deactivation_serializes_before_new_exam_attempt(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $versionId =
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
+
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
+
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
+
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
+            )
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            app(
+                DeactivateStudentEnrollment::class
+            )->execute(
+                actorUserId: $teacherId,
+                enrollmentId: $enrollmentId,
+                operationId: (string) Str::uuid(),
+                reason: 'Exam deactivation-wins race.',
+            );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_exam_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'exam_generation_id' => $generationId,
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null,
+            );
+
+            $this->assertSame(
+                0,
+                DB::table('attempts')
+                    ->where(
+                        'learner_profile_id',
+                        $learnerId,
+                    )
+                    ->where(
+                        'exam_generation_id',
+                        $generationId,
+                    )
+                    ->count(),
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    public function test_new_exam_attempt_serializes_before_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $versionId =
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
+
+        $curriculumId =
+            DB::table('curriculum_versions')
+                ->where('id', $versionId)
+                ->value('curriculum_id');
+
+        $assignmentId =
+            DB::table('curricula')
+                ->where('id', $curriculumId)
+                ->value(
+                    'teacher_subject_assignment_id'
+                );
+
+        $enrollmentId =
+            DB::table('student_enrollments')
+                ->where(
+                    'learner_profile_id',
+                    $learnerId,
+                )
+                ->where(
+                    'teacher_subject_assignment_id',
+                    $assignmentId,
+                )
+                ->value('id');
+
+        $teacherId =
+            DB::table(
+                'teacher_subject_assignments'
+            )
+                ->where('id', $assignmentId)
+                ->value('teacher_id');
+
+        $this->assertIsString($enrollmentId);
+        $this->assertIsString($teacherId);
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            $attempt =
+                $this->service()->execute(
+                    $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    $learnerId,
+                    $generationId,
+                );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'Exam attempt-wins race.',
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'success',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                'inactive',
+                $result['data']['status']
+                    ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempts',
+                [
+                    'id' => $attempt->id,
+                    'learner_profile_id' => $learnerId,
+                    'exam_generation_id' => $generationId,
+                ],
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
     public function test_curriculum_retirement_serializes_against_exam_attempt_construction(): void
     {
         [
@@ -682,43 +1237,33 @@ class BuildExamAttemptTest extends TestCase
             $generationId,
         ] = $this->createExamFixture();
 
-        $generation = DB::table('exam_generations')
-            ->where('id', $generationId)
-            ->first();
-
-        $this->assertNotNull($generation);
-
         $versionId =
-            $generation->curriculum_version_id;
+            DB::table('exam_generations')
+                ->where('id', $generationId)
+                ->value(
+                    'curriculum_version_id'
+                );
 
-        $signalFile = tempnam(
-            sys_get_temp_dir(),
-            'educore-exam-race-'
-        );
+        $this->assertIsString($versionId);
 
-        if ($signalFile === false) {
-            $this->fail(
-                'Unable to allocate concurrency signal file.'
-            );
-        }
-
-        @unlink($signalFile);
-
-        $process = null;
-        $pipes = [];
+        $barrier = null;
 
         DB::beginTransaction();
 
         try {
-            $lockedVersion = DB::table('curriculum_versions')
-                ->where('id', $versionId)
-                ->lockForUpdate()
-                ->first();
+            $lockedVersion =
+                DB::table('curriculum_versions')
+                    ->where('id', $versionId)
+                    ->lockForUpdate()
+                    ->first();
 
-            $this->assertNotNull($lockedVersion);
+            $this->assertNotNull(
+                $lockedVersion
+            );
+
             $this->assertSame(
                 'published',
-                $lockedVersion->status
+                $lockedVersion->status,
             );
 
             DB::table('curriculum_versions')
@@ -728,135 +1273,39 @@ class BuildExamAttemptTest extends TestCase
                     'updated_at' => now(),
                 ]);
 
-            $childCode = sprintf(
-                <<<'PHP'
-try {
-    app(\App\Application\Attempt\BuildExamAttempt::class)
-        ->execute(%s, %s);
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'build_exam_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'exam_generation_id' => $generationId,
+                ]);
 
-    file_put_contents(
-        %s,
-        json_encode(
-            ['result' => 'unexpected_success'],
-            JSON_THROW_ON_ERROR
-        )
-    );
-} catch (\Throwable $exception) {
-    file_put_contents(
-        %s,
-        json_encode(
-            [
-                'result' => 'exception',
-                'class' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
-            JSON_THROW_ON_ERROR
-        )
-    );
-}
-PHP,
-                var_export($learnerId, true),
-                var_export($generationId, true),
-                var_export($signalFile, true),
-                var_export($signalFile, true),
-            );
+            $ready =
+                $barrier->awaitReady();
 
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
+            $barrier->release();
 
-            $process = proc_open(
-                [
-                    PHP_BINARY,
-                    base_path('artisan'),
-                    'tinker',
-                    '--env=testing',
-                    '--execute='.$childCode,
-                ],
-                $descriptors,
-                $pipes,
-                base_path(),
-            );
-
-            if (! is_resource($process)) {
-                $this->fail(
-                    'Unable to start independent PostgreSQL Session B.'
-                );
-            }
-
-            fclose($pipes[0]);
-
-            /*
-             * Session B must remain blocked on the same
-             * CurriculumVersion lifecycle row.
-             */
-            usleep(700000);
-
-            $statusWhileLocked =
-                proc_get_status($process);
-
-            $this->assertTrue(
-                $statusWhileLocked['running'],
-                'Exam Attempt process exited before the lifecycle lock was released.'
-            );
-
-            $this->assertFileDoesNotExist(
-                $signalFile,
-                'Exam Attempt construction completed before the lifecycle lock was released.'
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
             );
 
             DB::commit();
 
-            $deadline = microtime(true) + 8.0;
-
-            do {
-                $statusAfterCommit =
-                    proc_get_status($process);
-
-                if (! $statusAfterCommit['running']) {
-                    break;
-                }
-
-                usleep(100000);
-            } while (microtime(true) < $deadline);
-
-            $this->assertFalse(
-                $statusAfterCommit['running'],
-                'Exam Attempt process did not finish after retirement committed.'
-            );
-
-            $stdout =
-                stream_get_contents($pipes[1]);
-
-            $stderr =
-                stream_get_contents($pipes[2]);
-
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $this->assertFileExists(
-                $signalFile,
-                "Session B produced no result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
-            );
-
-            $result = json_decode(
-                (string) file_get_contents($signalFile),
-                true,
-                512,
-                JSON_THROW_ON_ERROR,
-            );
+            $result =
+                $barrier->finish();
 
             $this->assertSame(
                 'exception',
                 $result['result'] ?? null,
-                "Unexpected Session B result.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
             );
 
             $this->assertSame(
                 ModelNotFoundException::class,
-                $result['class'] ?? null
+                $result['class'] ?? null,
             );
 
             $this->assertSame(
@@ -866,55 +1315,639 @@ PHP,
                         'exam_generation_id',
                         $generationId,
                     )
-                    ->count()
+                    ->count(),
             );
 
             $this->assertSame(
                 'retired',
                 DB::table('curriculum_versions')
                     ->where('id', $versionId)
-                    ->value('status')
+                    ->value('status'),
             );
         } finally {
-            if (DB::transactionLevel() > 0) {
+            if (
+                DB::transactionLevel() > 0
+            ) {
                 DB::rollBack();
             }
 
-            foreach ($pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-
-                if ($status['running']) {
-                    proc_terminate($process);
-                }
-
-                proc_close($process);
-            }
-
-            @unlink($signalFile);
+            $barrier?->cleanup();
         }
+    }
+
+    public function test_enrollment_deactivation_serializes_before_attempt_response_save(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        [
+            $enrollmentId,
+            $teacherId,
+        ] = $this->activeEnrollmentForAttempt(
+            $learnerId,
+            $attempt->id,
+        );
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            app(
+                DeactivateStudentEnrollment::class
+            )->execute(
+                actorUserId: $teacherId,
+                enrollmentId: $enrollmentId,
+                operationId: (string) Str::uuid(),
+                reason: 'F-C5B response deactivation-wins race.',
+            );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'save_attempt_response',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'attempt_item_id' => $attemptItemId,
+                    'response_payload' => [
+                        'selected_option' => 2,
+                    ],
+                    'time_spent_ms' => 1800,
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempt_responses',
+                [
+                    'attempt_item_id' => $attemptItemId,
+                    'response_payload' => null,
+                    'answer_change_count' => 0,
+                    'time_spent_ms' => 0,
+                    'original_is_correct' => null,
+                ],
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    public function test_attempt_response_save_serializes_before_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        [
+            $enrollmentId,
+            $teacherId,
+        ] = $this->activeEnrollmentForAttempt(
+            $learnerId,
+            $attempt->id,
+        );
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            $response =
+                $this
+                    ->responseService()
+                    ->execute(
+                        $this->authenticatedUserId(
+                            $learnerId
+                        ),
+                        $learnerId,
+                        $attemptItemId,
+                        [
+                            'selected_option' => 2,
+                        ],
+                        1800,
+                    );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'F-C5B response-wins race.',
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'success',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                'inactive',
+                $result['data']['status']
+                    ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempt_responses',
+                [
+                    'id' => $response->id,
+                    'attempt_item_id' => $attemptItemId,
+                    'response_payload' => json_encode([
+                        'selected_option' => 2,
+                    ]),
+                    'answer_change_count' => 0,
+                    'time_spent_ms' => 1800,
+                    'original_is_correct' => null,
+                ],
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    public function test_enrollment_deactivation_serializes_before_attempt_finalization(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $this->responseService()->execute(
+            $this->authenticatedUserId(
+                $learnerId
+            ),
+            $learnerId,
+            $attemptItemId,
+            [
+                'selected_option' => 2,
+            ],
+            1200,
+        );
+
+        [
+            $enrollmentId,
+            $teacherId,
+        ] = $this->activeEnrollmentForAttempt(
+            $learnerId,
+            $attempt->id,
+        );
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            app(
+                DeactivateStudentEnrollment::class
+            )->execute(
+                actorUserId: $teacherId,
+                enrollmentId: $enrollmentId,
+                operationId: (string) Str::uuid(),
+                reason: 'F-C5B finalization deactivation-wins race.',
+            );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'finalize_attempt',
+                    'authenticated_user_id' => $this->authenticatedUserId(
+                        $learnerId
+                    ),
+                    'learner_profile_id' => $learnerId,
+                    'attempt_id' => $attempt->id,
+                    'final_status' => 'submitted',
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'exception',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                ModelNotFoundException::class,
+                $result['class'] ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempts',
+                [
+                    'id' => $attempt->id,
+                    'status' => 'in_progress',
+                    'finalized_at' => null,
+                ],
+            );
+
+            $this->assertDatabaseHas(
+                'attempt_responses',
+                [
+                    'attempt_item_id' => $attemptItemId,
+                    'original_is_correct' => null,
+                ],
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    public function test_attempt_finalization_serializes_before_enrollment_deactivation(): void
+    {
+        [
+            $learnerId,
+            $generationId,
+        ] = $this->createExamFixture();
+
+        $attempt =
+            $this->service()->execute(
+                $this->authenticatedUserId(
+                    $learnerId
+                ),
+                $learnerId,
+                $generationId,
+            );
+
+        $attemptItemId =
+            DB::table('attempt_items')
+                ->where(
+                    'attempt_id',
+                    $attempt->id,
+                )
+                ->value('id');
+
+        $this->assertIsString(
+            $attemptItemId
+        );
+
+        $this->responseService()->execute(
+            $this->authenticatedUserId(
+                $learnerId
+            ),
+            $learnerId,
+            $attemptItemId,
+            [
+                'selected_option' => 2,
+            ],
+            1200,
+        );
+
+        [
+            $enrollmentId,
+            $teacherId,
+        ] = $this->activeEnrollmentForAttempt(
+            $learnerId,
+            $attempt->id,
+        );
+
+        $barrier = null;
+
+        DB::beginTransaction();
+
+        try {
+            $finalized =
+                $this
+                    ->finalizeService()
+                    ->execute(
+                        $this->authenticatedUserId(
+                            $learnerId
+                        ),
+                        $learnerId,
+                        $attempt->id,
+                        'submitted',
+                    );
+
+            $barrier =
+                PostgresProcessBarrier::start([
+                    'action' => 'deactivate_student_enrollment',
+                    'actor_user_id' => $teacherId,
+                    'enrollment_id' => $enrollmentId,
+                    'operation_id' => (string) Str::uuid(),
+                    'reason' => 'F-C5B finalization-wins race.',
+                ]);
+
+            $ready =
+                $barrier->awaitReady();
+
+            $barrier->release();
+
+            $this->assertPostgresBlockedByParent(
+                $barrier,
+                $ready['pid'],
+            );
+
+            DB::commit();
+
+            $result =
+                $barrier->finish();
+
+            $this->assertSame(
+                'success',
+                $result['result'] ?? null,
+            );
+
+            $this->assertSame(
+                'inactive',
+                $result['data']['status']
+                    ?? null,
+            );
+
+            $this->assertDatabaseHas(
+                'attempts',
+                [
+                    'id' => $finalized->id,
+                    'status' => 'submitted',
+                ],
+            );
+
+            $this->assertDatabaseHas(
+                'attempt_responses',
+                [
+                    'attempt_item_id' => $attemptItemId,
+                    'original_is_correct' => true,
+                ],
+            );
+        } finally {
+            if (
+                DB::transactionLevel() > 0
+            ) {
+                DB::rollBack();
+            }
+
+            $barrier?->cleanup();
+        }
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function activeEnrollmentForAttempt(
+        string $learnerId,
+        string $attemptId,
+    ): array {
+        $versionId = DB::table('attempts')
+            ->where('id', $attemptId)
+            ->value(
+                'curriculum_version_id'
+            );
+
+        $this->assertIsString(
+            $versionId
+        );
+
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where('id', $versionId)
+            ->value('curriculum_id');
+
+        $this->assertIsString(
+            $curriculumId
+        );
+
+        $assignmentId = DB::table(
+            'curricula'
+        )
+            ->where(
+                'id',
+                $curriculumId,
+            )
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $this->assertIsString(
+            $assignmentId
+        );
+
+        $enrollmentId = DB::table(
+            'student_enrollments'
+        )
+            ->where(
+                'learner_profile_id',
+                $learnerId,
+            )
+            ->where(
+                'teacher_subject_assignment_id',
+                $assignmentId,
+            )
+            ->where(
+                'status',
+                'active',
+            )
+            ->value('id');
+
+        $this->assertIsString(
+            $enrollmentId
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $assignmentId,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString(
+            $teacherId
+        );
+
+        return [
+            $enrollmentId,
+            $teacherId,
+        ];
     }
 
     private function regradeService(): AddRegradeCorrection
     {
         return new AddRegradeCorrection(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
+    }
+
+    private function assertPostgresBlockedByParent(
+        PostgresProcessBarrier $barrier,
+        int $childPid,
+    ): void {
+        $wait =
+            $barrier
+                ->awaitBlockedByCurrentConnection(
+                    $childPid
+                );
+
+        $this->assertSame(
+            'Lock',
+            $wait['wait_event_type'],
+        );
+
+        $this->assertTrue(
+            $wait['blocked_by_parent'],
+        );
+
+        $this->assertSame(
+            $childPid,
+            $wait['child_pid'],
+        );
+    }
+
+    private function authenticatedUserId(
+        string $learnerId,
+    ): string {
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        return $userId;
     }
 
     private function finalizeService(): FinalizeAttempt
     {
         return new FinalizeAttempt(
             new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
+                new PostgresExceptionTranslator
+            ),
+            new LockActiveLearnerCurriculumGrant,
         );
     }
 
@@ -922,8 +1955,9 @@ PHP,
     {
         return new SaveAttemptResponse(
             new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
+                new PostgresExceptionTranslator
+            ),
+            new LockActiveLearnerCurriculumGrant,
         );
     }
 
@@ -931,8 +1965,9 @@ PHP,
     {
         return new BuildExamAttempt(
             new TransactionManager(
-                new PostgresExceptionTranslator()
-            )
+                new PostgresExceptionTranslator
+            ),
+            new LockActiveLearnerCurriculumGrant,
         );
     }
 
@@ -971,20 +2006,43 @@ PHP,
             'created_at' => now(),
         ]);
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Attempt Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Attempt Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
+
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $curriculum->teacher_subject_assignment_id,
+            operationId: (string) Str::uuid(),
+            reason: 'Exam Attempt authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $curriculum->teacher_subject_assignment_id,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString($teacherId);
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Exam Attempt authorization fixture acceptance.',
+        );
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -1062,7 +2120,7 @@ PHP,
 
         (new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute($revisionId);
 
@@ -1101,12 +2159,12 @@ PHP,
 
         $generation = (new BuildExamGeneration(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         ))->execute(
             $templateVersionId,
             'generator-v1',
-            'attempt-seed-' . Str::uuid(),
+            'attempt-seed-'.Str::uuid(),
             [
                 [
                     'assessment_item_revision_id' => $revisionId,

@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\LearnerProfile;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -61,7 +63,7 @@ class AuthorizationMatrixTest extends TestCase
             ->assertJsonPath('error.code', 'management_forbidden');
     }
 
-    public function test_admin_has_management_capability(): void
+    public function test_admin_management_capability_reaches_curriculum_read_only_boundary(): void
     {
         $user = User::factory()->create([
             'role' => 'admin',
@@ -71,8 +73,11 @@ class AuthorizationMatrixTest extends TestCase
         $this
             ->actingAs($user)
             ->postJson('/api/curriculum-versions/'.Str::uuid().'/publish')
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'admin_curriculum_content_read_only'
+            );
     }
 
     public function test_disabled_student_is_rejected_from_learner_routes(): void
@@ -121,42 +126,99 @@ class AuthorizationMatrixTest extends TestCase
             ->assertJsonPath('error.code', 'account_disabled');
     }
 
-    public function test_role_change_is_effective_on_next_management_request(): void
+    public function test_admin_role_cannot_change_after_provisioning(): void
     {
         $user = User::factory()->create([
             'role' => 'admin',
             'status' => 'active',
         ]);
 
-        $this->actingAs($user);
+        $this->expectException(
+            QueryException::class
+        );
 
         $user->forceFill([
             'role' => 'teacher',
         ])->save();
-
-        $this
-            ->postJson('/api/curriculum-versions/'.Str::uuid().'/publish')
-            ->assertStatus(403)
-            ->assertJsonPath('error.code', 'management_forbidden');
     }
 
-    public function test_role_change_to_admin_is_effective_on_next_management_request(): void
+    public function test_teacher_role_cannot_change_after_provisioning(): void
     {
         $user = User::factory()->create([
             'role' => 'teacher',
             'status' => 'active',
         ]);
 
-        $this->actingAs($user);
+        $this->expectException(
+            QueryException::class
+        );
 
         $user->forceFill([
             'role' => 'admin',
         ])->save();
+    }
+
+    public function test_student_role_cannot_change_after_provisioning_even_via_direct_database_update(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $this->expectException(
+            QueryException::class
+        );
+
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update([
+                'role' => 'teacher',
+            ]);
+    }
+
+    public function test_status_can_change_after_provisioning_without_changing_role(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update([
+                'status' => 'disabled',
+            ]);
+
+        $user->refresh();
+
+        $this->assertSame(
+            'student',
+            $user->role
+        );
+
+        $this->assertSame(
+            'disabled',
+            $user->status
+        );
+    }
+
+    public function test_teacher_cannot_use_student_routes(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
 
         $this
-            ->postJson('/api/curriculum-versions/'.Str::uuid().'/publish')
-            ->assertStatus(404)
-            ->assertJsonPath('error.code', 'not_found');
+            ->actingAs($user)
+            ->getJson(
+                '/api/attempts/'.Str::uuid()
+            )
+            ->assertStatus(403)
+            ->assertJsonPath(
+                'error.code',
+                'student_forbidden'
+            );
     }
 
     public function test_me_exposes_current_role_and_status(): void

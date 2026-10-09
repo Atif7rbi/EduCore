@@ -8,6 +8,28 @@ export interface Subject {
 export interface Curriculum {
     id: string;
     subject_id: string;
+    teacher_subject_assignment_id:
+        string | null;
+    ownership_kind:
+        | 'teacher_owned'
+        | 'legacy_ownerless';
+    teacher_user_id: string | null;
+    teacher_subject_assignment_status:
+        | 'active'
+        | 'inactive'
+        | null;
+    teacher: {
+        user_id: string;
+        name: string;
+        email: string;
+        status: 'active' | 'disabled';
+    } | null;
+    subject: {
+        id: string;
+        code: string;
+        name: string;
+        status: 'active' | 'inactive';
+    };
     name: string;
     created_at: string | null;
     updated_at: string | null;

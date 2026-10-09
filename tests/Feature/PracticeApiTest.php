@@ -2,16 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\RequireManagementAuthorization;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Support\TransactionManager;
+use App\Http\Middleware\RequireManagementAuthorization;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class PracticeApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -187,7 +192,7 @@ class PracticeApiTest extends TestCase
         ]);
     }
 
-    public function test_missing_activity_returns_not_found(): void
+    public function test_missing_activity_fails_closed_for_management_write(): void
     {
         $activityId = (string) Str::uuid();
 
@@ -199,10 +204,10 @@ class PracticeApiTest extends TestCase
                 'display_order' => 0,
             ],
         )
-            ->assertStatus(404)
+            ->assertStatus(403)
             ->assertJsonPath(
                 'error.code',
-                'not_found'
+                'admin_curriculum_content_read_only'
             );
     }
 
@@ -283,20 +288,13 @@ class PracticeApiTest extends TestCase
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Practice API Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Practice API Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -391,7 +389,7 @@ class PracticeApiTest extends TestCase
         if ($released) {
             $service = new ReleaseAssessmentItemRevision(
                 new TransactionManager(
-                    new PostgresExceptionTranslator()
+                    new PostgresExceptionTranslator
                 )
             );
 

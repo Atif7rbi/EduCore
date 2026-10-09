@@ -9,10 +9,15 @@ use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class BuildExamGenerationTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_published_template_can_build_and_seal_generation(): void
     {
         [$templateVersionId, $versionId, $rules] =
@@ -100,10 +105,8 @@ class BuildExamGenerationTest extends TestCase
             'empty-rules-seed',
             [
                 [
-                    'assessment_item_revision_id' =>
-                        $revisionId,
-                    'assessment_item_id' =>
-                        $itemId,
+                    'assessment_item_revision_id' => $revisionId,
+                    'assessment_item_id' => $itemId,
                 ],
             ],
         );
@@ -238,7 +241,7 @@ SQL,
     {
         return new BuildExamGeneration(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -249,8 +252,7 @@ SQL,
     private function createTemplateVersion(
         bool $published,
         ?array $rulesOverride = null,
-    ): array
-    {
+    ): array {
         $subjectId = (string) Str::uuid();
         $curriculumId = (string) Str::uuid();
         $versionId = (string) Str::uuid();
@@ -265,20 +267,13 @@ SQL,
             ],
         ];
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Exam Build Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Exam Build Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -410,7 +405,7 @@ SQL,
         if ($released) {
             $service = new ReleaseAssessmentItemRevision(
                 new TransactionManager(
-                    new PostgresExceptionTranslator()
+                    new PostgresExceptionTranslator
                 )
             );
 

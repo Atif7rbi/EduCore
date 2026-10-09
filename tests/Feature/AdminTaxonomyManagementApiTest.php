@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminTaxonomyManagementApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_and_list_topic_in_draft_version(): void
@@ -148,8 +150,7 @@ class AdminTaxonomyManagementApiTest extends TestCase
             '/api/admin/skills',
             [
                 'name' => 'Ratio Reasoning',
-                'description' =>
-                    'Solve proportional relationships.',
+                'description' => 'Solve proportional relationships.',
             ]
         );
 
@@ -173,8 +174,7 @@ class AdminTaxonomyManagementApiTest extends TestCase
             "/api/admin/skills/{$skillId}",
             [
                 'name' => 'Ratio and Proportion',
-                'description' =>
-                    'Clarified skill description.',
+                'description' => 'Clarified skill description.',
             ]
         )
             ->assertOk()
@@ -326,24 +326,13 @@ class AdminTaxonomyManagementApiTest extends TestCase
     private function curriculumVersion(
         string $status,
     ): string {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -367,8 +356,7 @@ class AdminTaxonomyManagementApiTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $id,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'curriculum_version_id' => $curriculumVersionId,
             'name' => 'Topic '.Str::random(8),
             'display_order' => 0,
             'created_at' => now(),

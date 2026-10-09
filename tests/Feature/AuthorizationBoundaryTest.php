@@ -301,11 +301,19 @@ class AuthorizationBoundaryTest extends TestCase
                 "Active admin was rejected as unauthenticated for {$uri}"
             );
 
-            $this->assertNotSame(
-                403,
-                $response->getStatusCode(),
-                "Active admin was rejected by management boundary for {$uri}"
-            );
+            if ($response->getStatusCode() === 403) {
+                $this->assertNotSame(
+                    'getJson',
+                    $method,
+                    "Active admin read was rejected for {$uri}"
+                );
+
+                $this->assertSame(
+                    'admin_curriculum_content_read_only',
+                    $response->json('error.code'),
+                    "Active admin hit an unexpected authorization boundary for {$uri}"
+                );
+            }
         }
     }
 

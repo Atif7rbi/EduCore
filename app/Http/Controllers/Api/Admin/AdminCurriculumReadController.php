@@ -78,17 +78,68 @@ class AdminCurriculumReadController extends Controller
 
         $curricula = Curriculum::query()
             ->where('subject_id', $subject->id)
+            ->with([
+                'teacherSubjectAssignment.teacher',
+            ])
             ->orderBy('name')
             ->orderBy('id')
             ->get()
-            ->map(fn (Curriculum $curriculum): array => [
-                'id' => $curriculum->id,
-                'subject_id' => $curriculum->subject_id,
-                'education_stage_id' => $curriculum->education_stage_id,
-                'name' => $curriculum->name,
-                'created_at' => $curriculum->created_at?->toISOString(),
-                'updated_at' => $curriculum->updated_at?->toISOString(),
-            ])
+            ->map(function (
+                Curriculum $curriculum
+            ) use ($subject): array {
+                $assignment =
+                    $curriculum
+                        ->teacherSubjectAssignment;
+
+                $teacher =
+                    $assignment?->teacher;
+
+                $teacherOwned =
+                    $curriculum
+                        ->teacher_subject_assignment_id
+                    !== null;
+
+                return [
+                    'id' => $curriculum->id,
+                    'subject_id' => $curriculum->subject_id,
+                    'education_stage_id' => $curriculum->education_stage_id,
+
+                    'teacher_subject_assignment_id' => $curriculum
+                        ->teacher_subject_assignment_id,
+
+                    'ownership_kind' => $teacherOwned
+                            ? 'teacher_owned'
+                            : 'legacy_ownerless',
+
+                    'teacher_user_id' => $teacher?->id,
+
+                    'teacher_subject_assignment_status' => $assignment?->status,
+
+                    'teacher' => $teacher !== null
+                            ? [
+                                'user_id' => $teacher->id,
+                                'name' => $teacher->name,
+                                'email' => $teacher->email,
+                                'status' => $teacher->status,
+                            ]
+                            : null,
+
+                    'subject' => [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'status' => $subject->status,
+                    ],
+
+                    'name' => $curriculum->name,
+                    'created_at' => $curriculum
+                        ->created_at
+                        ?->toISOString(),
+                    'updated_at' => $curriculum
+                        ->updated_at
+                        ?->toISOString(),
+                ];
+            })
             ->values()
             ->all();
 

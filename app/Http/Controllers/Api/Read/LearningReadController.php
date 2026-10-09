@@ -2,23 +2,44 @@
 
 namespace App\Http\Controllers\Api\Read;
 
+use App\Application\Authorization\FilterActiveLearnerCurriculumRead;
+use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Models\Lesson;
 use App\Models\PracticeActivity;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class LearningReadController extends Controller
 {
-    public function lesson(string $lessonId): JsonResponse
-    {
+    public function lesson(
+        string $lessonId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
+    ): JsonResponse {
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
         $lesson = Lesson::query()
             ->where('status', 'published')
             ->whereNotNull('published_revision_id')
             ->whereHas(
                 'curriculumVersion',
-                fn ($query) => $query
-                    ->where('status', 'published')
+                function ($query) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $access->versions(
+                        $query,
+                        $learner->id,
+                    )->where(
+                        'status',
+                        'published',
+                    );
+                },
             )
             ->with([
                 'publishedRevision',
@@ -60,13 +81,30 @@ class LearningReadController extends Controller
 
     public function practiceActivity(
         string $practiceActivityId,
+        Request $request,
+        AuthenticatedLearner $learnerContext,
+        FilterActiveLearnerCurriculumRead $access,
     ): JsonResponse {
+        $learner = $learnerContext->resolve(
+            $request->user()
+        );
+
         $activity = PracticeActivity::query()
             ->where('status', 'active')
             ->whereHas(
                 'curriculumVersion',
-                fn ($query) => $query
-                    ->where('status', 'published')
+                function ($query) use (
+                    $access,
+                    $learner,
+                ): void {
+                    $access->versions(
+                        $query,
+                        $learner->id,
+                    )->where(
+                        'status',
+                        'published',
+                    );
+                },
             )
             ->where(function ($query): void {
                 $query

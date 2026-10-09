@@ -6,20 +6,31 @@ use App\Application\Analytics\CreateEvidenceScope;
 use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Attempt\AddRegradeCorrection;
 use App\Application\Attempt\BuildExamAttempt;
+use App\Application\Attempt\BuildPracticeAttempt;
 use App\Application\Attempt\FinalizeAttempt;
 use App\Application\Attempt\SaveAttemptResponse;
+use App\Application\Curriculum\EvaluateCurriculumVersionReadiness;
 use App\Application\Curriculum\PublishCurriculumVersion;
+use App\Application\Enrollment\AcceptStudentEnrollment;
+use App\Application\Enrollment\RequestStudentEnrollment;
 use App\Application\Exam\BuildExamGeneration;
+use App\Application\Exceptions\CurriculumVersionNotReady;
 use App\Application\Learning\ReleaseLessonRevision;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ParentLockProtocolTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_c1_curriculum_publish_serializes_with_structural_child_mutation(): void
     {
         [
@@ -89,7 +100,7 @@ PHP_CODE,
             );
 
             $this->assertSame(
-                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                CurriculumVersionNotReady::class,
                 $result['class'] ?? null
             );
 
@@ -104,8 +115,7 @@ PHP_CODE,
                 'topics',
                 [
                     'id' => $topicId,
-                    'curriculum_version_id' =>
-                        $versionId,
+                    'curriculum_version_id' => $versionId,
                 ]
             );
         } finally {
@@ -212,7 +222,7 @@ PHP_CODE,
             );
 
             $this->assertSame(
-                \App\Application\Exceptions\CurriculumVersionNotReady::class,
+                CurriculumVersionNotReady::class,
                 $result['class'] ?? null
             );
 
@@ -270,7 +280,7 @@ PHP_CODE,
              * held until the explicit COMMIT below.
              */
             $published = app(
-                \App\Application\Curriculum\PublishCurriculumVersion::class
+                PublishCurriculumVersion::class
             )->execute(
                 $versionId
             );
@@ -569,9 +579,33 @@ PHP_CODE,
             $fixture['revision_id']
         );
 
+        DB::table('lessons')
+            ->where(
+                'id',
+                $fixture['lesson_id']
+            )
+            ->update([
+                'status' => 'published',
+                'published_revision_id' => $fixture['revision_id'],
+                'updated_at' => now(),
+            ]);
+
+        $this->ensureCurriculumPublishingReadiness(
+            $fixture['version_id']
+        );
+
+        $this->publishCurriculum(
+            $fixture['version_id']
+        );
+
         [
             $learnerId,
         ] = $this->createLearner();
+
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $fixture['version_id'],
+        );
 
         DB::beginTransaction();
 
@@ -590,7 +624,7 @@ PHP_CODE,
 try {
     $result = app(
         \App\Application\Learning\RecordLessonProgress::class
-    )->execute(%s, %s);
+    )->execute(%s, %s, %s);
 
     file_put_contents(
         %s,
@@ -610,9 +644,13 @@ try {
     );
 }
 PHP_CODE,
+                    var_export(
+                        $this->authenticatedUserId($learnerId),
+                        true
+                    ),
                     var_export($learnerId, true),
                     var_export(
-                        $fixture['revision_id'],
+                        $fixture['lesson_id'],
                         true
                     ),
                     'NULL_SIGNAL_FILE',
@@ -700,14 +738,10 @@ PHP_CODE,
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $activityId,
-            'assessment_item_revision_id' =>
-                $first['revision_id'],
-            'assessment_item_id' =>
-                $first['item_id'],
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $activityId,
+            'assessment_item_revision_id' => $first['revision_id'],
+            'assessment_item_id' => $first['item_id'],
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -736,14 +770,10 @@ PHP_CODE,
                 'practice_activity_items'
             )->insert([
                 'id' => (string) Str::uuid(),
-                'practice_activity_id' =>
-                    $activityId,
-                'assessment_item_revision_id' =>
-                    $second['revision_id'],
-                'assessment_item_id' =>
-                    $second['item_id'],
-                'curriculum_version_id' =>
-                    $versionId,
+                'practice_activity_id' => $activityId,
+                'assessment_item_revision_id' => $second['revision_id'],
+                'assessment_item_id' => $second['item_id'],
+                'curriculum_version_id' => $versionId,
                 'display_order' => 1,
                 'created_at' => now(),
             ]);
@@ -752,7 +782,7 @@ PHP_CODE,
                 'Published CurriculumVersion unexpectedly allowed Practice membership mutation.'
             );
         } catch (
-            \Illuminate\Database\QueryException $exception
+            QueryException $exception
         ) {
             $this->assertStringContainsString(
                 'is not draft',
@@ -764,9 +794,15 @@ PHP_CODE,
             $learnerId,
         ] = $this->createLearner();
 
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $versionId,
+        );
+
         $attempt = app(
-            \App\Application\Attempt\BuildPracticeAttempt::class
+            BuildPracticeAttempt::class
         )->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $activityId
         );
@@ -969,7 +1005,11 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
-                $fixture['attempt_id']
+                $this->authenticatedUserId(
+                    $fixture['learner_id']
+                ),
+                $fixture['learner_id'],
+                $fixture['attempt_id'],
             );
 
             $classificationId =
@@ -1340,6 +1380,8 @@ PHP_CODE,
 
     private ?string $signalFile = null;
 
+    private ?string $readyFile = null;
+
     /** @var resource|null */
     private $childProcess = null;
 
@@ -1365,6 +1407,19 @@ PHP_CODE,
 
         @unlink($this->signalFile);
 
+        $this->readyFile = tempnam(
+            sys_get_temp_dir(),
+            'educore-lock-ready-'
+        );
+
+        if ($this->readyFile === false) {
+            throw new RuntimeException(
+                'Unable to allocate concurrency READY file.'
+            );
+        }
+
+        @unlink($this->readyFile);
+
         /*
          * childCode was composed before signal allocation in
          * the caller, so substitute the placeholder path used
@@ -1378,6 +1433,47 @@ PHP_CODE,
             ),
             $childCode
         );
+
+        $readyPrelude = sprintf(
+            <<<'PHP'
+$__educoreReady =
+    \Illuminate\Support\Facades\DB::selectOne(
+        <<<'SQL'
+SELECT
+    pg_backend_pid() AS pid,
+    current_database() AS database_name,
+    current_user AS database_user
+SQL
+    );
+
+file_put_contents(
+    %s,
+    json_encode(
+        [
+            'pid' =>
+                (int) $__educoreReady->pid,
+            'database' =>
+                (string)
+                $__educoreReady->database_name,
+            'user' =>
+                (string)
+                $__educoreReady->database_user,
+        ],
+        JSON_THROW_ON_ERROR
+    ),
+    LOCK_EX
+);
+PHP,
+            var_export(
+                $this->readyFile,
+                true
+            ),
+        );
+
+        $childCode =
+            $readyPrelude
+            .PHP_EOL
+            .$childCode;
 
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -1419,13 +1515,180 @@ PHP_CODE,
         $process,
         string $message,
     ): void {
-        usleep(700000);
+        if (
+            DB::transactionLevel() < 1
+        ) {
+            throw new RuntimeException(
+                'ParentLockProtocol requires an open '
+                .'parent transaction while proving blocking.'
+            );
+        }
 
-        $status =
-            proc_get_status($process);
+        if ($this->readyFile === null) {
+            throw new RuntimeException(
+                'Child READY file was not allocated.'
+            );
+        }
+
+        $readyDeadline =
+            microtime(true) + 8.0;
+
+        do {
+            if (
+                is_file(
+                    $this->readyFile
+                )
+            ) {
+                break;
+            }
+
+            $status =
+                proc_get_status($process);
+
+            if (! $status['running']) {
+                $this->fail(
+                    $message
+                    .' Child exited before READY.'
+                );
+            }
+
+            usleep(10_000);
+        } while (
+            microtime(true)
+                < $readyDeadline
+        );
+
+        $this->assertFileExists(
+            $this->readyFile,
+            $message
+            .' Child never reached PostgreSQL READY.'
+        );
+
+        $ready = json_decode(
+            (string) file_get_contents(
+                $this->readyFile
+            ),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_test',
+            $ready['database'] ?? null,
+            $message
+        );
+
+        $this->assertSame(
+            'sewaellf_educore_Admin',
+            $ready['user'] ?? null,
+            $message
+        );
+
+        $childPid =
+            (int) (
+                $ready['pid']
+                ?? 0
+            );
+
+        $this->assertGreaterThan(
+            0,
+            $childPid,
+            $message
+        );
+
+        $parent =
+            DB::selectOne(
+                'SELECT pg_backend_pid() AS pid'
+            );
+
+        $this->assertNotNull(
+            $parent,
+            $message
+        );
+
+        $parentPid =
+            (int) $parent->pid;
+
+        $blocked = false;
+        $wait = null;
+
+        $waitDeadline =
+            microtime(true) + 8.0;
+
+        do {
+            $wait =
+                DB::selectOne(
+                    <<<'SQL'
+SELECT
+    a.pid,
+    a.state,
+    a.wait_event_type,
+    a.wait_event,
+    (
+        ?::integer
+        = ANY(
+            pg_blocking_pids(a.pid)
+        )
+    ) AS blocked_by_parent
+FROM pg_stat_activity AS a
+WHERE a.pid = ?::integer
+SQL,
+                    [
+                        $parentPid,
+                        $childPid,
+                    ],
+                );
+
+            if (
+                $wait !== null
+                && $wait->wait_event_type
+                    === 'Lock'
+                && in_array(
+                    $wait->blocked_by_parent,
+                    [
+                        true,
+                        1,
+                        '1',
+                        't',
+                        'true',
+                    ],
+                    true,
+                )
+            ) {
+                $blocked = true;
+
+                break;
+            }
+
+            $status =
+                proc_get_status($process);
+
+            if (! $status['running']) {
+                $this->fail(
+                    $message
+                    .' Child exited before PostgreSQL '
+                    .'reported the expected lock wait.'
+                );
+            }
+
+            usleep(10_000);
+        } while (
+            microtime(true)
+                < $waitDeadline
+        );
 
         $this->assertTrue(
-            $status['running'],
+            $blocked,
+            $message
+            .' PostgreSQL never reported the child '
+            .'blocked by the exact parent backend.'
+        );
+
+        $this->assertSame(
+            'Lock',
+            $wait->wait_event_type
+                ?? null,
             $message
         );
 
@@ -1536,6 +1799,12 @@ PHP_CODE,
         }
 
         $this->signalFile = null;
+
+        if ($this->readyFile !== null) {
+            @unlink($this->readyFile);
+        }
+
+        $this->readyFile = null;
     }
 
     private function rollbackIfNeeded(): void
@@ -1550,24 +1819,18 @@ PHP_CODE,
      */
     private function createCurriculumVersion(): array
     {
-        $subjectId = (string) Str::uuid();
-        $curriculumId = (string) Str::uuid();
+        $subjectId =
+            $this->canonicalSubjectId();
+        $curriculumId = null;
         $versionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Concurrency Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Concurrency Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Concurrency Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,
@@ -1894,9 +2157,15 @@ PHP_CODE,
             $learnerId,
         ] = $this->createLearner();
 
+        $this->activateEnrollmentForVersion(
+            $learnerId,
+            $generation['version_id'],
+        );
+
         $attempt = app(
             BuildExamAttempt::class
         )->execute(
+            $this->authenticatedUserId($learnerId),
             $learnerId,
             $generation['generation_id'],
         );
@@ -1919,6 +2188,8 @@ PHP_CODE,
             app(
                 SaveAttemptResponse::class
             )->execute(
+                $this->authenticatedUserId($learnerId),
+                $learnerId,
                 $attemptItemId,
                 [
                     'selected_option' => 1,
@@ -1931,7 +2202,9 @@ PHP_CODE,
             app(
                 FinalizeAttempt::class
             )->execute(
-                $attempt->id
+                $this->authenticatedUserId($learnerId),
+                $learnerId,
+                $attempt->id,
             );
         }
 
@@ -1957,6 +2230,98 @@ PHP_CODE,
             'generation_id' => $generation['generation_id'],
             'version_id' => $generation['version_id'],
         ];
+    }
+
+    private function activateEnrollmentForVersion(
+        string $learnerId,
+        string $versionId,
+    ): void {
+        $curriculumId = DB::table(
+            'curriculum_versions'
+        )
+            ->where(
+                'id',
+                $versionId,
+            )
+            ->value('curriculum_id');
+
+        $this->assertIsString(
+            $curriculumId
+        );
+
+        $assignmentId = DB::table(
+            'curricula'
+        )
+            ->where(
+                'id',
+                $curriculumId,
+            )
+            ->value(
+                'teacher_subject_assignment_id'
+            );
+
+        $this->assertIsString(
+            $assignmentId
+        );
+
+        $userId = DB::table(
+            'learner_profiles'
+        )
+            ->where(
+                'id',
+                $learnerId,
+            )
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        $enrollment = app(
+            RequestStudentEnrollment::class
+        )->execute(
+            actorUserId: $userId,
+            learnerProfileId: $learnerId,
+            assignmentId: $assignmentId,
+            operationId: (string) Str::uuid(),
+            reason: 'Parent lock Phase F authorization fixture.',
+        );
+
+        $teacherId = DB::table(
+            'teacher_subject_assignments'
+        )
+            ->where(
+                'id',
+                $assignmentId,
+            )
+            ->value('teacher_id');
+
+        $this->assertIsString(
+            $teacherId
+        );
+
+        app(
+            AcceptStudentEnrollment::class
+        )->execute(
+            actorUserId: $teacherId,
+            enrollmentId: $enrollment->id,
+            operationId: (string) Str::uuid(),
+            reason: 'Parent lock Phase F fixture acceptance.',
+        );
+    }
+
+    private function authenticatedUserId(
+        string $learnerId,
+    ): string {
+        $userId = DB::table('learner_profiles')
+            ->where('id', $learnerId)
+            ->value('user_id');
+
+        $this->assertIsString(
+            $userId
+        );
+
+        return $userId;
     }
 
     /**
@@ -2018,8 +2383,7 @@ PHP_CODE,
                 $assessment['item_id']
             )
             ->update([
-                'published_revision_id' =>
-                    $assessment['revision_id'],
+                'published_revision_id' => $assessment['revision_id'],
                 'status' => 'published',
                 'updated_at' => now(),
             ]);
@@ -2032,10 +2396,8 @@ PHP_CODE,
 
         DB::table('lessons')->insert([
             'id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
-            'title' =>
-                "Publishing Ready Lesson {$lessonId}",
+            'curriculum_version_id' => $versionId,
+            'title' => "Publishing Ready Lesson {$lessonId}",
             'description' => null,
             'status' => 'draft',
             'display_order' => 0,
@@ -2047,11 +2409,9 @@ PHP_CODE,
         DB::table('lesson_revisions')->insert([
             'id' => $lessonRevisionId,
             'lesson_id' => $lessonId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'revision_number' => 1,
-            'primary_topic_id' =>
-                $assessment['topic_id'],
+            'primary_topic_id' => $assessment['topic_id'],
             'content_payload' => json_encode(
                 [
                     'type' => 'lesson',
@@ -2071,8 +2431,7 @@ PHP_CODE,
         DB::table('lessons')
             ->where('id', $lessonId)
             ->update([
-                'published_revision_id' =>
-                    $lessonRevisionId,
+                'published_revision_id' => $lessonRevisionId,
                 'status' => 'published',
                 'updated_at' => now(),
             ]);
@@ -2084,11 +2443,9 @@ PHP_CODE,
             'practice_activities'
         )->insert([
             'id' => $practiceActivityId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'lesson_id' => null,
-            'name' =>
-                "Publishing Ready Practice {$practiceActivityId}",
+            'name' => "Publishing Ready Practice {$practiceActivityId}",
             'description' => null,
             'status' => 'archived',
             'created_at' => now(),
@@ -2099,14 +2456,10 @@ PHP_CODE,
             'practice_activity_items'
         )->insert([
             'id' => (string) Str::uuid(),
-            'practice_activity_id' =>
-                $practiceActivityId,
-            'assessment_item_revision_id' =>
-                $assessment['revision_id'],
-            'assessment_item_id' =>
-                $assessment['item_id'],
-            'curriculum_version_id' =>
-                $versionId,
+            'practice_activity_id' => $practiceActivityId,
+            'assessment_item_revision_id' => $assessment['revision_id'],
+            'assessment_item_id' => $assessment['item_id'],
+            'curriculum_version_id' => $versionId,
             'display_order' => 0,
             'created_at' => now(),
         ]);
@@ -2129,10 +2482,8 @@ PHP_CODE,
 
         DB::table('exam_templates')->insert([
             'id' => $examTemplateId,
-            'curriculum_version_id' =>
-                $versionId,
-            'name' =>
-                "Publishing Ready Exam {$examTemplateId}",
+            'curriculum_version_id' => $versionId,
+            'name' => "Publishing Ready Exam {$examTemplateId}",
             'description' => null,
             'status' => 'active',
             'published_version_id' => null,
@@ -2144,10 +2495,8 @@ PHP_CODE,
             'exam_template_versions'
         )->insert([
             'id' => $examTemplateVersionId,
-            'exam_template_id' =>
-                $examTemplateId,
-            'curriculum_version_id' =>
-                $versionId,
+            'exam_template_id' => $examTemplateId,
+            'curriculum_version_id' => $versionId,
             'version_number' => 1,
             'label' => 'Publishing Ready v1',
             'status' => 'draft',
@@ -2180,13 +2529,12 @@ PHP_CODE,
                 $examTemplateId
             )
             ->update([
-                'published_version_id' =>
-                    $examTemplateVersionId,
+                'published_version_id' => $examTemplateVersionId,
                 'updated_at' => now(),
             ]);
 
         $readiness = app(
-            \App\Application\Curriculum\EvaluateCurriculumVersionReadiness::class
+            EvaluateCurriculumVersionReadiness::class
         )->execute(
             $versionId
         );
@@ -2202,17 +2550,12 @@ PHP_CODE,
         }
 
         return [
-            'practice_activity_id' =>
-                $practiceActivityId,
-            'assessment_item_id' =>
-                $assessment['item_id'],
-            'assessment_revision_id' =>
-                $assessment['revision_id'],
+            'practice_activity_id' => $practiceActivityId,
+            'assessment_item_id' => $assessment['item_id'],
+            'assessment_revision_id' => $assessment['revision_id'],
             'lesson_id' => $lessonId,
-            'exam_template_id' =>
-                $examTemplateId,
-            'exam_template_version_id' =>
-                $examTemplateVersionId,
+            'exam_template_id' => $examTemplateId,
+            'exam_template_version_id' => $examTemplateVersionId,
         ];
     }
 

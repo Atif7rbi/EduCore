@@ -9,10 +9,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\TestCase;
 
 class MeasurementPipelineRegressionTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_historical_evidence_regrade_rebuild_and_read_pipeline_preserves_measurement_semantics(): void
@@ -79,14 +81,12 @@ class MeasurementPipelineRegressionTest extends TestCase
 
         DB::table('regrade_corrections')->insert([
             'id' => (string) Str::uuid(),
-            'attempt_response_id' =>
-                $singlePrimary[
+            'attempt_response_id' => $singlePrimary[
                     'attempt_response_id'
                 ],
             'correction_number' => 1,
             'corrected_is_correct' => true,
-            'reason' =>
-                'A7.6 measurement pipeline regression',
+            'reason' => 'A7.6 measurement pipeline regression',
             'corrected_at' => now(),
             'created_at' => now(),
         ]);
@@ -242,32 +242,19 @@ class MeasurementPipelineRegressionTest extends TestCase
         $practiceActivityId =
             (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' =>
-                'A7.6 Subject '
-                .Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' =>
-                'A7.6 Curriculum '
-                .Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table(
             'curriculum_versions'
         )->insert([
-            'id' =>
-                $curriculumVersionId,
-            'curriculum_id' =>
-                $curriculumId,
+            'id' => $curriculumVersionId,
+            'curriculum_id' => $curriculumId,
             'version_number' => 1,
             'label' => 'A7.6 v1',
             'status' => 'draft',
@@ -277,10 +264,8 @@ class MeasurementPipelineRegressionTest extends TestCase
 
         DB::table('topics')->insert([
             'id' => $topicId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
-            'name' =>
-                'A7.6 Topic '
+            'curriculum_version_id' => $curriculumVersionId,
+            'name' => 'A7.6 Topic '
                 .Str::random(8),
             'display_order' => 0,
             'created_at' => now(),
@@ -289,19 +274,15 @@ class MeasurementPipelineRegressionTest extends TestCase
 
         DB::table('skills')->insert([
             [
-                'id' =>
-                    $targetSkillId,
-                'name' =>
-                    'A7.6 Target Skill',
+                'id' => $targetSkillId,
+                'name' => 'A7.6 Target Skill',
                 'description' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'id' =>
-                    $otherSkillId,
-                'name' =>
-                    'A7.6 Other Skill',
+                'id' => $otherSkillId,
+                'name' => 'A7.6 Other Skill',
                 'description' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -311,13 +292,10 @@ class MeasurementPipelineRegressionTest extends TestCase
         DB::table(
             'practice_activities'
         )->insert([
-            'id' =>
-                $practiceActivityId,
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'id' => $practiceActivityId,
+            'curriculum_version_id' => $curriculumVersionId,
             'lesson_id' => null,
-            'name' =>
-                'A7.6 Practice '
+            'name' => 'A7.6 Practice '
                 .Str::random(8),
             'description' => null,
             'status' => 'archived',
@@ -331,42 +309,32 @@ class MeasurementPipelineRegressionTest extends TestCase
             'A7.6 Explicit Scope',
             'Measurement pipeline regression scope',
             [
-                'opaque' =>
-                    'a7.6-regression',
+                'opaque' => 'a7.6-regression',
             ],
             1,
         );
 
         return [
-            'user_id' =>
-                $user->id,
+            'user_id' => $user->id,
 
-            'learner_profile_id' =>
-                $learner->id,
+            'learner_profile_id' => $learner->id,
 
-            'curriculum_version_id' =>
-                $curriculumVersionId,
+            'curriculum_version_id' => $curriculumVersionId,
 
-            'primary_topic_id' =>
-                $topicId,
+            'primary_topic_id' => $topicId,
 
-            'target_skill_id' =>
-                $targetSkillId,
+            'target_skill_id' => $targetSkillId,
 
-            'other_skill_id' =>
-                $otherSkillId,
+            'other_skill_id' => $otherSkillId,
 
-            'practice_activity_id' =>
-                $practiceActivityId,
+            'practice_activity_id' => $practiceActivityId,
 
-            'evidence_scope_id' =>
-                $scope->id,
+            'evidence_scope_id' => $scope->id,
         ];
     }
 
     /**
-     * @param array<int, array{0: string, 1: string}> $classifications
-     *
+     * @param  array<int, array{0: string, 1: string}>  $classifications
      * @return array{
      *     attempt_id: string,
      *     attempt_response_id: string
@@ -395,25 +363,20 @@ class MeasurementPipelineRegressionTest extends TestCase
         DB::table(
             'assessment_items'
         )->insert([
-            'id' =>
-                $assessmentItemId,
+            'id' => $assessmentItemId,
 
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
 
-            'item_type' =>
-                'multiple_choice',
+            'item_type' => 'multiple_choice',
 
-            'internal_label' =>
-                'A7.6 Item '
+            'internal_label' => 'A7.6 Item '
                 .Str::random(8),
 
             'status' => 'draft',
 
-            'published_revision_id' =>
-                null,
+            'published_revision_id' => null,
 
             'created_at' => now(),
             'updated_at' => now(),
@@ -422,44 +385,37 @@ class MeasurementPipelineRegressionTest extends TestCase
         DB::table(
             'assessment_item_revisions'
         )->insert([
-            'id' =>
-                $revisionId,
+            'id' => $revisionId,
 
-            'assessment_item_id' =>
-                $assessmentItemId,
+            'assessment_item_id' => $assessmentItemId,
 
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
 
             'revision_number' => 1,
 
-            'primary_topic_id' =>
-                $fixture[
+            'primary_topic_id' => $fixture[
                     'primary_topic_id'
                 ],
 
             'difficulty' => 'easy',
 
-            'content_payload' =>
-                json_encode(
-                    [
-                        'stem' =>
-                            'A7.6 measurement item',
-                    ],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'content_payload' => json_encode(
+                [
+                    'stem' => 'A7.6 measurement item',
+                ],
+                JSON_THROW_ON_ERROR,
+            ),
 
             'content_schema_version' => 1,
 
-            'scoring_payload' =>
-                json_encode(
-                    [
-                        'correct_option' => 0,
-                    ],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'scoring_payload' => json_encode(
+                [
+                    'correct_option' => 0,
+                ],
+                JSON_THROW_ON_ERROR,
+            ),
 
             'scoring_schema_version' => 1,
 
@@ -471,20 +427,17 @@ class MeasurementPipelineRegressionTest extends TestCase
         DB::table('attempts')->insert([
             'id' => $attemptId,
 
-            'learner_profile_id' =>
-                $fixture[
+            'learner_profile_id' => $fixture[
                     'learner_profile_id'
                 ],
 
             'exam_generation_id' => null,
 
-            'practice_activity_id' =>
-                $fixture[
+            'practice_activity_id' => $fixture[
                     'practice_activity_id'
                 ],
 
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
 
@@ -503,46 +456,38 @@ class MeasurementPipelineRegressionTest extends TestCase
             'id' => $attemptItemId,
             'attempt_id' => $attemptId,
 
-            'assessment_item_revision_id' =>
-                $revisionId,
+            'assessment_item_revision_id' => $revisionId,
 
-            'assessment_item_id' =>
-                $assessmentItemId,
+            'assessment_item_id' => $assessmentItemId,
 
-            'curriculum_version_id' =>
-                $fixture[
+            'curriculum_version_id' => $fixture[
                     'curriculum_version_id'
                 ],
 
             'exam_generation_id' => null,
-            'exam_generation_item_id' =>
-                null,
+            'exam_generation_item_id' => null,
 
             'presentation_position' => 0,
 
-            'presented_payload' =>
-                json_encode(
-                    [
-                        'stem' =>
-                            'A7.6 measurement item',
-                    ],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'presented_payload' => json_encode(
+                [
+                    'stem' => 'A7.6 measurement item',
+                ],
+                JSON_THROW_ON_ERROR,
+            ),
 
             'presented_schema_version' => 1,
 
-            'scoring_snapshot' =>
-                json_encode(
-                    [
-                        'correct_option' => 0,
-                    ],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'scoring_snapshot' => json_encode(
+                [
+                    'correct_option' => 0,
+                ],
+                JSON_THROW_ON_ERROR,
+            ),
 
             'scoring_schema_version' => 1,
 
-            'primary_topic_id' =>
-                $fixture[
+            'primary_topic_id' => $fixture[
                     'primary_topic_id'
                 ],
 
@@ -550,23 +495,18 @@ class MeasurementPipelineRegressionTest extends TestCase
         ]);
 
         foreach (
-            $classifications
-            as [$skillId, $role]
+            $classifications as [$skillId, $role]
         ) {
             DB::table(
                 'attempt_item_classification_skills'
             )->insert([
-                'id' =>
-                    (string) Str::uuid(),
+                'id' => (string) Str::uuid(),
 
-                'attempt_item_id' =>
-                    $attemptItemId,
+                'attempt_item_id' => $attemptItemId,
 
-                'skill_id' =>
-                    $skillId,
+                'skill_id' => $skillId,
 
-                'role' =>
-                    $role,
+                'role' => $role,
 
                 'created_at' => now(),
             ]);
@@ -577,26 +517,22 @@ class MeasurementPipelineRegressionTest extends TestCase
         )->insert([
             'id' => $responseId,
 
-            'attempt_item_id' =>
-                $attemptItemId,
+            'attempt_item_id' => $attemptItemId,
 
-            'response_payload' =>
-                json_encode(
-                    [
-                        'selected_option' =>
-                            $isCorrect
-                                ? 0
-                                : 1,
-                    ],
-                    JSON_THROW_ON_ERROR,
-                ),
+            'response_payload' => json_encode(
+                [
+                    'selected_option' => $isCorrect
+                            ? 0
+                            : 1,
+                ],
+                JSON_THROW_ON_ERROR,
+            ),
 
             'answer_change_count' => 0,
 
             'time_spent_ms' => 100,
 
-            'original_is_correct' =>
-                $isCorrect,
+            'original_is_correct' => $isCorrect,
 
             'created_at' => now(),
             'updated_at' => now(),
@@ -624,11 +560,9 @@ class MeasurementPipelineRegressionTest extends TestCase
             ]);
 
         return [
-            'attempt_id' =>
-                $attemptId,
+            'attempt_id' => $attemptId,
 
-            'attempt_response_id' =>
-                $responseId,
+            'attempt_response_id' => $responseId,
         ];
     }
 }

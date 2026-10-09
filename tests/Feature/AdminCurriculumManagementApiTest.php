@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminCurriculumManagementApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_create_and_update_subject(): void
@@ -65,38 +67,34 @@ class AdminCurriculumManagementApiTest extends TestCase
             );
     }
 
-    public function test_admin_can_create_and_update_curriculum(): void
+    public function test_admin_curriculum_aggregate_writes_are_disabled(): void
     {
         $this->actingAs($this->admin());
 
         $subjectId = $this->subject();
 
-        $response = $this->postJson(
+        $this->postJson(
             "/api/admin/subjects/{$subjectId}/curricula",
             [
                 'name' => 'Qudrat Quantitative',
             ]
-        );
-
-        $response
-            ->assertCreated()
+        )
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.subject_id',
-                $subjectId
+                'error.code',
+                'admin_curriculum_authoring_disabled'
             );
 
-        $curriculumId = $response->json('data.id');
-
         $this->putJson(
-            "/api/admin/curricula/{$curriculumId}",
+            '/api/admin/curricula/'.Str::uuid(),
             [
                 'name' => 'Qudrat Quantitative Core',
             ]
         )
-            ->assertOk()
+            ->assertStatus(409)
             ->assertJsonPath(
-                'data.name',
-                'Qudrat Quantitative Core'
+                'error.code',
+                'admin_curriculum_authoring_disabled'
             );
     }
 
@@ -261,18 +259,10 @@ class AdminCurriculumManagementApiTest extends TestCase
 
     private function curriculum(): string
     {
-        $subjectId = $this->subject();
-
-        $id = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $id,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(8),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return $id;
+        return $this
+            ->createHistoricalOwnerlessCurriculumFixture(
+                'Curriculum '.Str::random(8),
+            )
+            ->id;
     }
 }

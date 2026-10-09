@@ -62,6 +62,26 @@ function NavigationIcon({
         'aria-hidden': true,
     };
 
+    if (to.endsWith('/students')) {
+        return (
+            <svg {...common}>
+                <circle cx="12" cy="8" r="3" />
+                <path d="M6 20a6 6 0 0 1 12 0" />
+                <path d="M4 6l8-3 8 3-8 3-8-3Z" />
+            </svg>
+        );
+    }
+
+    if (to.endsWith('/teachers')) {
+        return (
+            <svg {...common}>
+                <circle cx="12" cy="7" r="3" />
+                <path d="M5 20a7 7 0 0 1 14 0" />
+                <path d="M4 4h4M16 4h4" />
+            </svg>
+        );
+    }
+
     if (to.endsWith('/content')) {
         return (
             <svg {...common}>
@@ -309,6 +329,8 @@ export const learnerNavigation: NavigationItem[] = [
 
 export const adminNavigation: NavigationItem[] = [
     { label: 'الرئيسية', to: '/admin', end: true },
+    { label: 'المعلمون', to: '/admin/teachers' },
+    { label: 'الطلاب', to: '/admin/students' },
     { label: 'المناهج', to: '/admin/curricula' },
     { label: 'المحتوى', to: '/admin/content' },
 ];

@@ -19,6 +19,7 @@ import {
 } from './api';
 
 import type {
+    Curriculum,
     CurriculumVersion,
 } from './types';
 
@@ -34,6 +35,9 @@ interface ContentContextSelectorProps {
     ) => void;
     onCurriculumVersionChange: (
         value: string | null,
+    ) => void;
+    onCurriculumResolved: (
+        curriculum: Curriculum | null,
     ) => void;
     onVersionResolved: (
         version: CurriculumVersion | null,
@@ -60,6 +64,7 @@ export function ContentContextSelector({
     onSubjectChange,
     onCurriculumChange,
     onCurriculumVersionChange,
+    onCurriculumResolved,
     onVersionResolved,
 }: ContentContextSelectorProps) {
     const subjectsQuery = useQuery({
@@ -169,6 +174,15 @@ export function ContentContextSelector({
                 version.id
                 === curriculumVersionId,
         ) ?? null;
+
+    useEffect(() => {
+        onCurriculumResolved(
+            selectedCurriculum,
+        );
+    }, [
+        onCurriculumResolved,
+        selectedCurriculum,
+    ]);
 
     useEffect(() => {
         onVersionResolved(

@@ -232,8 +232,10 @@ function publishErrorMessage(
 export function ContentReadinessPanel({
     version,
     onNavigateToSection,
+    readOnly = false,
 }: {
     version: CurriculumVersion;
+    readOnly?: boolean;
     onNavigateToSection?: (
         section: ReadinessTargetSection,
     ) => void;
@@ -557,7 +559,8 @@ export function ContentReadinessPanel({
                                                             }
                                                         </p>
 
-                                                        {onNavigateToSection ? (
+                                                        {onNavigateToSection
+                                                        && !readOnly ? (
                                                             <Button
                                                                 type="button"
                                                                 size="sm"
@@ -661,7 +664,14 @@ export function ContentReadinessPanel({
                 </Feedback>
             ) : null}
 
-            {canPublish ? (
+            {readOnly ? (
+                <Feedback tone="info">
+                    وضع استعراض فقط. صلاحية نشر أو
+                    تعديل هذه النسخة تعود إلى مالك
+                    المحتوى التعليمي وليست متاحة
+                    للـAdmin.
+                </Feedback>
+            ) : canPublish ? (
                 <Surface className="admin-readiness__publish-card" elevated>
                     <div className="foundation-stack">
                         <Feedback tone="warning">

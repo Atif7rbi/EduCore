@@ -17,6 +17,14 @@ import {
     adminDashboardKey,
     fetchAdminDashboard,
 } from './dashboard/api';
+import {
+    adminTeachersKey,
+    fetchAdminTeachers,
+} from './operations/api';
+import {
+    adminStudentsKey,
+    fetchAdminStudents,
+} from './operations/studentApi';
 
 function requestId(error: unknown) {
     return error instanceof EduCoreApiError
@@ -120,7 +128,68 @@ export function AdminDashboardPage() {
         queryFn: fetchAdminDashboard,
     });
 
+    const teachersQuery = useQuery({
+        queryKey: adminTeachersKey(),
+        queryFn: fetchAdminTeachers,
+    });
+
+    const studentsQuery = useQuery({
+        queryKey: adminStudentsKey(),
+        queryFn: fetchAdminStudents,
+    });
+
     const data = dashboardQuery.data;
+
+    const operationalSummary =
+        teachersQuery.data
+        && studentsQuery.data
+            ? {
+                teachers:
+                    teachersQuery.data.length,
+
+                students:
+                    studentsQuery.data.length,
+
+                activeAssignments:
+                    teachersQuery.data.reduce(
+                        (
+                            total,
+                            teacher,
+                        ) =>
+                            total
+                            + teacher
+                                .assignment_counts
+                                .active,
+                        0,
+                    ),
+
+                pendingEnrollments:
+                    studentsQuery.data.reduce(
+                        (
+                            total,
+                            student,
+                        ) =>
+                            total
+                            + student
+                                .enrollment_counts
+                                .pending,
+                        0,
+                    ),
+
+                activeEnrollments:
+                    studentsQuery.data.reduce(
+                        (
+                            total,
+                            student,
+                        ) =>
+                            total
+                            + student
+                                .enrollment_counts
+                                .active,
+                        0,
+                    ),
+            }
+            : null;
     const id = requestId(dashboardQuery.error);
 
     return (
@@ -146,6 +215,117 @@ export function AdminDashboardPage() {
                 </Feedback>
             ) : data ? (
                 <>
+                    <section
+                        className="admin-dashboard__section"
+                        aria-labelledby="dashboard-operations"
+                    >
+                        <div className="admin-dashboard__section-heading">
+                            <div>
+                                <h2 id="dashboard-operations">
+                                    التشغيل الأكاديمي
+                                </h2>
+
+                                <p>
+                                    مؤشرات Phase G التشغيلية من
+                                    حسابات المعلمين والطلاب وعلاقات
+                                    الإسناد والتسجيل.
+                                </p>
+                            </div>
+
+                            <span className="admin-dashboard__live-badge">
+                                بيانات مباشرة
+                            </span>
+                        </div>
+
+                        {teachersQuery.isPending
+                        || studentsQuery.isPending ? (
+                            <div
+                                className="admin-dashboard__loading"
+                                aria-live="polite"
+                            >
+                                <span className="admin-dashboard__loading-dot" />
+                                جار تحميل المؤشرات التشغيلية…
+                            </div>
+                        ) : teachersQuery.isError
+                        || studentsQuery.isError ? (
+                            <Feedback tone="danger">
+                                تعذر تحميل المؤشرات التشغيلية
+                                للمعلمين والطلاب.
+                            </Feedback>
+                        ) : operationalSummary ? (
+                            <>
+                                <div className="admin-dashboard__stats-grid">
+                                    <StatCard
+                                        accent="blue"
+                                        icon="learners"
+                                        label="حسابات المعلمين"
+                                        value={
+                                            operationalSummary
+                                                .teachers
+                                        }
+                                        to="/admin/teachers"
+                                        hint="Teacher Users"
+                                    />
+
+                                    <StatCard
+                                        accent="cyan"
+                                        icon="learners"
+                                        label="حسابات الطلاب"
+                                        value={
+                                            operationalSummary
+                                                .students
+                                        }
+                                        to="/admin/students"
+                                        hint="Student Users"
+                                    />
+
+                                    <StatCard
+                                        accent="indigo"
+                                        icon="subjects"
+                                        label="إسنادات المواد النشطة"
+                                        value={
+                                            operationalSummary
+                                                .activeAssignments
+                                        }
+                                        to="/admin/teachers"
+                                        hint="TeacherSubjectAssignment"
+                                    />
+
+                                    <StatCard
+                                        accent="amber"
+                                        icon="learners"
+                                        label="طلبات التسجيل المعلقة"
+                                        value={
+                                            operationalSummary
+                                                .pendingEnrollments
+                                        }
+                                        to="/admin/students"
+                                        hint="بانتظار قرار المعلم"
+                                    />
+
+                                    <StatCard
+                                        accent="blue"
+                                        icon="learners"
+                                        label="التسجيلات النشطة"
+                                        value={
+                                            operationalSummary
+                                                .activeEnrollments
+                                        }
+                                        to="/admin/students"
+                                        hint="Raw enrollment state"
+                                    />
+                                </div>
+
+                                <Feedback tone="info">
+                                    أرقام التسجيلات أعلاه تمثل حالات
+                                    StudentEnrollment الخام فقط؛
+                                    التسجيل النشط لا يعني بمفرده أن
+                                    الطالب يملك وصولًا تعليميًا فعليًا.
+                                </Feedback>
+                            </>
+                        ) : null}
+                    </section>
+
                     <section className="admin-dashboard__section" aria-labelledby="dashboard-key-numbers">
                         <div className="admin-dashboard__section-heading">
                             <div>
@@ -156,11 +336,36 @@ export function AdminDashboardPage() {
                         </div>
 
                         <div className="admin-dashboard__stats-grid">
-                            <StatCard accent="blue" icon="learners" label="الطلاب" value={data.counts.learners} />
+                            <StatCard
+                                accent="blue"
+                                icon="learners"
+                                label="ملفات المتعلمين"
+                                value={data.counts.learners}
+                                hint="LearnerProfile"
+                            />
                             <StatCard accent="cyan" icon="lessons" label="الدروس" value={data.counts.lessons} to="/admin/content?section=lessons" />
                             <StatCard accent="indigo" icon="topics" label="الوحدات" value={data.counts.topics} to="/admin/content?section=topics" />
                             <StatCard accent="amber" icon="exams" label="الاختبارات" value={data.counts.exam_templates} to="/admin/content?section=exam-templates" />
-                            <StatCard accent="indigo" icon="curricula" label="المناهج" value={data.counts.curricula} to="/admin/curricula" />
+                            <StatCard
+                                accent="indigo"
+                                icon="curricula"
+                                label="مناهج مملوكة للمعلمين"
+                                value={
+                                    data.counts
+                                        .teacher_owned_curricula
+                                }
+                                to="/admin/curricula"
+                            />
+                            <StatCard
+                                accent="amber"
+                                icon="curricula"
+                                label="مناهج تاريخية بلا مالك"
+                                value={
+                                    data.counts
+                                        .legacy_ownerless_curricula
+                                }
+                                to="/admin/curricula"
+                            />
                             <StatCard accent="blue" icon="subjects" label="المواد" value={data.counts.subjects} to="/admin/curricula" />
                         </div>
                     </section>
@@ -180,8 +385,29 @@ export function AdminDashboardPage() {
                                     <strong>{formatCount(data.readiness.published_lessons)}</strong>
                                 </div>
                                 <div>
-                                    <span>المناهج المنشورة</span>
-                                    <strong>{formatCount(data.readiness.published_curriculum_versions)}</strong>
+                                    <span>
+                                        نسخ المناهج المنشورة —
+                                        مملوكة للمعلمين
+                                    </span>
+                                    <strong>
+                                        {formatCount(
+                                            data.readiness
+                                                .published_teacher_owned_curriculum_versions,
+                                        )}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>
+                                        نسخ المناهج المنشورة —
+                                        تاريخية بلا مالك
+                                    </span>
+                                    <strong>
+                                        {formatCount(
+                                            data.readiness
+                                                .published_legacy_ownerless_curriculum_versions,
+                                        )}
+                                    </strong>
                                 </div>
                                 <div>
                                     <span>التدريبات النشطة</span>
@@ -197,8 +423,11 @@ export function AdminDashboardPage() {
                         <Surface className="admin-dashboard__inventory">
                             <div className="admin-dashboard__section-heading admin-dashboard__section-heading--compact">
                                 <div>
-                                    <h2>مخزون التأليف</h2>
-                                    <p>العناصر التي يعتمد عليها فريق المحتوى أثناء البناء.</p>
+                                    <h2>مخزون المحتوى</h2>
+                                    <p>
+                                        عناصر المحتوى الحالية دون
+                                        استنتاج صلاحية التأليف منها.
+                                    </p>
                                 </div>
                             </div>
 
@@ -206,7 +435,6 @@ export function AdminDashboardPage() {
                                 <div><span><DashboardIcon name="skills" /> المهارات</span><strong>{formatCount(data.counts.skills)}</strong></div>
                                 <div><span><DashboardIcon name="questions" /> بنك الأسئلة</span><strong>{formatCount(data.counts.assessment_items)}</strong></div>
                                 <div><span><DashboardIcon name="practice" /> التدريبات</span><strong>{formatCount(data.counts.practice_activities)}</strong></div>
-                                <div><span><DashboardIcon name="curricula" /> إصدارات المناهج</span><strong>{formatCount(data.counts.curriculum_versions)}</strong></div>
                             </div>
                         </Surface>
                     </div>
@@ -220,14 +448,26 @@ export function AdminDashboardPage() {
                         </div>
 
                         <div className="admin-dashboard__quick-actions">
+                            <Link to="/admin/teachers">
+                                <span><DashboardIcon name="learners" /></span>
+                                <strong>إدارة المعلمين</strong>
+                                <small>الحسابات وإسنادات المواد</small>
+                            </Link>
+
+                            <Link to="/admin/students">
+                                <span><DashboardIcon name="learners" /></span>
+                                <strong>إدارة الطلاب</strong>
+                                <small>الهوية التعليمية والتسجيلات</small>
+                            </Link>
+
                             <Link to="/admin/curricula">
                                 <span><DashboardIcon name="curricula" /></span>
-                                <strong>إدارة المناهج</strong>
+                                <strong>استعراض المناهج</strong>
                                 <small>المواد، المناهج، والإصدارات</small>
                             </Link>
                             <Link to="/admin/content?section=lessons">
                                 <span><DashboardIcon name="lessons" /></span>
-                                <strong>إدارة المحتوى</strong>
+                                <strong>استعراض المحتوى</strong>
                                 <small>الوحدات، الدروس، والمهارات</small>
                             </Link>
                             <Link to="/admin/content?section=assessment-items">

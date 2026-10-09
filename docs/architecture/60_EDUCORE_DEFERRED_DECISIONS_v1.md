@@ -5,6 +5,8 @@ Version: 1.0
 
 A deferred decision is intentionally unresolved, not a documentation gap. No engineer may silently choose a default.
 
+CDA-009 is authoritative where it explicitly supersedes DD-008, DD-009, and DD-010. Those entries are reconciled below; broader deferred scope remains deferred.
+
 ## DD-001 Skill Home Topic cardinality
 Final 0..1 vs 0..N semantics deferred. Physical schema permits 0..N. Reopen when canonical Home Topic behavior is required.
 
@@ -27,8 +29,12 @@ Strong/Developing/Needs Attention thresholds/labels deferred.
 ## DD-007 Eligible Skill population for coverage
 Coverage denominator deferred; must be explicit.
 
-## DD-008 Learner→applicable CurriculumVersion assignment
-Enrollment/cohort/program/etc. model deferred. Never infer MAX/latest.
+## DD-008 Learner→applicable CurriculumVersion assignment — RESOLVED IN PART BY CDA-009
+For v1 current learner access, the relationship is resolved through LearnerProfile → StudentEnrollment → TeacherSubjectAssignment → Teacher-owned Curriculum, together with the complete Phase F authorization conjunction defined by CDA-009.
+
+An active StudentEnrollment alone is not sufficient evidence of effective learner access.
+
+Cohort, classroom, program, organization, and other applicability models remain deferred. Never infer MAX/latest.
 
 ## DD-009 Full role/permission model — RESOLVED FOR v1
 
@@ -60,9 +66,15 @@ Single-role v1 is intentional. If a later real product requirement needs simulta
 
 User actor identity and LearnerProfile learner identity remain distinct.
 
-A User is treated as a learner only when an actual LearnerProfile exists.
+CDA-009 supersedes the earlier optional-participation rule for Student users.
 
-`role = student` does not manufacture or imply a LearnerProfile.
+For a product-valid v1 Student:
+
+`User(role = student) 1 → exactly 1 LearnerProfile`
+
+A Student without exactly one LearnerProfile is not a valid steady-state product condition. Such malformed, transitional, or deliberately constructed test states must fail closed and must not gain learner capability.
+
+Before Phase G relies on Student total participation, the exact-data preflight defined by CDA-009 is mandatory. It may use only exact User/LearnerProfile keys and must not perform implicit creation, merging, reassignment, or attribute-based identity matching.
 
 Teacher or Admin users likewise do not become learners merely because they are authenticated.
 
@@ -84,20 +96,33 @@ Teacher is a recognized authenticated actor role in v1.
 
 Teacher receives no implicit Admin-equivalent management authority.
 
-Teacher supervision capabilities remain deferred until the Teacher Supervision domain is designed.
+CDA-009 resolves the TeacherSubjectAssignment and StudentEnrollment subset of Teacher supervision for v1. The owning active Teacher retains routine enrollment accept/decline authority and Teacher-owned Curriculum authoring authority within the separately frozen ownership model.
+
+Broader classroom, cohort, organization, and supervision capabilities remain deferred.
 
 ### Admin boundary
 
-Admin may perform the management operations explicitly assigned to the Admin boundary, including:
+Admin may perform only operations explicitly assigned to the Admin boundary.
 
-- curriculum/content lifecycle management
-- PracticeActivity configuration
-- ExamGeneration management
-- regrade operations
+CDA-009 supersedes the earlier generic grant of Admin curriculum/content lifecycle authority for Teacher-owned Curriculum.
 
-Adding `users.role` alone does not activate these capabilities.
+For Teacher-owned Curriculum and its educational-content descendants:
 
-The existing management boundary remains fail-closed until role and active-status enforcement are implemented and verified.
+- Admin read/inspection is allowed;
+- Admin authoring is not allowed;
+- Admin editing is not allowed;
+- Admin publishing/lifecycle mutation is not allowed;
+- Admin may not substitute for the owning Teacher.
+
+Historical ownerless Curriculum may retain separately approved compatibility behavior, but that compatibility is not a normal path for new Phase G authoring.
+
+Admin retains the already-approved operational authority over TeacherSubjectAssignment lifecycle and StudentEnrollment deactivation. Exceptional Admin relationship-correction authority is preserved by CDA-009, while its dedicated corrective UI/API remains outside Phase G v1.
+
+Regrade and other management operations remain governed by their separately approved boundaries.
+
+Adding `users.role` alone does not activate capabilities.
+
+The management boundary remains fail-closed and must enforce active-status and role authorization.
 
 ### User status enforcement
 
@@ -130,12 +155,14 @@ This keeps a future transition to capability-based or multi-role authorization l
 
 ### Resolution effect
 
-DD-009 is resolved sufficiently for v1 implementation.
+DD-009 is resolved sufficiently for v1 implementation as amended by CDA-009.
 
-Teacher Supervision remains independently deferred under DD-010.
+Student total participation in LearnerProfile, immutable single-role behavior, Teacher provisioning boundaries, TeacherSubjectAssignment, StudentEnrollment authority, and the Teacher-owned Curriculum Admin read-only boundary are governed by CDA-009.
 
-## DD-010 Teacher supervision domain
-Classroom/cohort/enrollment/assignment/supervision entities deferred.
+## DD-010 Teacher supervision domain — RESOLVED IN PART BY CDA-009
+TeacherSubjectAssignment and StudentEnrollment are resolved v1 domain relationships and are no longer deferred.
+
+Classroom, cohort, organization, broader supervision, and other relationships not explicitly resolved by CDA-009 remain deferred.
 
 ## DD-011 Privacy deletion/anonymization
 Historical RESTRICT remains. Explicit privacy workflow deferred.

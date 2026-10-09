@@ -1,6 +1,42 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController;
+use App\Http\Controllers\Api\Admin\AdminCurriculumManagementController;
+use App\Http\Controllers\Api\Admin\AdminCurriculumReadController;
+use App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController;
+use App\Http\Controllers\Api\Admin\AdminExamTemplateController;
+use App\Http\Controllers\Api\Admin\AdminLessonAuthoringController;
+use App\Http\Controllers\Api\Admin\AdminPracticeActivityController;
+use App\Http\Controllers\Api\Admin\AdminStudentEnrollmentReadController;
+use App\Http\Controllers\Api\Admin\AdminStudentReadController;
+use App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController;
+use App\Http\Controllers\Api\Admin\AdminTeacherController;
+use App\Http\Controllers\Api\Admin\AdminTeacherReadController;
+use App\Http\Controllers\Api\Admin\AdminTeacherSubjectAssignmentController;
+use App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController;
+use App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController;
+use App\Http\Controllers\Api\Attempt\AttemptConstructionController;
+use App\Http\Controllers\Api\Attempt\AttemptFinalizationController;
+use App\Http\Controllers\Api\Attempt\AttemptResponseController;
+use App\Http\Controllers\Api\Attempt\RegradeCorrectionController;
 use App\Http\Controllers\Api\Curriculum\CurriculumVersionLifecycleController;
+use App\Http\Controllers\Api\Enrollment\StudentEnrollmentLifecycleController;
+use App\Http\Controllers\Api\Exam\ExamGenerationController;
+use App\Http\Controllers\Api\Learning\LessonLifecycleController;
+use App\Http\Controllers\Api\Learning\LessonProgressController;
+use App\Http\Controllers\Api\Learning\LessonRevisionLifecycleController;
+use App\Http\Controllers\Api\Practice\PracticeActivityItemController;
+use App\Http\Controllers\Api\Read\AttemptReadController;
+use App\Http\Controllers\Api\Read\CurriculumReadController;
+use App\Http\Controllers\Api\Read\EvidenceScopeReadController;
+use App\Http\Controllers\Api\Read\ExamReadController;
+use App\Http\Controllers\Api\Read\LearningReadController;
+use App\Http\Controllers\Api\Read\ProgressReadController;
+use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
+use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherLessonAssessmentAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherPracticeExamAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -11,12 +47,16 @@ Route::get('/health', function () {
     ]);
 });
 
-Route::middleware(['web', 'management'])->group(function (): void {
+Route::middleware([
+    'web',
+    'management',
+    'management.curriculum-readonly',
+])->group(function (): void {
     Route::prefix('admin')->group(function (): void {
         Route::post(
             '/subjects',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'storeSubject',
             ]
         );
@@ -24,7 +64,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/subjects/{subjectId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'updateSubject',
             ]
         )->whereUuid('subjectId');
@@ -32,7 +72,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/subjects/{subjectId}/curricula',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'storeCurriculum',
             ]
         )->whereUuid('subjectId');
@@ -40,7 +80,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/curricula/{curriculumId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'updateCurriculum',
             ]
         )->whereUuid('curriculumId');
@@ -48,7 +88,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curricula/{curriculumId}/versions',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'storeVersion',
             ]
         )->whereUuid('curriculumId');
@@ -56,20 +96,20 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/curriculum-versions/{curriculumVersionId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumManagementController::class,
+                AdminCurriculumManagementController::class,
                 'updateVersion',
             ]
         )->whereUuid('curriculumVersionId');
 
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/readiness',
-            \App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController::class
+            AdminCurriculumReadinessController::class
         )->whereUuid('curriculumVersionId');
 
         Route::get(
             '/subjects',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                AdminCurriculumReadController::class,
                 'subjects',
             ]
         );
@@ -77,7 +117,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/education-stages',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                AdminCurriculumReadController::class,
                 'educationStages',
             ]
         );
@@ -85,7 +125,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/topics',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'topics',
             ]
         )->whereUuid('curriculumVersionId');
@@ -93,7 +133,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/topics',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'storeTopic',
             ]
         )->whereUuid('curriculumVersionId');
@@ -101,7 +141,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/topics/{topicId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'updateTopic',
             ]
         )->whereUuid('topicId');
@@ -109,7 +149,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'skills',
             ]
         );
@@ -117,7 +157,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'storeSkill',
             ]
         );
@@ -125,7 +165,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/skills/{skillId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'updateSkill',
             ]
         )->whereUuid('skillId');
@@ -133,7 +173,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/skill-placements',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'placements',
             ]
         )->whereUuid('curriculumVersionId');
@@ -141,7 +181,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/skill-placements',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'storePlacement',
             ]
         )->whereUuid('curriculumVersionId');
@@ -149,7 +189,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/skill-placements/{placementId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'destroyPlacement',
             ]
         )->whereUuid('placementId');
@@ -157,7 +197,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/skill-placements/{placementId}/home-topics',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'storeHomeTopic',
             ]
         )->whereUuid('placementId');
@@ -165,7 +205,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/exam-templates',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'index',
             ]
         )->whereUuid('curriculumVersionId');
@@ -173,7 +213,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/exam-templates',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'store',
             ]
         )->whereUuid('curriculumVersionId');
@@ -181,7 +221,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/exam-templates/{examTemplateId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'update',
             ]
         )->whereUuid('examTemplateId');
@@ -189,7 +229,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/exam-templates/{examTemplateId}/archive',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'archive',
             ]
         )->whereUuid('examTemplateId');
@@ -197,7 +237,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/exam-templates/{examTemplateId}/activate',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'activate',
             ]
         )->whereUuid('examTemplateId');
@@ -205,7 +245,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/exam-templates/{examTemplateId}/versions',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'versions',
             ]
         )->whereUuid('examTemplateId');
@@ -213,7 +253,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/exam-templates/{examTemplateId}/versions',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'storeVersion',
             ]
         )->whereUuid('examTemplateId');
@@ -221,7 +261,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/exam-template-versions/{examTemplateVersionId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'updateVersion',
             ]
         )->whereUuid('examTemplateVersionId');
@@ -229,7 +269,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/exam-template-versions/{examTemplateVersionId}/publish',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'publishVersion',
             ]
         )->whereUuid('examTemplateVersionId');
@@ -237,7 +277,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/exam-template-versions/{examTemplateVersionId}/retire',
             [
-                \App\Http\Controllers\Api\Admin\AdminExamTemplateController::class,
+                AdminExamTemplateController::class,
                 'retireVersion',
             ]
         )->whereUuid('examTemplateVersionId');
@@ -245,7 +285,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/practice-activities',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'index',
             ]
         )->whereUuid('curriculumVersionId');
@@ -253,7 +293,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/practice-activities',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'store',
             ]
         )->whereUuid('curriculumVersionId');
@@ -261,7 +301,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/practice-activities/{practiceActivityId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'update',
             ]
         )->whereUuid('practiceActivityId');
@@ -269,7 +309,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/practice-activities/{practiceActivityId}/activate',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'activate',
             ]
         )->whereUuid('practiceActivityId');
@@ -277,7 +317,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/practice-activities/{practiceActivityId}/archive',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'archive',
             ]
         )->whereUuid('practiceActivityId');
@@ -285,7 +325,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/practice-activities/{practiceActivityId}/items',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'items',
             ]
         )->whereUuid('practiceActivityId');
@@ -293,7 +333,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/practice-activities/{practiceActivityId}/items',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'storeItem',
             ]
         )->whereUuid('practiceActivityId');
@@ -301,7 +341,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/practice-activities/{practiceActivityId}/items/{practiceActivityItemId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminPracticeActivityController::class,
+                AdminPracticeActivityController::class,
                 'destroyItem',
             ]
         )
@@ -311,7 +351,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/assessment-items',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'items',
             ]
         )->whereUuid('curriculumVersionId');
@@ -319,7 +359,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/assessment-items',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'storeItem',
             ]
         )->whereUuid('curriculumVersionId');
@@ -327,7 +367,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/assessment-items/{assessmentItemId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'updateItem',
             ]
         )->whereUuid('assessmentItemId');
@@ -335,7 +375,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/assessment-items/{assessmentItemId}/revisions',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'revisions',
             ]
         )->whereUuid('assessmentItemId');
@@ -343,7 +383,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/assessment-items/{assessmentItemId}/revisions',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'storeRevision',
             ]
         )->whereUuid('assessmentItemId');
@@ -351,7 +391,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/assessment-item-revisions/{assessmentItemRevisionId}/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'revisionSkills',
             ]
         )->whereUuid('assessmentItemRevisionId');
@@ -359,7 +399,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/assessment-item-revisions/{assessmentItemRevisionId}/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'storeRevisionSkill',
             ]
         )->whereUuid('assessmentItemRevisionId');
@@ -367,7 +407,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/assessment-item-revisions/{assessmentItemRevisionId}/skills/{assessmentItemRevisionSkillId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController::class,
+                AdminAssessmentAuthoringController::class,
                 'destroyRevisionSkill',
             ]
         )
@@ -377,7 +417,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curriculum-versions/{curriculumVersionId}/lessons',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'lessons',
             ]
         )->whereUuid('curriculumVersionId');
@@ -385,7 +425,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/curriculum-versions/{curriculumVersionId}/lessons',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'storeLesson',
             ]
         )->whereUuid('curriculumVersionId');
@@ -393,7 +433,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::put(
             '/lessons/{lessonId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'updateLesson',
             ]
         )->whereUuid('lessonId');
@@ -401,7 +441,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/lessons/{lessonId}/revisions',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'revisions',
             ]
         )->whereUuid('lessonId');
@@ -409,7 +449,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/lessons/{lessonId}/revisions',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'storeRevision',
             ]
         )->whereUuid('lessonId');
@@ -417,7 +457,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/lesson-revisions/{lessonRevisionId}/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'revisionSkills',
             ]
         )->whereUuid('lessonRevisionId');
@@ -425,7 +465,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/lesson-revisions/{lessonRevisionId}/skills',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'storeRevisionSkill',
             ]
         )->whereUuid('lessonRevisionId');
@@ -433,7 +473,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/lesson-revisions/{lessonRevisionId}/skills/{lessonRevisionSkillId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminLessonAuthoringController::class,
+                AdminLessonAuthoringController::class,
                 'destroyRevisionSkill',
             ]
         )
@@ -443,7 +483,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/skill-placements/{placementId}/home-topics/{homeTopicId}',
             [
-                \App\Http\Controllers\Api\Admin\AdminTaxonomyManagementController::class,
+                AdminTaxonomyManagementController::class,
                 'destroyHomeTopic',
             ]
         )
@@ -453,7 +493,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/subjects/{subjectId}/curricula',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                AdminCurriculumReadController::class,
                 'curricula',
             ]
         )->whereUuid('subjectId');
@@ -461,7 +501,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::get(
             '/curricula/{curriculumId}/versions',
             [
-                \App\Http\Controllers\Api\Admin\AdminCurriculumReadController::class,
+                AdminCurriculumReadController::class,
                 'versions',
             ]
         )->whereUuid('curriculumId');
@@ -483,7 +523,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{lessonRevisionId}/release',
             [
-                \App\Http\Controllers\Api\Learning\LessonRevisionLifecycleController::class,
+                LessonRevisionLifecycleController::class,
                 'release',
             ]
         )->whereUuid('lessonRevisionId');
@@ -493,7 +533,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{lessonId}/publish',
             [
-                \App\Http\Controllers\Api\Learning\LessonLifecycleController::class,
+                LessonLifecycleController::class,
                 'publish',
             ]
         )->whereUuid('lessonId');
@@ -501,7 +541,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{lessonId}/unpublish',
             [
-                \App\Http\Controllers\Api\Learning\LessonLifecycleController::class,
+                LessonLifecycleController::class,
                 'unpublish',
             ]
         )->whereUuid('lessonId');
@@ -511,7 +551,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{assessmentItemRevisionId}/release',
             [
-                \App\Http\Controllers\Api\Assessment\AssessmentItemRevisionLifecycleController::class,
+                AssessmentItemRevisionLifecycleController::class,
                 'release',
             ]
         )->whereUuid('assessmentItemRevisionId');
@@ -521,7 +561,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{assessmentItemId}/publish',
             [
-                \App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController::class,
+                AssessmentItemLifecycleController::class,
                 'publish',
             ]
         )->whereUuid('assessmentItemId');
@@ -529,7 +569,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{assessmentItemId}/retire',
             [
-                \App\Http\Controllers\Api\Assessment\AssessmentItemLifecycleController::class,
+                AssessmentItemLifecycleController::class,
                 'retire',
             ]
         )->whereUuid('assessmentItemId');
@@ -539,7 +579,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::post(
             '/{practiceActivityId}/items',
             [
-                \App\Http\Controllers\Api\Practice\PracticeActivityItemController::class,
+                PracticeActivityItemController::class,
                 'store',
             ]
         )->whereUuid('practiceActivityId');
@@ -547,7 +587,7 @@ Route::middleware(['web', 'management'])->group(function (): void {
         Route::delete(
             '/{practiceActivityId}/items/{practiceActivityItemId}',
             [
-                \App\Http\Controllers\Api\Practice\PracticeActivityItemController::class,
+                PracticeActivityItemController::class,
                 'destroy',
             ]
         )
@@ -558,17 +598,17 @@ Route::middleware(['web', 'management'])->group(function (): void {
     Route::post(
         '/exam-template-versions/{examTemplateVersionId}/generations',
         [
-            \App\Http\Controllers\Api\Exam\ExamGenerationController::class,
+            ExamGenerationController::class,
             'store',
         ]
     )->whereUuid('examTemplateVersionId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::post(
         '/exam-generations/{examGenerationId}/attempts',
         [
-            \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+            AttemptConstructionController::class,
             'fromExam',
         ]
     )->whereUuid('examGenerationId');
@@ -576,7 +616,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::post(
         '/practice-activities/{practiceActivityId}/attempts',
         [
-            \App\Http\Controllers\Api\Attempt\AttemptConstructionController::class,
+            AttemptConstructionController::class,
             'fromPractice',
         ]
     )->whereUuid('practiceActivityId');
@@ -584,7 +624,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::put(
         '/attempt-items/{attemptItemId}/response',
         [
-            \App\Http\Controllers\Api\Attempt\AttemptResponseController::class,
+            AttemptResponseController::class,
             'update',
         ]
     )->whereUuid('attemptItemId');
@@ -592,7 +632,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::post(
         '/attempts/{attemptId}/finalize',
         [
-            \App\Http\Controllers\Api\Attempt\AttemptFinalizationController::class,
+            AttemptFinalizationController::class,
             'update',
         ]
     )->whereUuid('attemptId');
@@ -602,17 +642,17 @@ Route::middleware(['web', 'management'])->group(function (): void {
     Route::post(
         '/attempt-responses/{attemptResponseId}/regrade-corrections',
         [
-            \App\Http\Controllers\Api\Attempt\RegradeCorrectionController::class,
+            RegradeCorrectionController::class,
             'store',
         ]
     )->whereUuid('attemptResponseId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::get(
         '/curricula',
         [
-            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            CurriculumReadController::class,
             'index',
         ]
     );
@@ -620,7 +660,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/exam-generations',
         [
-            \App\Http\Controllers\Api\Read\ExamReadController::class,
+            ExamReadController::class,
             'index',
         ]
     );
@@ -628,7 +668,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/lessons/{lessonId}/progress',
         [
-            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            LessonProgressController::class,
             'show',
         ]
     )->whereUuid('lessonId');
@@ -636,7 +676,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::post(
         '/lessons/{lessonId}/progress',
         [
-            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            LessonProgressController::class,
             'start',
         ]
     )->whereUuid('lessonId');
@@ -644,7 +684,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::post(
         '/lessons/{lessonId}/complete',
         [
-            \App\Http\Controllers\Api\Learning\LessonProgressController::class,
+            LessonProgressController::class,
             'complete',
         ]
     )->whereUuid('lessonId');
@@ -652,7 +692,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/curriculum-versions/{curriculumVersionId}',
         [
-            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            CurriculumReadController::class,
             'showVersion',
         ]
     )->whereUuid('curriculumVersionId');
@@ -660,7 +700,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/curriculum-versions/{curriculumVersionId}/lessons',
         [
-            \App\Http\Controllers\Api\Read\CurriculumReadController::class,
+            CurriculumReadController::class,
             'lessons',
         ]
     )->whereUuid('curriculumVersionId');
@@ -668,7 +708,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/lessons/{lessonId}',
         [
-            \App\Http\Controllers\Api\Read\LearningReadController::class,
+            LearningReadController::class,
             'lesson',
         ]
     )->whereUuid('lessonId');
@@ -676,17 +716,17 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/practice-activities/{practiceActivityId}',
         [
-            \App\Http\Controllers\Api\Read\LearningReadController::class,
+            LearningReadController::class,
             'practiceActivity',
         ]
     )->whereUuid('practiceActivityId');
 });
 
-Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): void {
+Route::middleware(['web', 'auth:web', 'active', 'student', 'learner'])->group(function (): void {
     Route::get(
         '/progress/overview',
         [
-            \App\Http\Controllers\Api\Read\ProgressReadController::class,
+            ProgressReadController::class,
             'overview',
         ]
     );
@@ -694,7 +734,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/analytics/evidence-scopes',
         [
-            \App\Http\Controllers\Api\Read\EvidenceScopeReadController::class,
+            EvidenceScopeReadController::class,
             'index',
         ]
     );
@@ -702,7 +742,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/analytics/skills',
         [
-            \App\Http\Controllers\Api\Read\SkillAnalyticsReadController::class,
+            SkillAnalyticsReadController::class,
             'index',
         ]
     );
@@ -710,7 +750,7 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/attempts',
         [
-            \App\Http\Controllers\Api\Read\AttemptReadController::class,
+            AttemptReadController::class,
             'index',
         ]
     );
@@ -718,8 +758,321 @@ Route::middleware(['web', 'auth:web', 'active', 'learner'])->group(function (): 
     Route::get(
         '/attempts/{attemptId}',
         [
-            \App\Http\Controllers\Api\Read\AttemptReadController::class,
+            AttemptReadController::class,
             'show',
         ]
     )->whereUuid('attemptId');
+});
+
+Route::middleware([
+    'web',
+    'auth:web',
+    'active',
+    'student',
+    'learner',
+])->prefix('student')->group(function (): void {
+    Route::post(
+        '/enrollments',
+        [
+            StudentEnrollmentLifecycleController::class,
+            'store',
+        ]
+    );
+});
+
+Route::middleware([
+    'web',
+    'auth:web',
+    'active',
+    'teacher',
+])->prefix('teacher')->group(function (): void {
+    Route::get(
+        '/subject-assignments',
+        [
+            TeacherWorkspaceReadController::class,
+            'subjectAssignments',
+        ]
+    );
+
+    Route::get(
+        '/education-stages',
+        [
+            TeacherWorkspaceReadController::class,
+            'educationStages',
+        ]
+    );
+
+    Route::get(
+        '/skills',
+        [
+            TeacherWorkspaceReadController::class,
+            'skills',
+        ]
+    );
+
+    Route::prefix('subject-assignments/{assignmentId}')
+        ->whereUuid('assignmentId')
+        ->group(function (): void {
+            Route::get(
+                '/curricula',
+                [TeacherCurriculumAuthoringController::class, 'curricula'],
+            );
+
+            Route::post(
+                '/curricula',
+                [TeacherCurriculumAuthoringController::class, 'storeCurriculum'],
+            );
+
+            Route::put(
+                '/curricula/{curriculumId}',
+                [TeacherCurriculumAuthoringController::class, 'updateCurriculum'],
+            )->whereUuid('curriculumId');
+
+            Route::prefix('curricula/{curriculumId}')
+                ->whereUuid('curriculumId')
+                ->group(function (): void {
+                    Route::get(
+                        '/versions',
+                        [TeacherCurriculumAuthoringController::class, 'versions'],
+                    );
+
+                    Route::post(
+                        '/versions',
+                        [TeacherCurriculumAuthoringController::class, 'storeVersion'],
+                    );
+
+                    Route::prefix('versions/{versionId}')
+                        ->whereUuid('versionId')
+                        ->group(function (): void {
+                            Route::put(
+                                '/',
+                                [TeacherCurriculumAuthoringController::class, 'updateVersion'],
+                            );
+
+                            Route::post(
+                                '/publish',
+                                [TeacherCurriculumAuthoringController::class, 'publishVersion'],
+                            );
+
+                            Route::post(
+                                '/retire',
+                                [TeacherCurriculumAuthoringController::class, 'retireVersion'],
+                            );
+
+                            Route::get(
+                                '/topics',
+                                [TeacherCurriculumAuthoringController::class, 'topics'],
+                            );
+
+                            Route::post(
+                                '/topics',
+                                [TeacherCurriculumAuthoringController::class, 'storeTopic'],
+                            );
+
+                            Route::put(
+                                '/topics/{topicId}',
+                                [TeacherCurriculumAuthoringController::class, 'updateTopic'],
+                            )->whereUuid('topicId');
+
+                            Route::get(
+                                '/skill-placements',
+                                [TeacherCurriculumAuthoringController::class, 'placements'],
+                            );
+
+                            Route::post(
+                                '/skill-placements',
+                                [TeacherCurriculumAuthoringController::class, 'storePlacement'],
+                            );
+
+                            Route::delete(
+                                '/skill-placements/{placementId}',
+                                [TeacherCurriculumAuthoringController::class, 'destroyPlacement'],
+                            )->whereUuid('placementId');
+
+                            Route::post(
+                                '/skill-placements/{placementId}/home-topics',
+                                [TeacherCurriculumAuthoringController::class, 'storeHomeTopic'],
+                            )->whereUuid('placementId');
+
+                            Route::delete(
+                                '/skill-placements/{placementId}/home-topics/{homeTopicId}',
+                                [TeacherCurriculumAuthoringController::class, 'destroyHomeTopic'],
+                            )
+                                ->whereUuid('placementId')
+                                ->whereUuid('homeTopicId');
+
+                            Route::get('/lessons', [TeacherLessonAssessmentAuthoringController::class, 'lessons']);
+                            Route::post('/lessons', [TeacherLessonAssessmentAuthoringController::class, 'storeLesson']);
+                            Route::put('/lessons/{lessonId}', [TeacherLessonAssessmentAuthoringController::class, 'updateLesson'])->whereUuid('lessonId');
+                            Route::get('/lessons/{lessonId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'lessonRevisions'])->whereUuid('lessonId');
+                            Route::post('/lessons/{lessonId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'storeLessonRevision'])->whereUuid('lessonId');
+                            Route::put('/lessons/{lessonId}/revisions/{revisionId}', [TeacherLessonAssessmentAuthoringController::class, 'updateLessonRevision'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::get('/lessons/{lessonId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'lessonRevisionSkills'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::post('/lessons/{lessonId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'storeLessonRevisionSkill'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::delete('/lessons/{lessonId}/revisions/{revisionId}/skills/{skillId}', [TeacherLessonAssessmentAuthoringController::class, 'destroyLessonRevisionSkill'])->whereUuid('lessonId')->whereUuid('revisionId')->whereUuid('skillId');
+                            Route::post('/lessons/{lessonId}/revisions/{revisionId}/release', [TeacherLessonAssessmentAuthoringController::class, 'releaseLessonRevision'])->whereUuid('lessonId')->whereUuid('revisionId');
+                            Route::post('/lessons/{lessonId}/publish', [TeacherLessonAssessmentAuthoringController::class, 'publishLesson'])->whereUuid('lessonId');
+                            Route::post('/lessons/{lessonId}/unpublish', [TeacherLessonAssessmentAuthoringController::class, 'unpublishLesson'])->whereUuid('lessonId');
+
+                            Route::get('/assessment-items', [TeacherLessonAssessmentAuthoringController::class, 'assessments']);
+                            Route::post('/assessment-items', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessment']);
+                            Route::put('/assessment-items/{assessmentItemId}', [TeacherLessonAssessmentAuthoringController::class, 'updateAssessment'])->whereUuid('assessmentItemId');
+                            Route::get('/assessment-items/{assessmentItemId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'assessmentRevisions'])->whereUuid('assessmentItemId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessmentRevision'])->whereUuid('assessmentItemId');
+                            Route::put('/assessment-items/{assessmentItemId}/revisions/{revisionId}', [TeacherLessonAssessmentAuthoringController::class, 'updateAssessmentRevision'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::get('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'assessmentRevisionSkills'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills', [TeacherLessonAssessmentAuthoringController::class, 'storeAssessmentRevisionSkill'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::delete('/assessment-items/{assessmentItemId}/revisions/{revisionId}/skills/{skillId}', [TeacherLessonAssessmentAuthoringController::class, 'destroyAssessmentRevisionSkill'])->whereUuid('assessmentItemId')->whereUuid('revisionId')->whereUuid('skillId');
+                            Route::post('/assessment-items/{assessmentItemId}/revisions/{revisionId}/release', [TeacherLessonAssessmentAuthoringController::class, 'releaseAssessmentRevision'])->whereUuid('assessmentItemId')->whereUuid('revisionId');
+                            Route::post('/assessment-items/{assessmentItemId}/publish', [TeacherLessonAssessmentAuthoringController::class, 'publishAssessment'])->whereUuid('assessmentItemId');
+                            Route::post('/assessment-items/{assessmentItemId}/retire', [TeacherLessonAssessmentAuthoringController::class, 'retireAssessment'])->whereUuid('assessmentItemId');
+                            Route::get('/practice-activities', [TeacherPracticeExamAuthoringController::class, 'practiceActivities']);
+                            Route::get('/practice-activities/{practiceId}/items', [TeacherPracticeExamAuthoringController::class, 'practiceItems'])->whereUuid('practiceId');
+                            Route::post('/practice-activities', [TeacherPracticeExamAuthoringController::class, 'storePractice']);
+                            Route::put('/practice-activities/{practiceId}', [TeacherPracticeExamAuthoringController::class, 'updatePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/activate', [TeacherPracticeExamAuthoringController::class, 'activatePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/archive', [TeacherPracticeExamAuthoringController::class, 'archivePractice'])->whereUuid('practiceId');
+                            Route::post('/practice-activities/{practiceId}/items', [TeacherPracticeExamAuthoringController::class, 'addPracticeItems'])->whereUuid('practiceId');
+                            Route::delete('/practice-activities/{practiceId}/items/{membershipId}', [TeacherPracticeExamAuthoringController::class, 'removePracticeItem'])->whereUuid('practiceId')->whereUuid('membershipId');
+
+                            Route::get('/exam-templates', [TeacherPracticeExamAuthoringController::class, 'examTemplates']);
+                            Route::get('/exam-templates/{templateId}/versions', [TeacherPracticeExamAuthoringController::class, 'templateVersions'])->whereUuid('templateId');
+                            Route::get('/exam-templates/{templateId}/versions/{templateVersionId}', [TeacherPracticeExamAuthoringController::class, 'templateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates', [TeacherPracticeExamAuthoringController::class, 'storeTemplate']);
+                            Route::put('/exam-templates/{templateId}', [TeacherPracticeExamAuthoringController::class, 'updateTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/activate', [TeacherPracticeExamAuthoringController::class, 'activateTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/archive', [TeacherPracticeExamAuthoringController::class, 'archiveTemplate'])->whereUuid('templateId');
+                            Route::post('/exam-templates/{templateId}/versions', [TeacherPracticeExamAuthoringController::class, 'storeTemplateVersion'])->whereUuid('templateId');
+                            Route::put('/exam-templates/{templateId}/versions/{templateVersionId}', [TeacherPracticeExamAuthoringController::class, 'updateTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/publish', [TeacherPracticeExamAuthoringController::class, 'publishTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/retire', [TeacherPracticeExamAuthoringController::class, 'retireTemplateVersion'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                            Route::post('/exam-templates/{templateId}/versions/{templateVersionId}/generations', [TeacherPracticeExamAuthoringController::class, 'buildGeneration'])->whereUuid('templateId')->whereUuid('templateVersionId');
+                        });
+                });
+        });
+
+    Route::post(
+        '/enrollments/{enrollmentId}/accept',
+        [
+            StudentEnrollmentLifecycleController::class,
+            'accept',
+        ]
+    )->whereUuid('enrollmentId');
+
+    Route::post(
+        '/enrollments/{enrollmentId}/decline',
+        [
+            StudentEnrollmentLifecycleController::class,
+            'decline',
+        ]
+    )->whereUuid('enrollmentId');
+
+    Route::post(
+        '/enrollments/{enrollmentId}/deactivate',
+        [
+            StudentEnrollmentLifecycleController::class,
+            'deactivate',
+        ]
+    )->whereUuid('enrollmentId');
+});
+
+Route::middleware([
+    'web',
+    'management',
+])->prefix('admin')->group(function (): void {
+    Route::get(
+        '/teachers',
+        [
+            AdminTeacherReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/teachers/{teacherUserId}',
+        [
+            AdminTeacherReadController::class,
+            'show',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teachers',
+        [
+            AdminTeacherController::class,
+            'store',
+        ]
+    );
+
+    Route::get(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'index',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teachers/{teacherUserId}/subject-assignments',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'store',
+        ]
+    )->whereUuid('teacherUserId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/deactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'deactivate',
+        ]
+    )->whereUuid('assignmentId');
+
+    Route::post(
+        '/teacher-subject-assignments/{assignmentId}/reactivate',
+        [
+            AdminTeacherSubjectAssignmentController::class,
+            'reactivate',
+        ]
+    )->whereUuid('assignmentId');
+
+    Route::get(
+        '/students',
+        [
+            AdminStudentReadController::class,
+            'index',
+        ]
+    );
+
+    Route::get(
+        '/students/{studentUserId}',
+        [
+            AdminStudentReadController::class,
+            'show',
+        ]
+    )->whereUuid('studentUserId');
+
+    Route::get(
+        '/students/{studentUserId}/enrollments',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'index',
+        ]
+    )->whereUuid('studentUserId');
+
+    Route::get(
+        '/student-enrollments/{enrollmentId}',
+        [
+            AdminStudentEnrollmentReadController::class,
+            'show',
+        ]
+    )->whereUuid('enrollmentId');
+
+    Route::post(
+        '/student-enrollments/{enrollmentId}/deactivate',
+        [
+            StudentEnrollmentLifecycleController::class,
+            'deactivate',
+        ]
+    )->whereUuid('enrollmentId');
 });

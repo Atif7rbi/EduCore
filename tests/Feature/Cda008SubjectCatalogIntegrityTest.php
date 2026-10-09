@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Application\TeacherAssignment\AssignTeacherSubject;
+use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -260,19 +262,53 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
             'primary'
         );
 
-        $this->curriculum(
+        $curriculumId = $this->curriculum(
             $subjectId,
             $primaryId,
             'FK Restrict',
         );
 
+        $this->assertSame(
+            'FOREIGN KEY (education_stage_id) REFERENCES education_stages(id) ON DELETE RESTRICT',
+            DB::scalar(<<<'SQL'
+SELECT pg_get_constraintdef(catalog_constraint.oid, true)
+FROM pg_constraint AS catalog_constraint
+JOIN pg_class AS relation
+    ON relation.oid = catalog_constraint.conrelid
+WHERE catalog_constraint.conname = 'fk_curricula_education_stage'
+    AND relation.relname = 'curricula'
+SQL),
+        );
+
         $this->assertSqlState(
-            '23503',
+            $this->expectedCurriculumStageRestrictSqlState(),
             function () use ($primaryId): void {
                 DB::table('education_stages')
                     ->where('id', $primaryId)
                     ->delete();
             }
+        );
+
+        $this->assertDatabaseHas(
+            'curricula',
+            [
+                'id' => $curriculumId,
+                'education_stage_id' => $primaryId,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'education_stages',
+            [
+                'id' => $primaryId,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'subjects',
+            [
+                'id' => $subjectId,
+            ],
         );
     }
 
@@ -488,6 +524,26 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
 
     private function rollBackCatalogForMigrationScenario(): void
     {
+        /*
+         * This scenario reconstructs a database state that predates
+         * CDA-008 and therefore also predates Phase-E ownership.
+         */
+        DB::unprepared(<<<'SQL'
+DROP TRIGGER IF EXISTS trg_curricula_ownership_integrity
+    ON curricula;
+
+DROP FUNCTION IF EXISTS educore_guard_curriculum_ownership();
+
+DROP INDEX IF EXISTS idx_curricula_teacher_subject_assignment;
+
+ALTER TABLE curricula
+    DROP CONSTRAINT IF EXISTS
+        fk_curricula_teacher_assignment_subject;
+
+ALTER TABLE curricula
+    DROP COLUMN IF EXISTS teacher_subject_assignment_id;
+SQL);
+
         $integrityMigration = require database_path(
             'migrations/'
             .'2026_09_11_001000_add_subject_catalog_integrity_triggers.php'
@@ -509,6 +565,28 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
             '23514',
             $operation,
         );
+    }
+
+    private function expectedCurriculumStageRestrictSqlState(): string
+    {
+        $serverVersionNumber = (int) DB::scalar(
+            "SELECT current_setting('server_version_num')"
+        );
+
+        $serverMajor = intdiv(
+            $serverVersionNumber,
+            10000,
+        );
+
+        return match (true) {
+            $serverMajor >= 16 && $serverMajor < 18 => '23503',
+            $serverMajor === 18 => '23001',
+            default => throw new \RuntimeException(
+                "Unsupported PostgreSQL major version {$serverMajor} for "
+                .'the ON DELETE RESTRICT SQLSTATE contract. '
+                .'Verify the server behavior before extending this matrix.'
+            ),
+        };
     }
 
     private function assertSqlState(
@@ -584,12 +662,33 @@ class Cda008SubjectCatalogIntegrityTest extends TestCase
         ?string $stageId,
         string $name,
     ): string {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        $teacher = User::factory()->create([
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+
+        $assignment = app(
+            AssignTeacherSubject::class
+        )->execute(
+            actorUserId: $admin->id,
+            teacherUserId: $teacher->id,
+            subjectId: $subjectId,
+            operationId: (string) Str::uuid(),
+            reason: 'CDA-008 curriculum fixture ownership',
+        );
+
         $id = (string) Str::uuid();
 
         DB::table('curricula')->insert([
             'id' => $id,
             'subject_id' => $subjectId,
             'education_stage_id' => $stageId,
+            'teacher_subject_assignment_id' => $assignment->id,
             'name' => $name,
             'created_at' => now(),
             'updated_at' => now(),

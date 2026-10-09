@@ -6,10 +6,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesHistoricalOwnerlessCurriculumFixtures;
 use Tests\TestCase;
 
 class AdminLessonRevisionSkillApiTest extends TestCase
 {
+    use CreatesHistoricalOwnerlessCurriculumFixtures;
     use RefreshDatabase;
 
     public function test_admin_can_add_and_list_skill_classification(): void
@@ -30,8 +32,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
         $response = $this->postJson(
             "/api/admin/lesson-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
             ]
         );
 
@@ -59,8 +60,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
             ->assertOk()
             ->assertJsonFragment([
                 'id' => $classificationId,
-                'skill_version_placement_id' =>
-                    $placementId,
+                'skill_version_placement_id' => $placementId,
             ]);
     }
 
@@ -80,8 +80,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
             $this->placement($versionId);
 
         $payload = [
-            'skill_version_placement_id' =>
-                $placementId,
+            'skill_version_placement_id' => $placementId,
         ];
 
         $this->postJson(
@@ -117,8 +116,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/lesson-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $wrongPlacement,
+                'skill_version_placement_id' => $wrongPlacement,
             ]
         )->assertStatus(409);
     }
@@ -144,8 +142,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
             $this->postJson(
                 "/api/admin/lesson-revisions/{$revisionId}/skills",
                 [
-                    'skill_version_placement_id' =>
-                        $placementId,
+                    'skill_version_placement_id' => $placementId,
                 ]
             )->assertCreated();
 
@@ -164,8 +161,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
         $this->postJson(
             "/api/admin/lesson-revisions/{$revisionId}/skills",
             [
-                'skill_version_placement_id' =>
-                    $newPlacement,
+                'skill_version_placement_id' => $newPlacement,
             ]
         )
             ->assertStatus(409)
@@ -205,8 +201,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
             $this->postJson(
                 "/api/admin/lesson-revisions/{$revisionId}/skills",
                 [
-                    'skill_version_placement_id' =>
-                        $placementId,
+                    'skill_version_placement_id' => $placementId,
                 ]
             )->assertCreated();
 
@@ -247,24 +242,13 @@ class AdminLessonRevisionSkillApiTest extends TestCase
 
     private function version(): string
     {
-        $subjectId = (string) Str::uuid();
+        $curriculum =
+            $this->createHistoricalOwnerlessCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => 'Subject '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $curriculumId = (string) Str::uuid();
-
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => 'Curriculum '.Str::random(12),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         $versionId = (string) Str::uuid();
 
@@ -362,8 +346,7 @@ class AdminLessonRevisionSkillApiTest extends TestCase
         )->insert([
             'id' => $placementId,
             'skill_id' => $skillId,
-            'curriculum_version_id' =>
-                $versionId,
+            'curriculum_version_id' => $versionId,
             'created_at' => now(),
         ]);
 

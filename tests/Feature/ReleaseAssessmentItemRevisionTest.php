@@ -6,12 +6,18 @@ use App\Application\Assessment\ReleaseAssessmentItemRevision;
 use App\Application\Exceptions\IntegrityConstraintViolation;
 use App\Application\Support\TransactionManager;
 use App\Infrastructure\Database\PostgresExceptionTranslator;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Concerns\CreatesOwnedCurriculumFixtures;
+use Tests\Concerns\ResetsDedicatedTestDatabase;
 use Tests\TestCase;
 
 class ReleaseAssessmentItemRevisionTest extends TestCase
 {
+    use CreatesOwnedCurriculumFixtures;
+    use ResetsDedicatedTestDatabase;
+
     public function test_revision_with_primary_skill_can_be_released(): void
     {
         [$revisionId] = $this->createAssessmentFixture(
@@ -78,7 +84,7 @@ class ReleaseAssessmentItemRevisionTest extends TestCase
 
         $this->assertSame(
             $releasedAt->format('Y-m-d H:i:sP'),
-            \Carbon\CarbonImmutable::parse($persisted)
+            CarbonImmutable::parse($persisted)
                 ->format('Y-m-d H:i:sP')
         );
     }
@@ -87,7 +93,7 @@ class ReleaseAssessmentItemRevisionTest extends TestCase
     {
         return new ReleaseAssessmentItemRevision(
             new TransactionManager(
-                new PostgresExceptionTranslator()
+                new PostgresExceptionTranslator
             )
         );
     }
@@ -107,20 +113,13 @@ class ReleaseAssessmentItemRevisionTest extends TestCase
         $itemId = (string) Str::uuid();
         $revisionId = (string) Str::uuid();
 
-        DB::table('subjects')->insert([
-            'id' => $subjectId,
-            'name' => "Assessment Subject {$subjectId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculum =
+            $this->createOwnedCurriculumFixture(
+                'Owned Curriculum '.Str::uuid()
+            );
 
-        DB::table('curricula')->insert([
-            'id' => $curriculumId,
-            'subject_id' => $subjectId,
-            'name' => "Assessment Curriculum {$curriculumId}",
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $curriculumId = $curriculum->id;
+        $subjectId = $curriculum->subject_id;
 
         DB::table('curriculum_versions')->insert([
             'id' => $versionId,

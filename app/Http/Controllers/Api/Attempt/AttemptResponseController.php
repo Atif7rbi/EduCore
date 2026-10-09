@@ -7,7 +7,6 @@ use App\Application\Identity\AuthenticatedLearner;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attempt\SaveAttemptResponseRequest;
 use App\Http\Responses\ApiResponse;
-use App\Models\AttemptItem;
 use Illuminate\Http\JsonResponse;
 
 class AttemptResponseController extends Controller
@@ -18,22 +17,17 @@ class AttemptResponseController extends Controller
         AuthenticatedLearner $learnerContext,
         SaveAttemptResponse $service,
     ): JsonResponse {
-        $learner = $learnerContext->resolve($request->user());
+        $user = $request->user();
 
-        AttemptItem::query()
-            ->whereKey($attemptItemId)
-            ->whereHas(
-                'attempt',
-                fn ($query) => $query->where(
-                    'learner_profile_id',
-                    $learner->id
-                )
-            )
-            ->firstOrFail();
+        $learner = $learnerContext->resolve(
+            $user
+        );
 
         $validated = $request->validated();
 
         $response = $service->execute(
+            $user->id,
+            $learner->id,
             $attemptItemId,
             $validated['response_payload'] ?? null,
             $validated['time_spent_ms'],

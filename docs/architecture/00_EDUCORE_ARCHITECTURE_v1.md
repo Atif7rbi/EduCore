@@ -41,9 +41,32 @@ Application: JSON semantic validation, authorization, pedagogical rules, generat
 ## Identity
 User = account/actor identity.
 LearnerProfile = educational learner identity.
-User 1 → 0..1 LearnerProfile.
+
+CDA-009 supersedes the earlier optional-participation statement for Student users.
+
+For a product-valid v1 Student:
+
+Student User 1 → exactly 1 LearnerProfile.
+
+User actor identity and LearnerProfile identity remain distinct UUID identities. Phase G must complete the exact-data preflight defined by CDA-009 before relying on Student total participation. A malformed or deliberately constructed Student-without-profile state must fail closed and must not gain learner capability.
+
+Teacher and Admin users do not become learners merely because they are authenticated.
+
 Learner history references LearnerProfile.
 Disablement does not delete learner history.
+
+## Teacher / Student access model
+CDA-009 is authoritative for the v1 Teacher / Student relationship model.
+
+TeacherSubjectAssignment is the durable Teacher ↔ canonical Subject relationship with active/inactive lifecycle.
+
+StudentEnrollment is the durable LearnerProfile ↔ TeacherSubjectAssignment relationship with pending/active/inactive lifecycle.
+
+Routine enrollment authority is Student request/rejoin → owning Teacher accept/decline. Owning Teacher or active Admin may perform the already-authorized deactivation operation. Exceptional Admin correction authority is preserved by CDA-009 but its dedicated corrective UI/API is outside Phase G v1.
+
+Teacher-owned Curriculum references exactly one TeacherSubjectAssignment. Admin may inspect Teacher-owned Curriculum/content but may not author, edit, publish, or otherwise mutate it. Historical ownerless Curriculum remains an explicit legacy compatibility state and is not a normal path for new content.
+
+Current learner authorization follows the complete transactional Phase F grant defined by CDA-009; an active enrollment by itself is not sufficient evidence of effective access.
 
 ## Curriculum
 Subject is the canonical academic-subject identity and catalog entity.

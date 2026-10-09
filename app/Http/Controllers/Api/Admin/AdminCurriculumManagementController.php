@@ -80,31 +80,19 @@ class AdminCurriculumManagementController extends Controller
         StoreCurriculumRequest $request,
         string $subjectId,
     ): JsonResponse {
-        $subject = Subject::query()
-            ->whereKey($subjectId)
-            ->firstOrFail();
-
-        if (! $subject->isAvailableForNewContent()) {
-            return ApiResponse::error(
-                'subject_not_available_for_new_content',
-                'The selected subject is not available for new content.',
-                409,
-            );
-        }
-
-        $curriculum = $this->transactions->run(
-            fn (): Curriculum => Curriculum::query()->create([
-                'subject_id' => $subject->id,
-                'education_stage_id' => $request->validated(
-                    'education_stage_id'
-                ),
-                'name' => $request->validated('name'),
-            ])
-        );
-
-        return ApiResponse::success(
-            $this->curriculumData($curriculum),
-            201,
+        /*
+         * Phase-E ownership boundary:
+         *
+         * Admin must not manufacture or select Teacher ownership.
+         * Teacher HTTP authoring is introduced later in Phase H.
+         *
+         * Keep this compatibility route explicit until the frontend
+         * migration removes the legacy Admin write affordance.
+         */
+        return ApiResponse::error(
+            'admin_curriculum_authoring_disabled',
+            'Curriculum authoring is teacher-owned.',
+            409,
         );
     }
 
@@ -112,20 +100,10 @@ class AdminCurriculumManagementController extends Controller
         UpdateCurriculumRequest $request,
         string $curriculumId,
     ): JsonResponse {
-        $curriculum = Curriculum::query()
-            ->whereKey($curriculumId)
-            ->firstOrFail();
-
-        $this->transactions->run(
-            fn (): bool => $curriculum->update(
-                $request->validated()
-            )
-        );
-
-        return ApiResponse::success(
-            $this->curriculumData(
-                $curriculum->refresh()
-            )
+        return ApiResponse::error(
+            'admin_curriculum_authoring_disabled',
+            'Curriculum authoring is teacher-owned.',
+            409,
         );
     }
 
