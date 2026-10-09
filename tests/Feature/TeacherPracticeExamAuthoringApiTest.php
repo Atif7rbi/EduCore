@@ -38,6 +38,104 @@ class TeacherPracticeExamAuthoringApiTest extends TestCase
         $this->actingAs($teacher)->postJson($base.'/practice-activities/'.$practiceId.'/items', ['assessment_item_revision_ids' => [$revision->id], 'display_order' => 1])->assertStatus(409);
     }
 
+    public function test_teacher_removes_one_member_from_an_active_practice_with_multiple_members(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $first = $this->revision($version, true);
+        $second = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $firstMembership = $this->addPracticeItem($teacher, $base, $practiceId, $first->id, 0);
+        $secondMembership = $this->addPracticeItem($teacher, $base, $practiceId, $second->id, 1);
+
+        $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities/'.$practiceId.'/activate')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->actingAs($teacher)
+            ->deleteJson($base.'/practice-activities/'.$practiceId.'/items/'.$firstMembership)
+            ->assertOk()
+            ->assertJsonPath('data.deleted', true);
+
+        $this->assertDatabaseMissing('practice_activity_items', ['id' => $firstMembership]);
+        $this->assertDatabaseHas('practice_activity_items', ['id' => $secondMembership]);
+        $this->assertSame(1, DB::table('practice_activity_items')
+            ->where('practice_activity_id', $practiceId)
+            ->count());
+        $this->assertSame('active', DB::table('practice_activities')
+            ->where('id', $practiceId)
+            ->value('status'));
+    }
+
+    public function test_teacher_last_member_removal_returns_conflict(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $membershipId = $this->addPracticeItem($teacher, $base, $practiceId, $revision->id, 0);
+
+        $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities/'.$practiceId.'/activate')
+            ->assertOk();
+
+        $this->actingAs($teacher)
+            ->deleteJson($base.'/practice-activities/'.$practiceId.'/items/'.$membershipId)
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'practice_activity_requires_item');
+    }
+
+    public function test_teacher_last_member_rejection_leaves_practice_and_membership_unchanged(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $membershipId = $this->addPracticeItem($teacher, $base, $practiceId, $revision->id, 0);
+
+        $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities/'.$practiceId.'/activate')
+            ->assertOk();
+
+        $this->actingAs($teacher)
+            ->deleteJson($base.'/practice-activities/'.$practiceId.'/items/'.$membershipId)
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'practice_activity_requires_item');
+
+        $this->assertDatabaseHas('practice_activity_items', [
+            'id' => $membershipId,
+            'practice_activity_id' => $practiceId,
+            'curriculum_version_id' => $version->id,
+        ]);
+        $this->assertSame(1, DB::table('practice_activity_items')
+            ->where('practice_activity_id', $practiceId)
+            ->count());
+        $this->assertSame('active', DB::table('practice_activities')
+            ->where('id', $practiceId)
+            ->value('status'));
+    }
+
+    public function test_other_teacher_cannot_remove_owned_practice_membership(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $practiceId = $this->createPractice($teacher, $base);
+        $membershipId = $this->addPracticeItem($teacher, $base, $practiceId, $revision->id, 0);
+        $otherTeacher = User::factory()->create(['role' => 'teacher', 'status' => 'active']);
+
+        $this->actingAs($otherTeacher)
+            ->deleteJson($base.'/practice-activities/'.$practiceId.'/items/'.$membershipId)
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('practice_activity_items', [
+            'id' => $membershipId,
+            'practice_activity_id' => $practiceId,
+            'curriculum_version_id' => $version->id,
+        ]);
+    }
+
     public function test_teacher_template_lifecycle_and_generation_time_revision_selection(): void
     {
         [$teacher, $assignment, $curriculum, $version] = $this->fixture();
@@ -87,6 +185,25 @@ class TeacherPracticeExamAuthoringApiTest extends TestCase
         }
 
         return $revision->refresh();
+    }
+
+    private function createPractice(User $teacher, string $base): string
+    {
+        return $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities', ['name' => 'Practice'])
+            ->assertCreated()
+            ->json('data.id');
+    }
+
+    private function addPracticeItem(User $teacher, string $base, string $practiceId, string $revisionId, int $displayOrder): string
+    {
+        return $this->actingAs($teacher)
+            ->postJson($base.'/practice-activities/'.$practiceId.'/items', [
+                'assessment_item_revision_ids' => [$revisionId],
+                'display_order' => $displayOrder,
+            ])
+            ->assertCreated()
+            ->json('data.0.id');
     }
 
     private function base(TeacherSubjectAssignment $a, Curriculum $c, CurriculumVersion $v): string

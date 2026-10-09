@@ -104,10 +104,27 @@ class ManageTeacherPracticeExamAuthoring
             $p = $this->practice($practice, $v);
             if ($p->status === 'active') {
                 $this->draft($v);
-                if (PracticeActivityItem::query()->where('practice_activity_id', $p->id)->lockForUpdate()->count() <= 1) {
+                $memberships = PracticeActivityItem::query()
+                    ->where('practice_activity_id', $p->id)
+                    ->where('curriculum_version_id', $v->id)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+                if ($memberships->count() <= 1) {
                     $this->conflict('practice_activity_requires_item', 'The last item cannot be removed from an active practice activity.');
                 }
+
+                $membership = $memberships->firstWhere('id', $membership)
+                    ?? throw (new ModelNotFoundException)->setModel(
+                        PracticeActivityItem::class,
+                        [$membership],
+                    );
+
+                $membership->delete();
+
+                return;
             }
+
             PracticeActivityItem::query()->whereKey($membership)->where('practice_activity_id', $p->id)->where('curriculum_version_id', $v->id)->lockForUpdate()->firstOrFail()->delete();
         });
     }
