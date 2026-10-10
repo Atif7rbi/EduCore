@@ -68,9 +68,15 @@ function loginErrorMessage(
 function destinationForRole(
     role: string,
 ): string {
-    return role === 'admin'
-        ? '/admin'
-        : '/app';
+    if (role === 'admin') {
+        return '/admin';
+    }
+
+    if (role === 'teacher') {
+        return '/teacher';
+    }
+
+    return '/app';
 }
 
 function isWithinPath(
@@ -100,7 +106,8 @@ function requestedDestination(
     }
 
     if (
-        isWithinPath(
+        role === 'student'
+        && isWithinPath(
             from,
             '/app',
         )
@@ -109,10 +116,20 @@ function requestedDestination(
     }
 
     if (
-        role === 'admin' &&
-        isWithinPath(
+        role === 'admin'
+        && isWithinPath(
             from,
             '/admin',
+        )
+    ) {
+        return from;
+    }
+
+    if (
+        role === 'teacher'
+        && isWithinPath(
+            from,
+            '/teacher',
         )
     ) {
         return from;

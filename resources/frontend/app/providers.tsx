@@ -4,34 +4,62 @@ import {
 } from '@tanstack/react-query';
 import {
     type PropsWithChildren,
-    useState,
+    useMemo,
 } from 'react';
 
-import { AuthProvider } from '../auth/AuthProvider';
+import {
+    AuthProvider,
+    useAuth,
+} from '../auth/AuthProvider';
+
+function createQueryClient(): QueryClient {
+    return new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+                refetchOnWindowFocus: false,
+            },
+            mutations: {
+                retry: false,
+            },
+        },
+    });
+}
+
+function PrincipalScopedQueryClient({
+    children,
+}: PropsWithChildren) {
+    const {
+        status,
+        user,
+    } = useAuth();
+    const principalId =
+        status === 'authenticated'
+            ? user?.id ?? null
+            : null;
+    const queryClient = useMemo(
+        () => createQueryClient(),
+        [principalId],
+    );
+
+    return (
+        <QueryClientProvider
+            client={queryClient}
+            key={principalId ?? 'unauthenticated'}
+        >
+            {children}
+        </QueryClientProvider>
+    );
+}
 
 export function AppProviders({
     children,
 }: PropsWithChildren) {
-    const [queryClient] = useState(
-        () =>
-            new QueryClient({
-                defaultOptions: {
-                    queries: {
-                        retry: false,
-                        refetchOnWindowFocus: false,
-                    },
-                    mutations: {
-                        retry: false,
-                    },
-                },
-            }),
-    );
-
     return (
-        <QueryClientProvider client={queryClient}>
-            <AuthProvider>
+        <AuthProvider>
+            <PrincipalScopedQueryClient>
                 {children}
-            </AuthProvider>
-        </QueryClientProvider>
+            </PrincipalScopedQueryClient>
+        </AuthProvider>
     );
 }
