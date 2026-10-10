@@ -24,6 +24,7 @@ import {
 import type {
     TeacherCurriculum,
     TeacherCurriculumVersion,
+    CurriculumVersionStatus,
     TeacherSubjectAssignment,
 } from './types';
 
@@ -31,6 +32,7 @@ export interface TeacherContext {
     assignmentId: string;
     curriculumId: string;
     curriculumVersionId: string;
+    versionStatus: CurriculumVersionStatus;
 }
 
 interface TeacherContextSelectorProps {
@@ -42,6 +44,17 @@ interface TeacherContextSelectorProps {
         context: TeacherContext,
     ) => void;
     onContextUnavailable: () => void;
+    onBeforeContextChange?: () => boolean;
+}
+
+function isUnavailable(error: unknown): boolean {
+    return typeof error === 'object'
+        && error !== null
+        && 'status' in error
+        && (
+            error.status === 403
+            || error.status === 404
+        );
 }
 
 function versionLabel(
@@ -62,6 +75,7 @@ export function TeacherContextSelector({
     curriculumVersionId,
     onContextResolved,
     onContextUnavailable,
+    onBeforeContextChange,
 }: TeacherContextSelectorProps) {
     const queryClient = useQueryClient();
     const routeContext = {
@@ -184,6 +198,11 @@ export function TeacherContextSelector({
         assignmentId !== null
         && curriculumId !== null
         && curriculumVersionId !== null;
+    const queryUnavailable = [
+        assignmentsQuery.error,
+        curriculaQuery.error,
+        versionsQuery.error,
+    ].some(isUnavailable);
     const invalidAssignment =
         assignmentsQuery.isSuccess
         && currentSelection.assignmentId !== null
@@ -198,6 +217,16 @@ export function TeacherContextSelector({
         && versionsQuery.isSuccess
         && currentSelection.curriculumVersionId !== null
         && selectedVersion === null;
+
+    useEffect(() => {
+        if (hasScopedRoute && queryUnavailable) {
+            onContextUnavailable();
+        }
+    }, [
+        hasScopedRoute,
+        onContextUnavailable,
+        queryUnavailable,
+    ]);
 
     useEffect(() => {
         if (
@@ -233,11 +262,13 @@ export function TeacherContextSelector({
             assignmentId: activeAssignment.id,
             curriculumId: selectedCurriculum.id,
             curriculumVersionId: selectedVersion.id,
+            versionStatus: selectedVersion.status,
         };
         const contextKey = [
             context.assignmentId,
             context.curriculumId,
             context.curriculumVersionId,
+            context.versionStatus,
         ].join(':');
 
         if (lastResolvedContext.current === contextKey) {
@@ -279,6 +310,10 @@ export function TeacherContextSelector({
     function selectAssignment(
         nextAssignmentId: string | null,
     ) {
+        if (onBeforeContextChange?.() === false) {
+            return;
+        }
+
         cancelDependentQueries();
         lastResolvedContext.current = null;
         setSelection({
@@ -291,6 +326,10 @@ export function TeacherContextSelector({
     function selectCurriculum(
         nextCurriculumId: string | null,
     ) {
+        if (onBeforeContextChange?.() === false) {
+            return;
+        }
+
         if (currentSelection.curriculumId !== null) {
             void queryClient.cancelQueries({
                 queryKey:
@@ -313,6 +352,10 @@ export function TeacherContextSelector({
     function selectVersion(
         nextVersionId: string | null,
     ) {
+        if (onBeforeContextChange?.() === false) {
+            return;
+        }
+
         lastResolvedContext.current = null;
         setSelection((current) => ({
             ...current,

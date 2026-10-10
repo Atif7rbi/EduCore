@@ -14,6 +14,15 @@ import {
     fetchTeacherAssignments,
     fetchTeacherCurricula,
     fetchTeacherCurriculumVersions,
+    fetchTeacherTopics,
+    fetchTeacherSkills,
+    fetchTeacherSkillPlacements,
+    createTeacherTopic,
+    updateTeacherTopic,
+    createTeacherSkillPlacement,
+    deleteTeacherSkillPlacement,
+    createTeacherHomeTopic,
+    deleteTeacherHomeTopic,
     teacherApiRequest,
     teacherAssignmentsKey,
     teacherCurriculaKey,
@@ -217,4 +226,152 @@ describe('teacher API foundation', () => {
             },
         );
     });
+
+    it('uses only scoped teacher topic and skill-placement endpoints', async () => {
+        await fetchTeacherTopics(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+        );
+        await fetchTeacherSkills();
+        await fetchTeacherSkillPlacements(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+        );
+        await createTeacherTopic(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            {
+                display_order: 2,
+                name: 'النسب',
+            },
+        );
+        await updateTeacherTopic(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'topic-a',
+            {
+                display_order: 3,
+                name: 'الكسور',
+            },
+        );
+        await createTeacherSkillPlacement(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'skill-a',
+        );
+        await deleteTeacherSkillPlacement(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'placement-a',
+        );
+        await createTeacherHomeTopic(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'placement-a',
+            'topic-a',
+        );
+        await deleteTeacherHomeTopic(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'placement-a',
+            'home-a',
+        );
+
+        const base =
+            '/api/teacher/subject-assignments/'
+            + 'assignment-a/curricula/curriculum-a/'
+            + 'versions/version-a';
+
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                method: 'GET',
+                url: base + '/topics',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                method: 'GET',
+                url: '/api/teacher/skills',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            3,
+            expect.objectContaining({
+                method: 'GET',
+                url: base + '/skill-placements',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            4,
+            expect.objectContaining({
+                data: {
+                    display_order: 2,
+                    name: 'النسب',
+                },
+                method: 'POST',
+                url: base + '/topics',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            5,
+            expect.objectContaining({
+                data: {
+                    display_order: 3,
+                    name: 'الكسور',
+                },
+                method: 'PUT',
+                url: base + '/topics/topic-a',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            6,
+            expect.objectContaining({
+                data: {
+                    skill_id: 'skill-a',
+                },
+                method: 'POST',
+                url: base + '/skill-placements',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            7,
+            expect.objectContaining({
+                method: 'DELETE',
+                url: base + '/skill-placements/placement-a',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            8,
+            expect.objectContaining({
+                data: {
+                    topic_id: 'topic-a',
+                },
+                method: 'POST',
+                url:
+                    base
+                    + '/skill-placements/placement-a/home-topics',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            9,
+            expect.objectContaining({
+                method: 'DELETE',
+                url:
+                    base
+                    + '/skill-placements/placement-a/'
+                    + 'home-topics/home-a',
+            }),
+        );
+    });
+
 });

@@ -245,6 +245,7 @@ describe('TeacherContextSelector', () => {
                 assignmentId: 'assignment-a',
                 curriculumId: 'curriculum-a',
                 curriculumVersionId: 'version-a',
+                versionStatus: 'draft',
             });
         });
     });
@@ -273,6 +274,7 @@ describe('TeacherContextSelector', () => {
                 assignmentId: 'assignment-a',
                 curriculumId: 'curriculum-a',
                 curriculumVersionId: 'version-a',
+                versionStatus: 'draft',
             });
         });
 
@@ -422,6 +424,7 @@ describe('TeacherContextSelector', () => {
                 assignmentId: 'assignment-a',
                 curriculumId: 'curriculum-a',
                 curriculumVersionId: 'version-a',
+                versionStatus: 'draft',
             });
         });
         view.onContextResolved.mockClear();
@@ -477,6 +480,7 @@ describe('TeacherContextSelector', () => {
                 assignmentId: 'assignment-b',
                 curriculumId: 'curriculum-b',
                 curriculumVersionId: 'version-b',
+                versionStatus: 'draft',
             });
         });
     });
@@ -698,4 +702,59 @@ describe('TeacherContextSelector', () => {
             }),
         ).not.toBeInTheDocument();
     });
+
+    it('retains the current context when unsaved-change confirmation is rejected', async () => {
+        const onBeforeContextChange = vi.fn(() => false);
+        assignmentsMock.mockResolvedValue([
+            assignment('assignment-a'),
+        ]);
+
+        renderSelector({
+            onBeforeContextChange,
+        });
+
+        await screen.findByRole('option', {
+            name: 'Subject assignment-a',
+        });
+        fireEvent.change(
+            screen.getByLabelText('تعيين المادة'),
+            {
+                target: {
+                    value: 'assignment-a',
+                },
+            },
+        );
+
+        expect(onBeforeContextChange).toHaveBeenCalledTimes(1);
+        expect(
+            screen.getByLabelText('تعيين المادة'),
+        ).toHaveValue('');
+        expect(curriculaMock).not.toHaveBeenCalled();
+    });
+
+
+    it('fails closed when the authoritative version refresh reports revocation', async () => {
+        assignmentsMock.mockResolvedValue([
+            assignment('assignment-a'),
+        ]);
+        curriculaMock.mockResolvedValue([
+            curriculum('curriculum-a'),
+        ]);
+        versionsMock.mockRejectedValue({
+            status: 404,
+        });
+
+        const {
+            onContextUnavailable,
+        } = renderSelector({
+            assignmentId: 'assignment-a',
+            curriculumId: 'curriculum-a',
+            curriculumVersionId: 'version-a',
+        });
+
+        await waitFor(() => {
+            expect(onContextUnavailable).toHaveBeenCalledTimes(1);
+        });
+    });
+
 });

@@ -36,3 +36,38 @@ export interface TeacherCurriculumVersion {
     label: string;
     status: CurriculumVersionStatus;
 }
+
+export interface TeacherTopic {
+    id: string;
+    curriculum_version_id: string;
+    name: string;
+    display_order: number;
+}
+
+export interface TeacherSkill {
+    id: string;
+    name: string;
+    description: string | null;
+}
+
+export interface TeacherHomeTopic {
+    id: string;
+    placement_id: string;
+    topic_id: string;
+    curriculum_version_id: string;
+    topic: {
+        id: string;
+        name: string;
+    } | null;
+}
+
+export interface TeacherSkillPlacement {
+    id: string;
+    skill_id: string;
+    curriculum_version_id: string;
+    skill: {
+        id: string;
+        name: string;
+    } | null;
+    home_topics: TeacherHomeTopic[];
+}

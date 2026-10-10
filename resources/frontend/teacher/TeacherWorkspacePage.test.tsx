@@ -1,16 +1,21 @@
 import {
+    QueryClient,
+    QueryClientProvider,
+} from '@tanstack/react-query';
+import {
+    act,
     fireEvent,
     render,
     screen,
     waitFor,
 } from '@testing-library/react';
 import {
-    MemoryRouter,
-    Route,
-    Routes,
+    createMemoryRouter,
+    RouterProvider,
     useLocation,
 } from 'react-router-dom';
 import {
+    afterEach,
     describe,
     expect,
     it,
@@ -27,26 +32,73 @@ vi.mock('../auth/AuthProvider', () => ({
     useAuth: () => ({
         status: 'authenticated',
         user: {
-            id: 'teacher-a',
-            name: 'Teacher',
             email: 'teacher@example.com',
+            id: 'teacher-a',
+            learner_profile_id: null,
+            name: 'Teacher',
             role: 'teacher',
             status: 'active',
-            learner_profile_id: null,
         },
     }),
 }));
 
+vi.mock('./TeacherTopicsPanel', () => ({
+    TeacherTopicsPanel: (props: {
+        onContextUnavailable: () => void;
+        onDirtyChange: (dirty: boolean) => void;
+        onLifecycleConflict: () => Promise<void>;
+    }) => (
+        <div data-testid="teacher-topics">
+            <button
+                onClick={() => props.onDirtyChange(true)}
+                type="button"
+            >
+                Mark unsaved
+            </button>
+
+            <button
+                onClick={() => {
+                    void props.onLifecycleConflict();
+                }}
+                type="button"
+            >
+                Refresh lifecycle authority
+            </button>
+
+            <button
+                onClick={props.onContextUnavailable}
+                type="button"
+            >
+                Trigger 403
+            </button>
+
+            <button
+                onClick={props.onContextUnavailable}
+                type="button"
+            >
+                Trigger 404
+            </button>
+        </div>
+    ),
+}));
+
+vi.mock('./TeacherSkillPlacementsPanel', () => ({
+    TeacherSkillPlacementsPanel: () => (
+        <div data-testid="teacher-skill-placements" />
+    ),
+}));
+
 vi.mock('./TeacherContextSelector', () => ({
     TeacherContextSelector: (props: {
-        authenticatedUserId: string;
         assignmentId: string | null;
+        authenticatedUserId: string;
         curriculumId: string | null;
         curriculumVersionId: string | null;
         onContextResolved: (context: {
             assignmentId: string;
             curriculumId: string;
             curriculumVersionId: string;
+            versionStatus: 'draft' | 'published' | 'retired';
         }) => void;
         onContextUnavailable: () => void;
     }) => {
@@ -57,6 +109,7 @@ vi.mock('./TeacherContextSelector', () => ({
                 <output data-testid="selector-user">
                     {props.authenticatedUserId}
                 </output>
+
                 <output data-testid="selector-context">
                     {
                         [
@@ -66,21 +119,24 @@ vi.mock('./TeacherContextSelector', () => ({
                         ].join(':')
                     }
                 </output>
+
                 <button
-                    type="button"
                     onClick={() => {
                         props.onContextResolved({
                             assignmentId: 'assignment-a',
                             curriculumId: 'curriculum-a',
                             curriculumVersionId: 'version-a',
+                            versionStatus: 'draft',
                         });
                     }}
+                    type="button"
                 >
                     Resolve context
                 </button>
+
                 <button
-                    type="button"
                     onClick={props.onContextUnavailable}
+                    type="button"
                 >
                     Invalidate context
                 </button>
@@ -89,13 +145,17 @@ vi.mock('./TeacherContextSelector', () => ({
     },
 }));
 
-function LocationProbe() {
+function WorkspaceRoute() {
     const location = useLocation();
 
     return (
-        <output data-testid="location">
-            {location.pathname}
-        </output>
+        <>
+            <output data-testid="location">
+                {location.pathname}
+            </output>
+
+            <TeacherWorkspacePage />
+        </>
     );
 }
 
@@ -103,31 +163,49 @@ function renderWorkspace(
     path: string,
 ) {
     selectorProps.mockClear();
+    const router = createMemoryRouter(
+        [
+            {
+                element: <WorkspaceRoute />,
+                path: '/teacher/workspace',
+            },
+            {
+                element: <WorkspaceRoute />,
+                path:
+                    '/teacher/workspace/:assignmentId/'
+                    + 'curricula/:curriculumId/versions/:versionId',
+            },
+        ],
+        {
+            initialEntries: [path],
+        },
+    );
+
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            },
+        },
+    });
 
     render(
-        <MemoryRouter
-            initialEntries={[path]}
-        >
-            <LocationProbe />
-            <Routes>
-                <Route
-                    path="/teacher/workspace"
-                    element={
-                        <TeacherWorkspacePage />
-                    }
-                />
-                <Route
-                    path="/teacher/workspace/:assignmentId/curricula/:curriculumId/versions/:versionId"
-                    element={
-                        <TeacherWorkspacePage />
-                    }
-                />
-            </Routes>
-        </MemoryRouter>,
+        <QueryClientProvider client={client}>
+            <RouterProvider router={router} />
+        </QueryClientProvider>,
     );
+
+    return {
+        client,
+        router,
+    };
 }
 
 describe('TeacherWorkspacePage', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it('renders the teacher context selector for an authenticated teacher', () => {
         renderWorkspace('/teacher/workspace');
 
@@ -198,4 +276,174 @@ describe('TeacherWorkspacePage', () => {
             ),
         ).toBeInTheDocument();
     });
+
+    it('keeps a dirty workspace in place when navigation confirmation is cancelled', async () => {
+        const confirm = vi.spyOn(
+            window,
+            'confirm',
+        ).mockReturnValue(false);
+        const {
+            router,
+        } = renderWorkspace(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'Resolve context',
+            }),
+        );
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'Mark unsaved',
+            }),
+        );
+
+        const beforeUnload = new Event(
+            'beforeunload',
+            {
+                cancelable: true,
+            },
+        );
+        window.dispatchEvent(beforeUnload);
+        expect(beforeUnload.defaultPrevented).toBe(true);
+
+        await act(async () => {
+            await router.navigate('/teacher/workspace');
+        });
+
+        await waitFor(() => {
+            expect(confirm).toHaveBeenCalledTimes(1);
+            expect(
+                screen.getByTestId('location'),
+            ).toHaveTextContent(
+                '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+            );
+        });
+    });
+
+    it('discards dirty state only after confirmed workspace navigation', async () => {
+        const confirm = vi.spyOn(
+            window,
+            'confirm',
+        ).mockReturnValue(true);
+        const {
+            router,
+        } = renderWorkspace(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'Resolve context',
+            }),
+        );
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'Mark unsaved',
+            }),
+        );
+
+        await act(async () => {
+            await router.navigate('/teacher/workspace');
+        });
+
+        await waitFor(() => {
+            expect(confirm).toHaveBeenCalledTimes(1);
+            expect(
+                screen.getByTestId('location'),
+            ).toHaveTextContent('/teacher/workspace');
+        });
+    });
+
+
+    it.each([
+        'Trigger 403',
+        'Trigger 404',
+    ])(
+        'forces unavailable-context navigation after %s despite dirty state',
+        async (trigger) => {
+            const confirm = vi.spyOn(
+                window,
+                'confirm',
+            ).mockReturnValue(false);
+            renderWorkspace(
+                '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+            );
+
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Resolve context',
+                }),
+            );
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'Mark unsaved',
+                }),
+            );
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: trigger,
+                }),
+            );
+
+            await waitFor(() => {
+                expect(
+                    screen.getByTestId('location'),
+                ).toHaveTextContent('/teacher/workspace');
+            });
+            expect(confirm).not.toHaveBeenCalled();
+            expect(
+                screen.getByText(
+                    /سياق التأليف غير متاح/,
+                ),
+            ).toBeInTheDocument();
+            expect(
+                screen.queryByTestId('teacher-topics'),
+            ).not.toBeInTheDocument();
+        },
+    );
+
+
+    it('refreshes the authoritative version query after a taxonomy conflict', async () => {
+        const {
+            client,
+        } = renderWorkspace(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+        );
+        const invalidateQueries = vi.spyOn(
+            client,
+            'invalidateQueries',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'Resolve context',
+            }),
+        );
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'Refresh lifecycle authority',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(invalidateQueries).toHaveBeenCalledWith({
+                queryKey: [
+                    'teacher',
+                    'teacher-a',
+                    'assignment',
+                    'assignment-a',
+                    'curriculum',
+                    'curriculum-a',
+                    'curriculum-version',
+                    null,
+                    'resource',
+                    'curriculum-versions',
+                    null,
+                ],
+            });
+        });
+    });
+
 });

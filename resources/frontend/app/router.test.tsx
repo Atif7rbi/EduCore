@@ -2,6 +2,10 @@ import {
     act,
 } from 'react';
 import {
+    QueryClient,
+    QueryClientProvider,
+} from '@tanstack/react-query';
+import {
     cleanup,
     render,
     screen,
@@ -57,8 +61,18 @@ vi.mock('../teacher/TeacherContextSelector', () => ({
 async function renderAt(
     destination: string,
 ) {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            },
+        },
+    });
+
     render(
-        <RouterProvider router={router} />,
+        <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+        </QueryClientProvider>,
     );
 
     await act(async () => {
