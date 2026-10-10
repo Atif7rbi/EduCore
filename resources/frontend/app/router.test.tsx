@@ -48,6 +48,12 @@ vi.mock('../auth/AuthProvider', () => ({
     }),
 }));
 
+vi.mock('../teacher/TeacherContextSelector', () => ({
+    TeacherContextSelector: () => (
+        <div data-testid="teacher-context-selector" />
+    ),
+}));
+
 async function renderAt(
     destination: string,
 ) {
@@ -98,19 +104,19 @@ describe('teacher router foundation', () => {
         ).toBeInTheDocument();
     });
 
-    it('renders a teacher scoped deep link without context retrieval', async () => {
+    it('renders a teacher scoped deep link through the context foundation', async () => {
         await renderAt(
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=practice',
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
         );
 
         expect(
-            screen.getByText(
-                'سيُفتح قسم practice عند اكتمال مساحة التأليف.',
+            screen.getByTestId(
+                'teacher-context-selector',
             ),
         ).toBeInTheDocument();
     });
 
-    it('keeps student and admin accounts outside teacher routes', async () => {
+    it('keeps student accounts outside teacher routes', async () => {
         authState = {
             ...authState,
             user: {

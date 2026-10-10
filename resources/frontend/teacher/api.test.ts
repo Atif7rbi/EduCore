@@ -11,8 +11,13 @@ import {
 } from '../api/client';
 
 import {
+    fetchTeacherAssignments,
+    fetchTeacherCurricula,
+    fetchTeacherCurriculumVersions,
     teacherApiRequest,
     teacherAssignmentsKey,
+    teacherCurriculaKey,
+    teacherCurriculumVersionsKey,
     teacherQueryKey,
 } from './api';
 
@@ -76,6 +81,19 @@ describe('teacher API foundation', () => {
             'assignments',
             null,
         ]);
+        expect(
+            teacherCurriculaKey(
+                'teacher-a',
+                'assignment-a',
+            ),
+        ).toContain('curricula');
+        expect(
+            teacherCurriculumVersionsKey(
+                'teacher-a',
+                'assignment-a',
+                'curriculum-a',
+            ),
+        ).toContain('curriculum-versions');
     });
 
     it('preserves a signal supplied by the Axios configuration', async () => {
@@ -147,5 +165,56 @@ describe('teacher API foundation', () => {
             url: '/api/teacher/subject-assignments',
             signal: undefined,
         });
+    });
+
+    it('uses only the three authorized teacher context read endpoints', async () => {
+        const controller =
+            new AbortController();
+
+        await fetchTeacherAssignments(
+            controller.signal,
+        );
+        await fetchTeacherCurricula(
+            'assignment-a',
+            controller.signal,
+        );
+        await fetchTeacherCurriculumVersions(
+            'assignment-a',
+            'curriculum-a',
+            controller.signal,
+        );
+
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            1,
+            {
+                method: 'GET',
+                url: '/api/teacher/subject-assignments',
+                signal: controller.signal,
+            },
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            2,
+            {
+                method: 'GET',
+                url:
+                    '/api/teacher/subject-assignments/'
+                    + 'assignment-a'
+                    + '/curricula',
+                signal: controller.signal,
+            },
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            3,
+            {
+                method: 'GET',
+                url:
+                    '/api/teacher/subject-assignments/'
+                    + 'assignment-a'
+                    + '/curricula/'
+                    + 'curriculum-a'
+                    + '/versions',
+                signal: controller.signal,
+            },
+        );
     });
 });

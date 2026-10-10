@@ -1,21 +1,31 @@
 import {
-    useSearchParams,
+    useCallback,
+} from 'react';
+import {
+    useLocation,
+    useNavigate,
     useParams,
 } from 'react-router-dom';
 
+import {
+    useAuth,
+} from '../auth/AuthProvider';
 import {
     Feedback,
     Surface,
 } from '../ui';
 
-const knownSections = new Set([
-    'topics',
-    'placements',
-    'lessons',
-    'assessments',
-    'practice',
-    'exams',
-]);
+import {
+    TeacherContextSelector,
+} from './TeacherContextSelector';
+
+import type {
+    TeacherContext,
+} from './TeacherContextSelector';
+
+interface WorkspaceLocationState {
+    teacherContextUnavailable?: boolean;
+}
 
 export function TeacherWorkspacePage() {
     const {
@@ -23,17 +33,54 @@ export function TeacherWorkspacePage() {
         curriculumId,
         versionId,
     } = useParams();
-    const [searchParams] = useSearchParams();
-    const requestedSection =
-        searchParams.get('section');
-    const section =
-        requestedSection && knownSections.has(requestedSection)
-            ? requestedSection
-            : null;
-    const hasScopedContext = Boolean(
-        assignmentId
-        && curriculumId
-        && versionId,
+    const location = useLocation();
+    const navigate = useNavigate();
+    const {
+        status,
+        user,
+    } = useAuth();
+    const locationState =
+        location.state as WorkspaceLocationState
+        | null;
+    const contextUnavailable =
+        locationState?.teacherContextUnavailable
+        === true;
+
+    const handleContextResolved = useCallback(
+        (context: TeacherContext) => {
+            const destination =
+                '/teacher/workspace/'
+                + context.assignmentId
+                + '/curricula/'
+                + context.curriculumId
+                + '/versions/'
+                + context.curriculumVersionId;
+
+            if (location.pathname === destination) {
+                return;
+            }
+
+            navigate(destination);
+        },
+        [
+            location.pathname,
+            navigate,
+        ],
+    );
+
+    const handleContextUnavailable = useCallback(
+        () => {
+            navigate(
+                '/teacher/workspace',
+                {
+                    replace: true,
+                    state: {
+                        teacherContextUnavailable: true,
+                    },
+                },
+            );
+        },
+        [navigate],
     );
 
     return (
@@ -54,20 +101,34 @@ export function TeacherWorkspacePage() {
                 </h1>
 
                 <p className="foundation-page__description">
-                    أنشئ مناهجك ومحتواك التعليمي ضمن سياق المادة والإصدار المعتمدين.
+                    اختر تعيين المادة والمنهج والإصدار قبل بدء التأليف.
                 </p>
             </div>
 
             <Surface className="foundation-card">
-                {hasScopedContext ? (
-                    <Feedback>
-                        {section
-                            ? `سيُفتح قسم ${section} عند اكتمال مساحة التأليف.`
-                            : 'سياق التأليف محدد. ستتوفر أدوات المحتوى في الشريحة التالية.'}
+                {contextUnavailable ? (
+                    <Feedback tone="warning">
+                        سياق التأليف غير متاح أو لم تعد لديك صلاحية الوصول إليه.
                     </Feedback>
+                ) : null}
+
+                {status === 'authenticated'
+                    && user ? (
+                    <TeacherContextSelector
+                        authenticatedUserId={user.id}
+                        assignmentId={assignmentId ?? null}
+                        curriculumId={curriculumId ?? null}
+                        curriculumVersionId={versionId ?? null}
+                        onContextResolved={
+                            handleContextResolved
+                        }
+                        onContextUnavailable={
+                            handleContextUnavailable
+                        }
+                    />
                 ) : (
                     <Feedback>
-                        اختر المادة والمنهج والإصدار لبدء التأليف. ستتوفر أداة الاختيار في الشريحة التالية.
+                        جار التحقق من جلسة المعلم…
                     </Feedback>
                 )}
             </Surface>
