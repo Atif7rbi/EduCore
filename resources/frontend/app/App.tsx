@@ -13,6 +13,7 @@ import {
     ProductShell,
     adminNavigation,
     learnerNavigation,
+    teacherNavigation,
 } from './ProductShell';
 
 function FoundationShell() {
@@ -72,6 +73,17 @@ export function LearnerProductShell() {
         <ProductShell
             areaLabel="مساحة التعلم"
             navigation={learnerNavigation}
+        >
+            <Outlet />
+        </ProductShell>
+    );
+}
+
+export function TeacherProductShell() {
+    return (
+        <ProductShell
+            areaLabel="مساحة المعلم"
+            navigation={teacherNavigation}
         >
             <Outlet />
         </ProductShell>
