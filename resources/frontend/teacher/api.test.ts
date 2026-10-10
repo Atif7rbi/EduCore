@@ -375,3 +375,137 @@ describe('teacher API foundation', () => {
     });
 
 });
+
+describe('lesson and assessment authoring API', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+        apiRequestMock.mockResolvedValue([]);
+    });
+
+    it('uses exact-context lesson and assessment endpoints with payloads', async () => {
+        const api = await import('./api');
+
+        await api.createTeacherLesson(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            {
+                description: null,
+                display_order: 0,
+                title: 'درس',
+            },
+        );
+        await api.createTeacherLessonRevision(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'lesson-a',
+            {
+                content_payload: {},
+                content_schema_version: 1,
+                primary_topic_id: 'topic-a',
+                revision_number: 1,
+            },
+        );
+        await api.createTeacherAssessmentItem(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            {
+                internal_label: 'سؤال',
+                item_type: 'multiple_choice',
+            },
+        );
+        await api.createTeacherAssessmentRevision(
+            'assignment-a',
+            'curriculum-a',
+            'version-a',
+            'item-a',
+            {
+                content_payload: {},
+                content_schema_version: 1,
+                difficulty: 'medium',
+                primary_topic_id: null,
+                revision_number: 1,
+                scoring_payload: {},
+                scoring_schema_version: 1,
+            },
+        );
+
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                data: {
+                    description: null,
+                    display_order: 0,
+                    title: 'درس',
+                },
+                method: 'POST',
+                url: '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    primary_topic_id: 'topic-a',
+                }),
+                method: 'POST',
+                url: '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/revisions',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            3,
+            expect.objectContaining({
+                data: {
+                    internal_label: 'سؤال',
+                    item_type: 'multiple_choice',
+                },
+                method: 'POST',
+                url: '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items',
+            }),
+        );
+        expect(apiRequestMock).toHaveBeenNthCalledWith(
+            4,
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    scoring_schema_version: 1,
+                }),
+                method: 'POST',
+                url: '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/revisions',
+            }),
+        );
+    });
+
+    it('keeps lifecycle and revision-skill paths scoped to the exact child', async () => {
+        const api = await import('./api');
+
+        await api.createTeacherLessonRevisionSkill('assignment-a', 'curriculum-a', 'version-a', 'lesson-a', 'revision-a', 'placement-a');
+        await api.deleteTeacherLessonRevisionSkill('assignment-a', 'curriculum-a', 'version-a', 'lesson-a', 'revision-a', 'association-a');
+        await api.releaseTeacherLessonRevision('assignment-a', 'curriculum-a', 'version-a', 'lesson-a', 'revision-a');
+        await api.publishTeacherLesson('assignment-a', 'curriculum-a', 'version-a', 'lesson-a', 'revision-a');
+        await api.unpublishTeacherLesson('assignment-a', 'curriculum-a', 'version-a', 'lesson-a');
+        await api.createTeacherAssessmentRevisionSkill('assignment-a', 'curriculum-a', 'version-a', 'item-a', 'revision-b', 'placement-a', 'primary');
+        await api.deleteTeacherAssessmentRevisionSkill('assignment-a', 'curriculum-a', 'version-a', 'item-a', 'revision-b', 'association-b');
+        await api.releaseTeacherAssessmentRevision('assignment-a', 'curriculum-a', 'version-a', 'item-a', 'revision-b');
+        await api.publishTeacherAssessmentItem('assignment-a', 'curriculum-a', 'version-a', 'item-a', 'revision-b');
+        await api.retireTeacherAssessmentItem('assignment-a', 'curriculum-a', 'version-a', 'item-a');
+
+        expect(apiRequestMock.mock.calls.map(([config]) => config.url)).toEqual([
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/revisions/revision-a/skills',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/revisions/revision-a/skills/association-a',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/revisions/revision-a/release',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/publish',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/lessons/lesson-a/unpublish',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/revisions/revision-b/skills',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/revisions/revision-b/skills/association-b',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/revisions/revision-b/release',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/publish',
+            '/api/teacher/subject-assignments/assignment-a/curricula/curriculum-a/versions/version-a/assessment-items/item-a/retire',
+        ]);
+        expect(apiRequestMock.mock.calls[5][0].data).toEqual({
+            role: 'primary',
+            skill_version_placement_id: 'placement-a',
+        });
+    });
+});

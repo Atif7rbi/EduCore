@@ -71,3 +71,100 @@ export interface TeacherSkillPlacement {
     } | null;
     home_topics: TeacherHomeTopic[];
 }
+
+export type TeacherLessonStatus =
+    | 'draft'
+    | 'published'
+    | 'unpublished';
+
+export interface TeacherLesson {
+    id: string;
+    curriculum_version_id: string;
+    title: string;
+    description: string | null;
+    status: TeacherLessonStatus;
+    display_order: number;
+    published_revision_id: string | null;
+}
+
+export interface TeacherLessonRevision {
+    id: string;
+    lesson_id: string;
+    curriculum_version_id: string;
+    revision_number: number;
+    primary_topic_id: string;
+    content_payload: Record<string, unknown>;
+    content_schema_version: number;
+    released_at: string | null;
+}
+
+export interface TeacherLessonRevisionSkill {
+    id: string;
+    lesson_revision_id: string;
+    skill_version_placement_id: string;
+    curriculum_version_id: string;
+}
+
+export type TeacherAssessmentStatus =
+    | 'draft'
+    | 'published'
+    | 'retired';
+
+export interface TeacherAssessmentItem {
+    id: string;
+    curriculum_version_id: string;
+    item_type: string;
+    internal_label: string | null;
+    status: TeacherAssessmentStatus;
+    published_revision_id: string | null;
+}
+
+export interface TeacherAssessmentItemRevision {
+    id: string;
+    assessment_item_id: string;
+    curriculum_version_id: string;
+    revision_number: number;
+    primary_topic_id: string | null;
+    difficulty: 'easy' | 'medium' | 'hard';
+    content_payload: Record<string, unknown>;
+    content_schema_version: number;
+    scoring_payload: Record<string, unknown>;
+    scoring_schema_version: number;
+    released_at: string | null;
+}
+
+export interface TeacherAssessmentItemRevisionSkill {
+    id: string;
+    assessment_item_revision_id: string;
+    skill_version_placement_id: string;
+    curriculum_version_id: string;
+    role: 'primary' | 'supporting';
+}
+
+export interface TeacherLessonPayload {
+    title: string;
+    description: string | null;
+    display_order: number;
+}
+
+export interface TeacherLessonRevisionPayload {
+    revision_number: number;
+    primary_topic_id: string;
+    content_payload: Record<string, unknown>;
+    content_schema_version: number;
+}
+
+export interface TeacherAssessmentPayload {
+    item_type: string;
+    internal_label: string | null;
+}
+
+export interface TeacherAssessmentRevisionPayload {
+    revision_number: number;
+    primary_topic_id: string | null;
+    difficulty: 'easy' | 'medium' | 'hard';
+    content_payload: Record<string, unknown>;
+    content_schema_version: number;
+    scoring_payload: Record<string, unknown>;
+    scoring_schema_version: number;
+}
