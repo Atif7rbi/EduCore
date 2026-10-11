@@ -11,7 +11,7 @@
 Define a narrowly controlled **educational pilot** covering a real Admin → Teacher → Student learning loop, without representing full-scale production readiness as proven.
 
 ## Pilot acceptance journey
-1. Active Admin provisions active Teacher and exact canonical Subject assignment.
+1. Active Admin provisions a Teacher User initially with `status = disabled` through the approved dedicated provisioning operation. After successful single-use credential establishment and atomic Teacher activation, an active Admin may establish the exact canonical Subject assignment under the approved TeacherSubjectAssignment lifecycle. No Teacher access is granted before activation; credential delivery failure leaves the Teacher disabled.
 2. Student registration creates product-valid Student + exactly one LearnerProfile; enrollment granted through approved request/Teacher acceptance lifecycle.
 3. Teacher authors and publishes an eligible CurriculumVersion, lesson revision, released assessment content, practice activity and exam template/version using current supported operations.
 4. Student obtains access only via exact active Phase F chain; unrelated, revoked or disabled actors fail closed.
@@ -27,6 +27,7 @@ Define a narrowly controlled **educational pilot** covering a real Admin → Tea
 - Operational escalation owner, support handling and test data retention.
 
 ## Pilot gates
+| PIL-00 | Provisioned Teacher remains disabled before approved credential setup, including failed credential delivery; assignment activation waits for active Teacher | Backend lifecycle and end-to-end negative tests |
 | ID | Acceptance | Evidence |
 |---|---|---|
 | PIL-01 | One fully functioning role-separated learning journey | Recorded UAT with exact actor/context |
