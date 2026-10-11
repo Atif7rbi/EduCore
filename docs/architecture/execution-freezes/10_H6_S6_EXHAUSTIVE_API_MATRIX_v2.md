@@ -9,6 +9,9 @@ All paths are relative to Laravel `/api`; parent teacher middleware is `web`, `a
 
 | Method | Full path | Action | Validated request keys | Client mapping |
 |---|---|---|---|---|
+| GET | `/api/teacher/subject-assignments` | `subjectAssignments` | — | `fetchTeacherAssignments` |
+| GET | `/api/teacher/education-stages` | `educationStages` | — | CHECK client mapping |
+| GET | `/api/teacher/skills` | `skills` | — | `fetchTeacherSkills` |
 
 ## TeacherCurriculumAuthoringController
 
@@ -91,4 +94,4 @@ All paths are relative to Laravel `/api`; parent teacher middleware is `web`, `a
 - Required next inventory: `ApiResponse` response envelope, 201 return paths, serializer fields, controller helper validation, exception mapping, service transaction and lock protocol; align to frontend type definitions.
 - Required next evidence: exact approved Phase H S6 plan, negative role/assignment/version lifecycle tests, 409/422 and async race tests; no tests were executed in this documentation pass.
 
-**Disposition:** All discovered Teacher controller routes inventoried. Error/payload nested rules and implementation acceptance NOT FULLY VERIFIED. No Codex start / merge / deploy authorization.
+**Disposition:** 63 Teacher controller routes inventoried (three direct context reads and sixty nested authoring routes). Error/payload nested rules and implementation acceptance NOT FULLY VERIFIED. No Codex start / merge / deploy authorization.
