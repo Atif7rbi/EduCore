@@ -81,3 +81,10 @@ These conditional findings are **verification/approval requirements**, not evide
 5. Create learner gap matrix and pilot configuration worksheet once facts/values are supplied.
 
 **Final verdict:** DOCUMENT SET PRESERVED; ARCHITECTURAL CONSISTENCY REVIEW FOUND 1 CONFIRMED DOCUMENTARY BLOCKER. **EXECUTION READY = NO.** No Codex execution, code changes, merge or deployment authorized.
+
+
+## 7. Remediation closure addendum — 2026-10-11
+
+**FAEF-XDA-001 — CLOSED (DOCUMENTATION).** On the documentation branch, commit `eb9760a3d8032313963b3d1e738dbd98f2d5f05a` corrected forward-package-v1/05 Pilot item 1 to require disabled initial Teacher provisioning, approved single-use credential setup and atomic activation before establishing an active TeacherSubjectAssignment. The Pilot gates now include PIL-00, a fail-closed credential setup/activation verification. This corrects downstream acceptance text without changing CDA-009. File content was refetched and matched the submitted change.
+
+**Remaining readiness:** XDA-G01 through XDA-G06 remain conditional verification/document-control tasks. They do not become closed because this documentary blocker was resolved. **EXECUTION READY = NO.**
