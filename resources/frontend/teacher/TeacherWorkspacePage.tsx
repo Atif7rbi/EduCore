@@ -34,6 +34,12 @@ import {
     TeacherSkillPlacementsPanel,
 } from './TeacherSkillPlacementsPanel';
 import {
+    TeacherExamTemplatesPanel,
+} from './TeacherExamTemplatesPanel';
+import {
+    TeacherPracticeActivitiesPanel,
+} from './TeacherPracticeActivitiesPanel';
+import {
     TeacherLessonsPanel,
 } from './TeacherLessonsPanel';
 import {
@@ -126,6 +132,8 @@ export function TeacherWorkspacePage() {
         useState(false);
     const [lessonsDirty, setLessonsDirty] = useState(false);
     const [assessmentsDirty, setAssessmentsDirty] = useState(false);
+    const [practicesDirty, setPracticesDirty] = useState(false);
+    const [examsDirty, setExamsDirty] = useState(false);
     const discardConfirmed = useRef(false);
     const forcedNavigation = useRef(false);
     const routeKey = [
@@ -136,7 +144,9 @@ export function TeacherWorkspacePage() {
     const hasUnsavedChanges = topicsDirty
         || placementsDirty
         || lessonsDirty
-        || assessmentsDirty;
+        || assessmentsDirty
+        || practicesDirty
+        || examsDirty;
 
     useEffect(() => {
         discardConfirmed.current = false;
@@ -146,6 +156,8 @@ export function TeacherWorkspacePage() {
         setPlacementsDirty(false);
         setLessonsDirty(false);
         setAssessmentsDirty(false);
+        setPracticesDirty(false);
+        setExamsDirty(false);
     }, [routeKey]);
 
     useEffect(() => {
@@ -172,6 +184,8 @@ export function TeacherWorkspacePage() {
             setPlacementsDirty(false);
             setLessonsDirty(false);
             setAssessmentsDirty(false);
+            setPracticesDirty(false);
+            setExamsDirty(false);
         }
 
         return accepted;
@@ -231,6 +245,8 @@ export function TeacherWorkspacePage() {
             setPlacementsDirty(false);
             setLessonsDirty(false);
             setAssessmentsDirty(false);
+            setPracticesDirty(false);
+            setExamsDirty(false);
             navigate(
                 '/teacher/workspace',
                 {
@@ -354,6 +370,22 @@ export function TeacherWorkspacePage() {
                         context={context}
                         onContextUnavailable={handleContextUnavailable}
                         onDirtyChange={setAssessmentsDirty}
+                        onLifecycleConflict={refreshLifecycleAuthority}
+                    />
+
+                    <TeacherPracticeActivitiesPanel
+                        authenticatedUserId={user.id}
+                        context={context}
+                        onContextUnavailable={handleContextUnavailable}
+                        onDirtyChange={setPracticesDirty}
+                        onLifecycleConflict={refreshLifecycleAuthority}
+                    />
+
+                    <TeacherExamTemplatesPanel
+                        authenticatedUserId={user.id}
+                        context={context}
+                        onContextUnavailable={handleContextUnavailable}
+                        onDirtyChange={setExamsDirty}
                         onLifecycleConflict={refreshLifecycleAuthority}
                     />
                 </div>

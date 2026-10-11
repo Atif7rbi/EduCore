@@ -87,6 +87,31 @@ vi.mock('./TeacherSkillPlacementsPanel', () => ({
         <div data-testid="teacher-skill-placements" />
     ),
 }));
+vi.mock('./TeacherPracticeActivitiesPanel', () => ({
+    TeacherPracticeActivitiesPanel: (props: {
+        onDirtyChange: (dirty: boolean) => void;
+    }) => (
+        <button
+            onClick={() => props.onDirtyChange(true)}
+            type="button"
+        >
+            Mark practice unsaved
+        </button>
+    ),
+}));
+
+vi.mock('./TeacherExamTemplatesPanel', () => ({
+    TeacherExamTemplatesPanel: (props: {
+        onDirtyChange: (dirty: boolean) => void;
+    }) => (
+        <button
+            onClick={() => props.onDirtyChange(true)}
+            type="button"
+        >
+            Mark exam unsaved
+        </button>
+    ),
+}));
 
 vi.mock('./TeacherContextSelector', () => ({
     TeacherContextSelector: (props: {
@@ -319,6 +344,79 @@ describe('TeacherWorkspacePage', () => {
             ).toHaveTextContent(
                 '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
             );
+        });
+    });
+    it.each([
+        'Mark practice unsaved',
+        'Mark exam unsaved',
+    ])('protects S5 dirty state during optional navigation: %s', async (buttonName) => {
+        const confirm = vi.spyOn(
+            window,
+            'confirm',
+        ).mockReturnValue(false);
+        const {
+            router,
+        } = renderWorkspace(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'Resolve context',
+            }),
+        );
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: buttonName,
+            }),
+        );
+
+        await act(async () => {
+            await router.navigate('/teacher/workspace');
+        });
+
+        await waitFor(() => {
+            expect(confirm).toHaveBeenCalledTimes(1);
+            expect(
+                screen.getByTestId('location'),
+            ).toHaveTextContent(
+                '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+            );
+        });
+
+    });
+    it.each([
+        'Mark practice unsaved',
+        'Mark exam unsaved',
+    ])('allows confirmed S5 dirty navigation: %s', async (buttonName) => {
+        const confirm = vi.spyOn(
+            window,
+            'confirm',
+        ).mockReturnValue(true);
+        const { router } = renderWorkspace(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'Resolve context',
+            }),
+        );
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: buttonName,
+            }),
+        );
+
+        await act(async () => {
+            await router.navigate('/teacher/workspace');
+        });
+
+        await waitFor(() => {
+            expect(confirm).toHaveBeenCalledTimes(1);
+            expect(
+                screen.getByTestId('location'),
+            ).toHaveTextContent('/teacher/workspace');
         });
     });
 

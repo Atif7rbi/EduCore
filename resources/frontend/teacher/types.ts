@@ -168,3 +168,95 @@ export interface TeacherAssessmentRevisionPayload {
     scoring_payload: Record<string, unknown>;
     scoring_schema_version: number;
 }
+
+export type TeacherPracticeStatus =
+    | 'archived'
+    | 'active';
+
+export interface TeacherPracticeActivity {
+    id: string;
+    curriculum_version_id: string;
+    lesson_id: string | null;
+    name: string;
+    description: string | null;
+    status: TeacherPracticeStatus;
+}
+
+export interface TeacherPracticeActivityItem {
+    id: string;
+    practice_activity_id: string;
+    assessment_item_revision_id: string;
+    assessment_item_id: string;
+    curriculum_version_id: string;
+    display_order: number;
+}
+
+export interface TeacherPracticePayload {
+    lesson_id: string | null;
+    name: string;
+    description: string | null;
+}
+
+export interface TeacherPracticeMembershipPayload {
+    assessment_item_revision_ids: string[];
+    display_order: number;
+}
+
+export type TeacherExamTemplateStatus =
+    | 'active'
+    | 'archived';
+
+export interface TeacherExamTemplate {
+    id: string;
+    curriculum_version_id: string;
+    name: string;
+    description: string | null;
+    status: TeacherExamTemplateStatus;
+    published_version_id: string | null;
+}
+
+export type TeacherExamTemplateVersionStatus =
+    | 'draft'
+    | 'published'
+    | 'retired';
+
+export type TeacherRulesPayload =
+    | Record<string, unknown>
+    | unknown[];
+
+export interface TeacherExamTemplateVersion {
+    id: string;
+    exam_template_id: string;
+    curriculum_version_id: string;
+    version_number: number;
+    label: string | null;
+    status: TeacherExamTemplateVersionStatus;
+    rules_payload: TeacherRulesPayload;
+    rules_schema_version: number;
+}
+
+export interface TeacherExamTemplateVersionPayload {
+    version_number?: number;
+    label: string | null;
+    rules_payload: TeacherRulesPayload;
+    rules_schema_version: number;
+}
+
+export interface TeacherExamGenerationPayload {
+    generator_version: string;
+    seed: string;
+    assessment_item_revision_ids: string[];
+}
+
+export interface TeacherExamGenerationItem {
+    assessment_item_revision_id: string;
+    assessment_item_id: string;
+}
+
+export interface TeacherExamGeneration {
+    id: string;
+    exam_template_version_id: string;
+    curriculum_version_id: string;
+    generated_at: string | null;
+    items: TeacherExamGenerationItem[];
+}

@@ -804,3 +804,350 @@ export function retireTeacherAssessmentItem(
             + '/assessment-items/' + itemId + '/retire',
     });
 }
+
+export function teacherPracticeActivitiesKey(
+    authenticatedUserId: string,
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+) {
+    return teacherQueryKey({
+        authenticatedUserId,
+        assignmentId,
+        curriculumId,
+        curriculumVersionId,
+        resourceType: 'practice-activities',
+    });
+}
+
+export function teacherPracticeItemsKey(
+    authenticatedUserId: string,
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+) {
+    return teacherQueryKey({
+        authenticatedUserId,
+        assignmentId,
+        curriculumId,
+        curriculumVersionId,
+        resourceType: 'practice-activity-items',
+        resourceId: practiceId,
+    });
+}
+
+export function teacherExamTemplatesKey(
+    authenticatedUserId: string,
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+) {
+    return teacherQueryKey({
+        authenticatedUserId,
+        assignmentId,
+        curriculumId,
+        curriculumVersionId,
+        resourceType: 'exam-templates',
+    });
+}
+
+export function teacherExamTemplateVersionsKey(
+    authenticatedUserId: string,
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+) {
+    return teacherQueryKey({
+        authenticatedUserId,
+        assignmentId,
+        curriculumId,
+        curriculumVersionId,
+        resourceType: 'exam-template-versions',
+        resourceId: templateId,
+    });
+}
+
+export function teacherExamTemplateVersionKey(
+    authenticatedUserId: string,
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateVersionId: string,
+) {
+    return teacherQueryKey({
+        authenticatedUserId,
+        assignmentId,
+        curriculumId,
+        curriculumVersionId,
+        resourceType: 'exam-template-version',
+        resourceId: templateVersionId,
+    });
+}
+
+export function fetchTeacherPracticeActivities(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    signal?: AbortSignal,
+): Promise<import('./types').TeacherPracticeActivity[]> {
+    return teacherApiRequest({
+        method: 'GET',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities',
+    }, signal);
+}
+
+export function createTeacherPracticeActivity(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    payload: import('./types').TeacherPracticePayload,
+): Promise<import('./types').TeacherPracticeActivity> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities',
+        data: payload,
+    });
+}
+
+export function updateTeacherPracticeActivity(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+    payload: import('./types').TeacherPracticePayload,
+): Promise<import('./types').TeacherPracticeActivity> {
+    return teacherApiRequest({
+        method: 'PUT',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities/' + practiceId,
+        data: payload,
+    });
+}
+
+export function setTeacherPracticeActivityStatus(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+    status: import('./types').TeacherPracticeStatus,
+): Promise<import('./types').TeacherPracticeActivity> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities/' + practiceId + '/'
+            + (status === 'active' ? 'activate' : 'archive'),
+    });
+}
+
+export function fetchTeacherPracticeItems(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+    signal?: AbortSignal,
+): Promise<import('./types').TeacherPracticeActivityItem[]> {
+    return teacherApiRequest({
+        method: 'GET',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities/' + practiceId + '/items',
+    }, signal);
+}
+
+export function addTeacherPracticeItems(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+    payload: import('./types').TeacherPracticeMembershipPayload,
+): Promise<import('./types').TeacherPracticeActivityItem[]> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities/' + practiceId + '/items',
+        data: payload,
+    });
+}
+
+export function deleteTeacherPracticeItem(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    practiceId: string,
+    membershipId: string,
+): Promise<{ deleted: boolean }> {
+    return teacherApiRequest({
+        method: 'DELETE',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/practice-activities/' + practiceId + '/items/' + membershipId,
+    });
+}
+
+export function fetchTeacherExamTemplates(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    signal?: AbortSignal,
+): Promise<import('./types').TeacherExamTemplate[]> {
+    return teacherApiRequest({
+        method: 'GET',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates',
+    }, signal);
+}
+
+export function createTeacherExamTemplate(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    payload: { name: string; description: string | null },
+): Promise<import('./types').TeacherExamTemplate> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates',
+        data: payload,
+    });
+}
+
+export function updateTeacherExamTemplate(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    payload: { name: string; description: string | null },
+): Promise<import('./types').TeacherExamTemplate> {
+    return teacherApiRequest({
+        method: 'PUT',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId,
+        data: payload,
+    });
+}
+
+export function setTeacherExamTemplateStatus(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    status: import('./types').TeacherExamTemplateStatus,
+): Promise<import('./types').TeacherExamTemplate> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/'
+            + (status === 'active' ? 'activate' : 'archive'),
+    });
+}
+
+export function fetchTeacherExamTemplateVersions(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    signal?: AbortSignal,
+): Promise<import('./types').TeacherExamTemplateVersion[]> {
+    return teacherApiRequest({
+        method: 'GET',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions',
+    }, signal);
+}
+
+export function fetchTeacherExamTemplateVersion(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    templateVersionId: string,
+    signal?: AbortSignal,
+): Promise<import('./types').TeacherExamTemplateVersion> {
+    return teacherApiRequest({
+        method: 'GET',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions/'
+            + templateVersionId,
+    }, signal);
+}
+
+export function createTeacherExamTemplateVersion(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    payload: import('./types').TeacherExamTemplateVersionPayload,
+): Promise<import('./types').TeacherExamTemplateVersion> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions',
+        data: payload,
+    });
+}
+
+export function updateTeacherExamTemplateVersion(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    templateVersionId: string,
+    payload: Omit<import('./types').TeacherExamTemplateVersionPayload, 'version_number'>,
+): Promise<import('./types').TeacherExamTemplateVersion> {
+    return teacherApiRequest({
+        method: 'PUT',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions/'
+            + templateVersionId,
+        data: payload,
+    });
+}
+
+export function publishTeacherExamTemplateVersion(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    templateVersionId: string,
+): Promise<import('./types').TeacherExamTemplateVersion> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions/'
+            + templateVersionId + '/publish',
+    });
+}
+
+export function retireTeacherExamTemplateVersion(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    templateVersionId: string,
+): Promise<import('./types').TeacherExamTemplateVersion> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions/'
+            + templateVersionId + '/retire',
+    });
+}
+
+export function createTeacherExamGeneration(
+    assignmentId: string,
+    curriculumId: string,
+    curriculumVersionId: string,
+    templateId: string,
+    templateVersionId: string,
+    payload: import('./types').TeacherExamGenerationPayload,
+): Promise<import('./types').TeacherExamGeneration> {
+    return teacherApiRequest({
+        method: 'POST',
+        url: versionPath(assignmentId, curriculumId, curriculumVersionId)
+            + '/exam-templates/' + templateId + '/versions/'
+            + templateVersionId + '/generations',
+        data: payload,
+    });
+}
