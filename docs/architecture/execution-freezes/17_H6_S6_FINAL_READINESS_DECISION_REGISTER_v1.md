@@ -83,3 +83,10 @@ Recover and ratify the exact later H6-S6 acceptance text from previous slice han
 - H6-S7: NOT STARTED / DEPENDS ON VERIFIED S6.
 - PR #9: OPEN / DRAFT (unchanged by documentation task).
 - MAIN, MERGE, DEPLOYMENT: NOT MODIFIED / NOT AUTHORIZED.
+
+
+## 8. Consolidated acceptance reconciliation — 2026-10-12
+
+A new derivative scope-and-evidence artifact, `18_H6_S6_CONSOLIDATED_ACCEPTANCE_SCOPE_AND_CODEX_GATE_v1.md`, establishes **12 proposed S6 acceptance criteria**, a 12-module component evidence matrix, 14 conditional test families and a staged Codex scope/STOP contract. The project decision history corroborates the S1–S7 sequencing and identifies S6 as cross-cutting Lifecycle/History/Error UX. This is **a reconstruction from documented decisions**, not a recovered verbatim slice-level original, and therefore **RDR-G01 remains OPEN pending explicit ratification or a primary slice artifact**. There is no implicit execution authorization.
+
+PR #9 metadata was checked at HEAD `65551c0d6d15ffdf13df74b05d62c6662ceb5a6d`, state OPEN/DRAFT. The PR description still states S1–S4 only despite S5 panels/tests existing at this HEAD; `DOC-PR9-001` is a **documentation synchronization task** for a separately authorized PR update, not a conclusion that S5 code is absent.
