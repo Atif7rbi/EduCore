@@ -459,6 +459,45 @@ a:hover {
     gap: 1rem;
 }
 
+.teacher-workspace-sections {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-block: 0.25rem;
+}
+
+.teacher-workspace-sections__item {
+    flex: 0 0 auto;
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 999px;
+    background: var(--color-neutral-0);
+    color: var(--color-neutral-700);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.625rem 1rem;
+}
+
+.teacher-workspace-sections__item:hover {
+    border-color: var(--color-brand-600);
+    color: var(--color-brand-700);
+}
+
+.teacher-workspace-sections__item:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.teacher-workspace-sections__item--active {
+    border-color: var(--color-brand-600);
+    background: var(--color-brand-50);
+    color: var(--color-brand-800);
+}
+
+.teacher-workspace-section {
+    min-width: 0;
+}
+
 .foundation-card__title {
     margin: 0;
     color: var(--color-neutral-900);

@@ -1,6 +1,8 @@
 import {
     useCallback,
     useEffect,
+    useLayoutEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react';
@@ -57,19 +59,82 @@ interface WorkspaceLocationState {
     teacherContextUnavailable?: boolean;
 }
 
+const workspaceSections = [
+    {
+        id: 'topics',
+        label: 'الموضوعات والمهارات',
+    },
+    {
+        id: 'lessons',
+        label: 'الدروس',
+    },
+    {
+        id: 'assessments',
+        label: 'عناصر التقييم',
+    },
+    {
+        id: 'practice',
+        label: 'أنشطة التدريب',
+    },
+    {
+        id: 'exams',
+        label: 'نماذج الامتحان',
+    },
+] as const;
+
+type WorkspaceSection =
+    typeof workspaceSections[number]['id'];
+
+const defaultWorkspaceSection: WorkspaceSection = 'topics';
+
+function workspaceSectionFromSearch(
+    search: string,
+): WorkspaceSection | null {
+    const section = new URLSearchParams(search).get('section');
+
+    return workspaceSections.some(
+        (candidate) => candidate.id === section,
+    )
+        ? section as WorkspaceSection
+        : null;
+}
+
+function workspaceSearch(
+    section: WorkspaceSection,
+): string {
+    return `?section=${section}`;
+}
+
+function navigationTarget(location: {
+    hash: string;
+    pathname: string;
+    search: string;
+}): string {
+    return location.pathname + location.search + location.hash;
+}
+
 interface UnsavedNavigationGuardProps {
-    bypassRef: {
-        current: boolean;
+    approvedTargetRef: {
+        current: string | null;
+    };
+    forcedTargetRef: {
+        current: string | null;
     };
     onDiscard: () => boolean;
 }
 
 function UnsavedNavigationGuard({
-    bypassRef,
+    approvedTargetRef,
+    forcedTargetRef,
     onDiscard,
 }: UnsavedNavigationGuardProps) {
     const blocker = useBlocker(
-        () => !bypassRef.current,
+        ({ nextLocation }) => {
+            const target = navigationTarget(nextLocation);
+
+            return target !== approvedTargetRef.current
+                && target !== forcedTargetRef.current;
+        },
     );
     const deciding = useRef(false);
 
@@ -92,13 +157,18 @@ function UnsavedNavigationGuard({
         deciding.current = true;
 
         if (onDiscard()) {
+            approvedTargetRef.current = navigationTarget(
+                blocker.location,
+            );
             blocker.proceed();
 
             return;
         }
 
+        approvedTargetRef.current = null;
         blocker.reset();
     }, [
+        approvedTargetRef,
         blocker,
         onDiscard,
     ]);
@@ -134,43 +204,111 @@ export function TeacherWorkspacePage() {
     const [assessmentsDirty, setAssessmentsDirty] = useState(false);
     const [practicesDirty, setPracticesDirty] = useState(false);
     const [examsDirty, setExamsDirty] = useState(false);
-    const discardConfirmed = useRef(false);
-    const forcedNavigation = useRef(false);
+    const approvedNavigationTarget = useRef<string | null>(null);
+    const forcedNavigationTarget = useRef<string | null>(null);
     const routeKey = [
         assignmentId ?? '',
         curriculumId ?? '',
         versionId ?? '',
     ].join(':');
+    const activeSection = workspaceSectionFromSearch(
+        location.search,
+    );
     const hasUnsavedChanges = topicsDirty
         || placementsDirty
         || lessonsDirty
         || assessmentsDirty
         || practicesDirty
         || examsDirty;
+    const contextInstance = useMemo(
+        () => Symbol('teacher-workspace-context'),
+        [
+            context?.assignmentId,
+            context?.curriculumId,
+            context?.curriculumVersionId,
+            routeKey,
+            user?.id,
+        ],
+    );
+    const sectionInstance = useMemo(
+        () => Symbol('teacher-workspace-section'),
+        [
+            activeSection,
+            contextInstance,
+        ],
+    );
+    const currentContextInstance = useRef<symbol | null>(null);
+    const currentSectionInstance = useRef<symbol | null>(null);
 
-    useEffect(() => {
-        discardConfirmed.current = false;
-        forcedNavigation.current = false;
-        setContext(null);
+    useLayoutEffect(() => {
+        currentContextInstance.current = contextInstance;
+
+        return () => {
+            if (currentContextInstance.current === contextInstance) {
+                currentContextInstance.current = null;
+            }
+        };
+    }, [contextInstance]);
+
+    useLayoutEffect(() => {
+        currentSectionInstance.current = sectionInstance;
+
+        return () => {
+            if (currentSectionInstance.current === sectionInstance) {
+                currentSectionInstance.current = null;
+            }
+        };
+    }, [sectionInstance]);
+
+    const clearDirtyState = useCallback(() => {
         setTopicsDirty(false);
         setPlacementsDirty(false);
         setLessonsDirty(false);
         setAssessmentsDirty(false);
         setPracticesDirty(false);
         setExamsDirty(false);
-    }, [routeKey]);
+    }, []);
 
     useEffect(() => {
-        if (hasUnsavedChanges) {
-            discardConfirmed.current = false;
+        approvedNavigationTarget.current = null;
+        forcedNavigationTarget.current = null;
+        setContext(null);
+        clearDirtyState();
+    }, [
+        clearDirtyState,
+        routeKey,
+    ]);
+
+    useEffect(() => {
+        approvedNavigationTarget.current = null;
+        forcedNavigationTarget.current = null;
+    }, [location.key]);
+
+    useEffect(() => {
+        if (context === null || activeSection !== null) {
+            return;
         }
-    }, [hasUnsavedChanges]);
+
+        navigate(
+            {
+                hash: location.hash,
+                pathname: location.pathname,
+                search: workspaceSearch(defaultWorkspaceSection),
+            },
+            {
+                replace: true,
+            },
+        );
+    }, [
+        activeSection,
+        context,
+        location.hash,
+        location.pathname,
+        navigate,
+    ]);
 
     const discardUnsavedChanges = useCallback(() => {
-        if (
-            !hasUnsavedChanges
-            || discardConfirmed.current
-        ) {
+        if (!hasUnsavedChanges) {
             return true;
         }
 
@@ -179,30 +317,33 @@ export function TeacherWorkspacePage() {
         );
 
         if (accepted) {
-            discardConfirmed.current = true;
-            setTopicsDirty(false);
-            setPlacementsDirty(false);
-            setLessonsDirty(false);
-            setAssessmentsDirty(false);
-            setPracticesDirty(false);
-            setExamsDirty(false);
+            clearDirtyState();
         }
 
         return accepted;
-    }, [hasUnsavedChanges]);
+    }, [
+        clearDirtyState,
+        hasUnsavedChanges,
+    ]);
 
     const handleContextResolved = useCallback(
         (nextContext: TeacherContext) => {
-            const destination =
+            const destinationPathname =
                 '/teacher/workspace/'
                 + nextContext.assignmentId
                 + '/curricula/'
                 + nextContext.curriculumId
                 + '/versions/'
                 + nextContext.curriculumVersionId;
+            const preservedSection = activeSection
+                ?? defaultWorkspaceSection;
 
-            if (location.pathname !== destination) {
-                navigate(destination);
+            if (location.pathname !== destinationPathname) {
+                navigate({
+                    hash: location.hash,
+                    pathname: destinationPathname,
+                    search: workspaceSearch(preservedSection),
+                });
 
                 return;
             }
@@ -210,6 +351,8 @@ export function TeacherWorkspacePage() {
             setContext(nextContext);
         },
         [
+            activeSection,
+            location.hash,
             location.pathname,
             navigate,
         ],
@@ -238,15 +381,10 @@ export function TeacherWorkspacePage() {
 
     const handleContextUnavailable = useCallback(
         () => {
-            forcedNavigation.current = true;
-            discardConfirmed.current = false;
+            forcedNavigationTarget.current = '/teacher/workspace';
+            approvedNavigationTarget.current = null;
             setContext(null);
-            setTopicsDirty(false);
-            setPlacementsDirty(false);
-            setLessonsDirty(false);
-            setAssessmentsDirty(false);
-            setPracticesDirty(false);
-            setExamsDirty(false);
+            clearDirtyState();
             navigate(
                 '/teacher/workspace',
                 {
@@ -257,7 +395,56 @@ export function TeacherWorkspacePage() {
                 },
             );
         },
-        [navigate],
+        [
+            clearDirtyState,
+            navigate,
+        ],
+    );
+    const handleActiveSectionUnavailable = useCallback(
+        () => {
+            if (currentSectionInstance.current !== sectionInstance) {
+                return;
+            }
+
+            handleContextUnavailable();
+        },
+        [
+            handleContextUnavailable,
+            sectionInstance,
+        ],
+    );
+    const refreshCurrentContextLifecycle = useCallback(
+        async () => {
+            if (currentContextInstance.current !== contextInstance) {
+                return;
+            }
+
+            await refreshLifecycleAuthority();
+        },
+        [
+            contextInstance,
+            refreshLifecycleAuthority,
+        ],
+    );
+
+    const selectSection = useCallback(
+        (section: WorkspaceSection) => {
+            if (section === activeSection) {
+                return;
+            }
+
+            navigate({
+                hash: location.hash,
+                pathname: location.pathname,
+                search: workspaceSearch(section),
+            });
+        },
+        [
+            activeSection,
+            location.hash,
+            location.pathname,
+            navigate,
+        ],
     );
 
     return (
@@ -315,14 +502,15 @@ export function TeacherWorkspacePage() {
 
             {hasUnsavedChanges ? (
                 <UnsavedNavigationGuard
-                    bypassRef={forcedNavigation}
+                    approvedTargetRef={approvedNavigationTarget}
+                    forcedTargetRef={forcedNavigationTarget}
                     onDiscard={discardUnsavedChanges}
                 />
             ) : null}
 
-            {context && user ? (
+            {context && user && activeSection ? (
                 <div
-                    className="foundation-stack"
+                    className="foundation-stack teacher-workspace"
                     key={
                         user.id
                         + ':'
@@ -333,61 +521,123 @@ export function TeacherWorkspacePage() {
                         + context.curriculumVersionId
                     }
                 >
-                    <TeacherTopicsPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={
-                            handleContextUnavailable
+                    <nav
+                        aria-label="أقسام مساحة المعلم"
+                        className="teacher-workspace-sections"
+                    >
+                        {workspaceSections.map((section) => (
+                            <button
+                                aria-current={
+                                    section.id === activeSection
+                                        ? 'page'
+                                        : undefined
+                                }
+                                className={
+                                    section.id === activeSection
+                                        ? 'teacher-workspace-sections__item teacher-workspace-sections__item--active'
+                                        : 'teacher-workspace-sections__item'
+                                }
+                                key={section.id}
+                                onClick={() => selectSection(section.id)}
+                                type="button"
+                            >
+                                {section.label}
+                            </button>
+                        ))}
+                    </nav>
+
+                    <section
+                        aria-label={
+                            workspaceSections.find(
+                                (section) => section.id === activeSection,
+                            )?.label
                         }
-                        onDirtyChange={setTopicsDirty}
-                        onLifecycleConflict={
-                            refreshLifecycleAuthority
-                        }
-                    />
+                        className="foundation-stack teacher-workspace-section"
+                    >
+                        {activeSection === 'topics' ? (
+                            <>
+                                <TeacherTopicsPanel
+                                    authenticatedUserId={user.id}
+                                    context={context}
+                                    onContextUnavailable={
+                                        handleActiveSectionUnavailable
+                                    }
+                                    onDirtyChange={setTopicsDirty}
+                                    onLifecycleConflict={
+                                        refreshCurrentContextLifecycle
+                                    }
+                                />
 
-                    <TeacherSkillPlacementsPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={
-                            handleContextUnavailable
-                        }
-                        onDirtyChange={setPlacementsDirty}
-                        onLifecycleConflict={
-                            refreshLifecycleAuthority
-                        }
-                    />
+                                <TeacherSkillPlacementsPanel
+                                    authenticatedUserId={user.id}
+                                    context={context}
+                                    onContextUnavailable={
+                                        handleActiveSectionUnavailable
+                                    }
+                                    onDirtyChange={setPlacementsDirty}
+                                    onLifecycleConflict={
+                                        refreshCurrentContextLifecycle
+                                    }
+                                />
+                            </>
+                        ) : null}
 
-                    <TeacherLessonsPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={handleContextUnavailable}
-                        onDirtyChange={setLessonsDirty}
-                        onLifecycleConflict={refreshLifecycleAuthority}
-                    />
+                        {activeSection === 'lessons' ? (
+                            <TeacherLessonsPanel
+                                authenticatedUserId={user.id}
+                                context={context}
+                                onContextUnavailable={
+                                    handleActiveSectionUnavailable
+                                }
+                                onDirtyChange={setLessonsDirty}
+                                onLifecycleConflict={
+                                    refreshCurrentContextLifecycle
+                                }
+                            />
+                        ) : null}
 
-                    <TeacherAssessmentItemsPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={handleContextUnavailable}
-                        onDirtyChange={setAssessmentsDirty}
-                        onLifecycleConflict={refreshLifecycleAuthority}
-                    />
+                        {activeSection === 'assessments' ? (
+                            <TeacherAssessmentItemsPanel
+                                authenticatedUserId={user.id}
+                                context={context}
+                                onContextUnavailable={
+                                    handleActiveSectionUnavailable
+                                }
+                                onDirtyChange={setAssessmentsDirty}
+                                onLifecycleConflict={
+                                    refreshCurrentContextLifecycle
+                                }
+                            />
+                        ) : null}
 
-                    <TeacherPracticeActivitiesPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={handleContextUnavailable}
-                        onDirtyChange={setPracticesDirty}
-                        onLifecycleConflict={refreshLifecycleAuthority}
-                    />
+                        {activeSection === 'practice' ? (
+                            <TeacherPracticeActivitiesPanel
+                                authenticatedUserId={user.id}
+                                context={context}
+                                onContextUnavailable={
+                                    handleActiveSectionUnavailable
+                                }
+                                onDirtyChange={setPracticesDirty}
+                                onLifecycleConflict={
+                                    refreshCurrentContextLifecycle
+                                }
+                            />
+                        ) : null}
 
-                    <TeacherExamTemplatesPanel
-                        authenticatedUserId={user.id}
-                        context={context}
-                        onContextUnavailable={handleContextUnavailable}
-                        onDirtyChange={setExamsDirty}
-                        onLifecycleConflict={refreshLifecycleAuthority}
-                    />
+                        {activeSection === 'exams' ? (
+                            <TeacherExamTemplatesPanel
+                                authenticatedUserId={user.id}
+                                context={context}
+                                onContextUnavailable={
+                                    handleActiveSectionUnavailable
+                                }
+                                onDirtyChange={setExamsDirty}
+                                onLifecycleConflict={
+                                    refreshCurrentContextLifecycle
+                                }
+                            />
+                        ) : null}
+                    </section>
                 </div>
             ) : null}
         </section>

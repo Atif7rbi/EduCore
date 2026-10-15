@@ -63,9 +63,13 @@ function message(error: unknown): string {
         return 'تعذر إكمال عملية نموذج الامتحان.';
     }
 
-    const details = Object.values(error.details ?? {}).flat();
+    if (error.status === 422) {
+        const details = Object.values(error.details ?? {}).flat();
 
-    return details.length > 0 ? details.join(' ') : error.message;
+        return details.length > 0 ? details.join(' ') : error.message;
+    }
+
+    return error.message;
 }
 
 function parseRules(value: string): TeacherRulesPayload | null {

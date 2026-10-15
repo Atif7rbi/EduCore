@@ -713,6 +713,116 @@ describe('Teacher Exam templates and generation', () => {
             .toBeInTheDocument();
     });
 
+    it('S6-T1-003 isolates late template A success after selecting template B', async () => {
+        let resolveOldRequest!: (value: unknown) => void;
+
+        const pending = new Promise<unknown>((resolve) => {
+            resolveOldRequest = resolve;
+        });
+
+        const unavailableCallback = vi.fn();
+
+        apiRequestMock.mockImplementation((config: RequestConfig) => {
+            if (config.method === 'GET' && config.url.endsWith('/exam-templates')) {
+                return Promise.resolve([
+                    template(),
+                    {
+                        ...template(),
+                        id: 'template-b',
+                        name: 'اختبار الهندسة',
+                        published_version_id: null,
+                    },
+                ]);
+            }
+
+            if (config.method === 'GET' && config.url.endsWith('/versions')) {
+                return Promise.resolve([]);
+            }
+
+            if (
+                config.method === 'POST'
+                && config.url.endsWith('/exam-templates/template-a/versions')
+            ) {
+                return pending;
+            }
+
+            return Promise.resolve([]);
+        });
+
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+        renderExam('draft', {
+            onContextUnavailable: unavailableCallback,
+            onDirtyChange: vi.fn(),
+            onLifecycleConflict: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await screen.findByText('اختبار الجبر');
+        await screen.findByText('اختبار الهندسة');
+
+        const templateA = screen.getByText('اختبار الجبر').closest('article');
+        expect(templateA).not.toBeNull();
+
+        fireEvent.click(
+            within(templateA!).getByRole('button', { name: 'نسخ النموذج' }),
+        );
+
+        fireEvent.click(
+            await screen.findByRole('button', { name: 'إضافة نسخة نموذج' }),
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'إنشاء نسخة النموذج' }),
+        );
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    method: 'POST',
+                    url: prefix + '/exam-templates/template-a/versions',
+                }),
+            );
+        });
+
+        const templateB = screen.getByText('اختبار الهندسة').closest('article');
+        expect(templateB).not.toBeNull();
+
+        fireEvent.click(
+            within(templateB!).getByRole('button', { name: 'نسخ النموذج' }),
+        );
+
+        expect(await screen.findByText('لا توجد نسخ لهذا النموذج.'))
+            .toBeInTheDocument();
+        expect(screen.getByLabelText(
+            'نسخ نموذج الامتحان: اختبار الهندسة',
+        )).toBeInTheDocument();
+
+
+        await act(async () => {
+            resolveOldRequest({
+                id: 'template-version-a-new',
+                exam_template_id: 'template-a',
+                status: 'draft',
+            });
+            await pending;
+        });
+
+        expect(unavailableCallback).not.toHaveBeenCalled();
+
+        expect(screen.getByText('اختبار الهندسة'))
+            .toBeInTheDocument();
+
+        expect(screen.getByText('لا توجد نسخ لهذا النموذج.'))
+            .toBeInTheDocument();
+
+        expect(screen.getByLabelText(
+            'نسخ نموذج الامتحان: اختبار الهندسة',
+        )).toBeInTheDocument();
+
+        expect(screen.queryByText('template-version-a-new'))
+            .not.toBeInTheDocument();
+    });
+
     it('guards replacement of the exam template edit form only when modified', async () => {
         const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
         apiRequestMock.mockImplementation((config: RequestConfig) => {
@@ -1024,6 +1134,94 @@ describe('Teacher Exam templates and generation', () => {
         }));
     });
 
+
+    it.each([
+        ['empty object', '{}', {}],
+        ['nonempty object', '{"count":2}', { count: 2 }],
+        ['nonempty array', '[1,2]', [1, 2]],
+    ])('S6-T1-004 submits valid %s rules payload', async (_name, input, expected) => {
+        apiRequestMock.mockImplementation((config: RequestConfig) => {
+            if (config.method === 'GET' && config.url.endsWith('/exam-templates')) {
+                return Promise.resolve([template()]);
+            }
+            if (config.method === 'GET' && config.url.endsWith('/versions')) {
+                return Promise.resolve([]);
+            }
+            return Promise.resolve([]);
+        });
+
+        renderExam();
+        await screen.findByText('اختبار الجبر');
+
+        fireEvent.click(screen.getByRole('button', { name: 'نسخ النموذج' }));
+        fireEvent.click(
+            await screen.findByRole('button', { name: 'إضافة نسخة نموذج' }),
+        );
+
+        fireEvent.change(screen.getByLabelText('قواعد نموذج الامتحان'), {
+            target: { value: input },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'إنشاء نسخة النموذج' }));
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    method: 'POST',
+                    data: expect.objectContaining({
+                        rules_payload: expected,
+                    }),
+                }),
+            );
+        });
+    });
+
+    it.each([
+        ['null', 'null'],
+        ['string', '"example"'],
+        ['number', '42'],
+        ['boolean', 'true'],
+        ['malformed JSON', '{"count":'],
+    ])('S6-T1-004 rejects %s rules payload before submission', async (_name, input) => {
+        apiRequestMock.mockImplementation((config: RequestConfig) => {
+            if (config.method === 'GET' && config.url.endsWith('/exam-templates')) {
+                return Promise.resolve([template()]);
+            }
+            if (config.method === 'GET' && config.url.endsWith('/versions')) {
+                return Promise.resolve([]);
+            }
+            return Promise.resolve([]);
+        });
+
+        renderExam();
+        await screen.findByText('اختبار الجبر');
+
+        fireEvent.click(screen.getByRole('button', { name: 'نسخ النموذج' }));
+        fireEvent.click(
+            await screen.findByRole('button', { name: 'إضافة نسخة نموذج' }),
+        );
+
+        fireEvent.change(screen.getByLabelText('قواعد نموذج الامتحان'), {
+            target: { value: input },
+        });
+
+        expect(
+            screen.getByText('يجب أن تكون القواعد كائن JSON أو مصفوفة JSON.'),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('button', { name: 'إنشاء نسخة النموذج' }),
+        ).toBeDisabled();
+
+        expect(
+            apiRequestMock.mock.calls.some((call) => {
+                const config = call[0] as RequestConfig | undefined;
+                return config?.method === 'POST'
+                    && config.url.endsWith('/versions');
+            }),
+        ).toBe(false);
+    });
+
     it('keeps published history immutable and does not offer retirement for the current version', async () => {
         apiRequestMock.mockImplementation((config: RequestConfig) => {
             if (config.url.endsWith('/exam-templates')) return Promise.resolve([template()]);
@@ -1276,6 +1474,59 @@ describe('Teacher Exam templates and generation', () => {
 
         await waitFor(() => expect(lifecycle).toHaveBeenCalledTimes(1));
         expect(screen.getByLabelText('قواعد نموذج الامتحان')).toHaveValue('{"count":2}');
+    });
+
+    it('S6-T1-001 handles readiness blockers without leaking domain codes', async () => {
+        const lifecycle = vi.fn().mockResolvedValue(undefined);
+        const conflict = new EduCoreApiError({
+            code: 'curriculum_version_not_ready',
+            message: 'الإصدار غير جاهز للنشر.',
+            details: {
+                blockers: ['missing_released_lesson'],
+            },
+            requestId: 's6-readiness-conflict',
+            status: 409,
+        });
+
+        apiRequestMock.mockImplementation((config: RequestConfig) => {
+            if (config.method === 'GET' && config.url.endsWith('/exam-templates')) {
+                return Promise.resolve([template()]);
+            }
+            if (config.method === 'GET' && config.url.endsWith('/versions')) {
+                return Promise.resolve([]);
+            }
+            if (config.method === 'POST') {
+                return Promise.reject(conflict);
+            }
+            return Promise.resolve([]);
+        });
+
+        renderExam('draft', {
+            onContextUnavailable: vi.fn(),
+            onDirtyChange: vi.fn(),
+            onLifecycleConflict: lifecycle,
+        });
+
+        await screen.findByText('اختبار الجبر');
+        fireEvent.click(screen.getByRole('button', { name: 'نسخ النموذج' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'إضافة نسخة نموذج' }));
+
+        fireEvent.change(screen.getByLabelText('قواعد نموذج الامتحان'), {
+            target: { value: '{"count":2}' },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'إنشاء نسخة النموذج' }));
+
+        await waitFor(() => expect(lifecycle).toHaveBeenCalledTimes(1));
+
+        expect(screen.getByLabelText('قواعد نموذج الامتحان'))
+            .toHaveValue('{"count":2}');
+
+        expect(screen.getByText('الإصدار غير جاهز للنشر.'))
+            .toBeInTheDocument();
+
+        expect(screen.queryByText('missing_released_lesson'))
+            .not.toBeInTheDocument();
     });
 
     it('fails closed and clears protected content after a 404', async () => {

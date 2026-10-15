@@ -31,6 +31,10 @@ import {
 } from '../auth/AuthProvider';
 
 import {
+    TeacherExamTemplatesPanel,
+} from '../teacher/TeacherExamTemplatesPanel';
+
+import {
     AppProviders,
 } from './providers';
 
@@ -226,6 +230,27 @@ function configureAuthentication(
                 ),
             );
         },
+    );
+}
+
+
+function DirtyTeacherDraftProbe() {
+    const { status, user } = useAuth();
+    const [draft, setDraft] = useState('');
+
+    if (status !== 'authenticated' || user?.role !== 'teacher') {
+        return <output data-testid="draft-guard">protected</output>;
+    }
+
+    return (
+        <section>
+            <textarea
+                aria-label="Unsaved teacher draft"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+            />
+            <output data-testid="draft-guard">editing</output>
+        </section>
     );
 }
 
@@ -445,4 +470,170 @@ describe('AppProviders principal cache isolation', () => {
             ).toHaveTextContent('hidden');
         },
     );
+});
+
+
+
+function ProtectedTeacherExamEditor() {
+    const { status, user } = useAuth();
+
+    if (status !== 'authenticated' || user?.role !== 'teacher') {
+        return <output data-testid="teacher-editor-access">protected</output>;
+    }
+
+    return (
+        <TeacherExamTemplatesPanel
+            authenticatedUserId={user.id}
+            context={{
+                assignmentId: 'assignment-a',
+                curriculumId: 'curriculum-a',
+                curriculumVersionId: 'version-a',
+                versionStatus: 'draft',
+            }}
+            onContextUnavailable={() => undefined}
+            onDirtyChange={() => undefined}
+            onLifecycleConflict={async () => undefined}
+        />
+    );
+}
+
+describe('S6-T1-002 dirty editing session invalidation', () => {
+    it.each([
+        { kind: 'expired' as const, requestId: 'dirty-401' },
+        { kind: 'csrf' as const, requestId: 'dirty-419' },
+    ])('removes protected dirty draft UI after $kind', async (failure) => {
+        configureAuthentication();
+
+        render(
+            <AppProviders>
+                <DirtyTeacherDraftProbe />
+            </AppProviders>,
+        );
+
+        const editor = await screen.findByRole('textbox', {
+            name: 'Unsaved teacher draft',
+        });
+
+        fireEvent.change(editor, {
+            target: { value: 'unsaved teacher content' },
+        });
+
+        expect(editor).toHaveValue('unsaved teacher content');
+
+        act(() => {
+            emitSessionFailure(failure);
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('textbox', {
+                name: 'Unsaved teacher draft',
+            })).not.toBeInTheDocument();
+        });
+
+        expect(screen.getByTestId('draft-guard'))
+            .toHaveTextContent('protected');
+    });
+});
+
+
+describe('S6-T1-002B pending teacher mutation session invalidation', () => {
+    beforeEach(() => {
+        apiRequestMock.mockReset();
+    });
+
+    it.each([
+        { kind: 'expired' as const, requestId: 'pending-401' },
+        { kind: 'csrf' as const, requestId: 'pending-419' },
+    ])('isolates actual teacher editor after $kind and late success', async (failure) => {
+        let resolveMutation!: (value: unknown) => void;
+
+        const pendingMutation = new Promise<unknown>((resolve) => {
+            resolveMutation = resolve;
+        });
+
+        apiRequestMock.mockImplementation((config) => {
+            if (config.method === 'GET' && config.url === '/auth/me') {
+                return Promise.resolve({
+                    user: teacherUser('teacher-a'),
+                });
+            }
+
+            if (
+                config.method === 'GET'
+                && config.url?.endsWith('/exam-templates')
+            ) {
+                return Promise.resolve([]);
+            }
+
+            if (
+                config.method === 'POST'
+                && config.url?.endsWith('/exam-templates')
+            ) {
+                return pendingMutation;
+            }
+
+            return Promise.resolve([]);
+        });
+
+        render(
+            <AppProviders>
+                <ProtectedTeacherExamEditor />
+            </AppProviders>,
+        );
+
+        fireEvent.click(await screen.findByRole('button', {
+            name: 'إضافة نموذج امتحان',
+        }));
+
+        fireEvent.change(screen.getByLabelText('اسم نموذج الامتحان'), {
+            target: { value: 'مسودة غير محفوظة أثناء انتهاء الجلسة' },
+        });
+
+        expect(screen.getByLabelText('اسم نموذج الامتحان'))
+            .toHaveValue('مسودة غير محفوظة أثناء انتهاء الجلسة');
+
+        fireEvent.click(screen.getByRole('button', {
+            name: 'إنشاء نموذج الامتحان',
+        }));
+
+        await waitFor(() => {
+            expect(apiRequestMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    method: 'POST',
+                    url: expect.stringContaining('/exam-templates'),
+                }),
+            );
+        });
+
+        act(() => {
+            emitSessionFailure(failure);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('teacher-editor-access'))
+                .toHaveTextContent('protected');
+        });
+
+        expect(screen.queryByLabelText('اسم نموذج الامتحان'))
+            .not.toBeInTheDocument();
+
+        await act(async () => {
+            resolveMutation({
+                id: 'template-from-old-session',
+                name: 'مسودة غير محفوظة أثناء انتهاء الجلسة',
+                status: 'active',
+            });
+            await pendingMutation;
+        });
+
+        expect(screen.getByTestId('teacher-editor-access'))
+            .toHaveTextContent('protected');
+
+        expect(screen.queryByText('template-from-old-session'))
+            .not.toBeInTheDocument();
+
+        expect(screen.queryByRole('button', {
+            name: 'إضافة نموذج امتحان',
+        })).not.toBeInTheDocument();
+    });
 });
