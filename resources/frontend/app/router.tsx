@@ -55,6 +55,9 @@ import {
 import {
     AttemptPage,
 } from '../learner/AttemptPage';
+import {
+    TeacherWorkspacePage,
+} from '../teacher/TeacherWorkspacePage';
 
 import {
     AdminProductShell,
@@ -63,6 +66,7 @@ import {
     LearnerFoundationPage,
     LearnerProductShell,
     NotFoundFoundationPage,
+    TeacherProductShell,
 } from './App';
 
 export const router = createBrowserRouter([
@@ -163,6 +167,40 @@ export const router = createBrowserRouter([
                 ],
             },
             {
+                path: '/teacher',
+                element: (
+                    <RequireRole
+                        allowedRoles={[
+                            'teacher',
+                        ]}
+                    >
+                        <TeacherProductShell />
+                    </RequireRole>
+                ),
+                children: [
+                    {
+                        index: true,
+                        element: (
+                            <Navigate
+                                replace
+                                to="/teacher/workspace"
+                            />
+                        ),
+                    },
+                    {
+                        path: 'workspace',
+                        element: (
+                            <TeacherWorkspacePage />
+                        ),
+                    },
+                    {
+                        path: 'workspace/:assignmentId/curricula/:curriculumId/versions/:versionId',
+                        element: (
+                            <TeacherWorkspacePage />
+                        ),
+                    },
+                ],
+            },            {
                 path: '/admin',
                 element: (
                     <RequireRole

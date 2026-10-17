@@ -19,6 +19,7 @@ import {
     ProductShell,
     adminNavigation,
     learnerNavigation,
+    teacherNavigation,
 } from './ProductShell';
 
 const logoutMock = vi.fn();
@@ -291,6 +292,16 @@ describe('ProductShell', () => {
                 replace: true,
             },
         );
+    });
+
+    it('defines teacher navigation separately', () => {
+        renderShell(teacherNavigation, '/teacher/workspace', 'مساحة المعلم');
+
+        expect(screen.getByRole('link', { name: 'مساحة التأليف' })).toHaveAttribute(
+            'href',
+            '/teacher/workspace',
+        );
+        expect(screen.queryByRole('link', { name: 'المحتوى' })).not.toBeInTheDocument();
     });
 
     it('keeps the shell visible when logout fails', async () => {

@@ -54,3 +54,6 @@ Route::view('/app/{path?}', 'app')
 
 Route::view('/admin/{path?}', 'app')
     ->where('path', '.*');
+
+Route::view('/teacher/{path?}', 'app')
+    ->where('path', '.*');

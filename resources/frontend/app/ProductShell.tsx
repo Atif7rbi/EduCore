@@ -327,6 +327,13 @@ export const learnerNavigation: NavigationItem[] = [
     { label: 'التقدم', to: '/app/progress' },
 ];
 
+export const teacherNavigation: NavigationItem[] = [
+    {
+        label: 'مساحة التأليف',
+        to: '/teacher/workspace',
+    },
+];
+
 export const adminNavigation: NavigationItem[] = [
     { label: 'الرئيسية', to: '/admin', end: true },
     { label: 'المعلمون', to: '/admin/teachers' },

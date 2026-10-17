@@ -222,6 +222,147 @@ describe('LoginPage', () => {
         expect(navigateMock).toHaveBeenCalledTimes(1);
     });
 
+    it('redirects teacher users to the teacher shell', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-1',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage();
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('returns teacher users to a requested teacher deep link', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-2',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage(
+            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects a cross-role teacher return destination', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-3',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('/admin/content');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects a learner deep link for teacher users', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-3b',
+            name: 'Teacher',
+            email: 'teacher-3b@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('/app/lessons/123');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects an external teacher return destination', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-4',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('https://example.test/teacher');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
     it('renders validation details from the API', async () => {
         loginMock.mockRejectedValueOnce(
             new EduCoreApiError({
