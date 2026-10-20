@@ -675,6 +675,13 @@ class BootstrapLocalDemoCommandTest extends TestCase
         $email = 'local-demo-commit-fixture-'.Str::uuid().'@educore.test';
 
         $this->assertIsArray($connection);
+        $expectedDatabase = $connection['database'] ?? null;
+        $expectedRole = $connection['username'] ?? null;
+
+        $this->assertIsString($expectedDatabase);
+        $this->assertMatchesRegularExpression('/(?:^|[_-])(test|testing)(?:[_-]|$)/i', $expectedDatabase);
+        $this->assertIsString($expectedRole);
+        $this->assertNotSame('', $expectedRole);
         config([
             "database.connections.{$writerName}" => $connection,
             "database.connections.{$observerName}" => $connection,
@@ -689,8 +696,8 @@ class BootstrapLocalDemoCommandTest extends TestCase
             $identity = $writer->selectOne(
                 'SELECT current_database() AS database_name, current_user AS role_name, current_setting(\'TimeZone\') AS timezone',
             );
-            $this->assertSame('educore_local_test', $identity->database_name);
-            $this->assertSame('educore_local_test_role', $identity->role_name);
+            $this->assertSame($expectedDatabase, $identity->database_name);
+            $this->assertSame($expectedRole, $identity->role_name);
             $this->assertSame('UTC', $identity->timezone);
             $this->assertSame(0, $observer->table('password_reset_tokens')->where('email', $email)->count());
 
