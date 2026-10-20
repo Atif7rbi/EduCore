@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Application\Support\TransactionManager;
+use App\Application\Taxonomy\CreateSkill;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StoreSkillRequest;
 use App\Http\Requests\Admin\StoreSkillHomeTopicRequest;
 use App\Http\Requests\Admin\StoreSkillPlacementRequest;
+use App\Http\Requests\Admin\StoreSkillRequest;
 use App\Http\Requests\Admin\StoreTopicRequest;
 use App\Http\Requests\Admin\UpdateSkillRequest;
 use App\Http\Requests\Admin\UpdateTopicRequest;
@@ -23,8 +24,8 @@ class AdminTaxonomyManagementController extends Controller
 {
     public function __construct(
         private readonly TransactionManager $transactions,
-    ) {
-    }
+        private readonly CreateSkill $createSkill,
+    ) {}
 
     public function topics(
         string $curriculumVersionId,
@@ -69,8 +70,7 @@ class AdminTaxonomyManagementController extends Controller
             fn (): Topic => Topic::query()->create([
                 'curriculum_version_id' => $version->id,
                 'name' => $request->validated('name'),
-                'display_order' =>
-                    $request->validated('display_order') ?? 0,
+                'display_order' => $request->validated('display_order') ?? 0,
             ])
         );
 
@@ -129,10 +129,10 @@ class AdminTaxonomyManagementController extends Controller
     public function storeSkill(
         StoreSkillRequest $request,
     ): JsonResponse {
-        $skill = $this->transactions->run(
-            fn (): Skill => Skill::query()->create(
-                $request->validated()
-            )
+        $skill = $this->createSkill->execute(
+            actorUserId: (string) $request->user()->id,
+            name: $request->validated('name'),
+            description: $request->validated('description'),
         );
 
         return ApiResponse::success(
@@ -211,13 +211,10 @@ class AdminTaxonomyManagementController extends Controller
         }
 
         $placement = $this->transactions->run(
-            fn (): SkillVersionPlacement =>
-                SkillVersionPlacement::query()->create([
-                    'skill_id' =>
-                        $request->validated('skill_id'),
-                    'curriculum_version_id' =>
-                        $version->id,
-                ])
+            fn (): SkillVersionPlacement => SkillVersionPlacement::query()->create([
+                'skill_id' => $request->validated('skill_id'),
+                'curriculum_version_id' => $version->id,
+            ])
         );
 
         $placement->load([
@@ -333,15 +330,11 @@ class AdminTaxonomyManagementController extends Controller
         }
 
         $homeTopic = $this->transactions->run(
-            fn (): SkillHomeTopic =>
-                SkillHomeTopic::query()->create([
-                    'placement_id' =>
-                        $placement->id,
-                    'topic_id' =>
-                        $request->validated('topic_id'),
-                    'curriculum_version_id' =>
-                        $placement->curriculum_version_id,
-                ])
+            fn (): SkillHomeTopic => SkillHomeTopic::query()->create([
+                'placement_id' => $placement->id,
+                'topic_id' => $request->validated('topic_id'),
+                'curriculum_version_id' => $placement->curriculum_version_id,
+            ])
         );
 
         $homeTopic->load('topic');
@@ -398,30 +391,26 @@ class AdminTaxonomyManagementController extends Controller
         return [
             'id' => $placement->id,
             'skill_id' => $placement->skill_id,
-            'curriculum_version_id' =>
-                $placement->curriculum_version_id,
+            'curriculum_version_id' => $placement->curriculum_version_id,
             'skill' => $placement->relationLoaded('skill')
                 ? [
                     'id' => $placement->skill->id,
                     'name' => $placement->skill->name,
                 ]
                 : null,
-            'home_topics' =>
-                $placement->relationLoaded('homeTopics')
+            'home_topics' => $placement->relationLoaded('homeTopics')
                     ? $placement->homeTopics
                         ->map(
                             fn (
                                 SkillHomeTopic $homeTopic
-                            ): array =>
-                                $this->homeTopicData(
-                                    $homeTopic
-                                )
+                            ): array => $this->homeTopicData(
+                                $homeTopic
+                            )
                         )
                         ->values()
                         ->all()
                     : [],
-            'created_at' =>
-                $placement->created_at?->toISOString(),
+            'created_at' => $placement->created_at?->toISOString(),
         ];
     }
 
@@ -430,19 +419,16 @@ class AdminTaxonomyManagementController extends Controller
     ): array {
         return [
             'id' => $homeTopic->id,
-            'placement_id' =>
-                $homeTopic->placement_id,
+            'placement_id' => $homeTopic->placement_id,
             'topic_id' => $homeTopic->topic_id,
-            'curriculum_version_id' =>
-                $homeTopic->curriculum_version_id,
+            'curriculum_version_id' => $homeTopic->curriculum_version_id,
             'topic' => $homeTopic->relationLoaded('topic')
                 ? [
                     'id' => $homeTopic->topic->id,
                     'name' => $homeTopic->topic->name,
                 ]
                 : null,
-            'created_at' =>
-                $homeTopic->created_at?->toISOString(),
+            'created_at' => $homeTopic->created_at?->toISOString(),
         ];
     }
 
@@ -451,15 +437,11 @@ class AdminTaxonomyManagementController extends Controller
     ): array {
         return [
             'id' => $topic->id,
-            'curriculum_version_id' =>
-                $topic->curriculum_version_id,
+            'curriculum_version_id' => $topic->curriculum_version_id,
             'name' => $topic->name,
-            'display_order' =>
-                $topic->display_order,
-            'created_at' =>
-                $topic->created_at?->toISOString(),
-            'updated_at' =>
-                $topic->updated_at?->toISOString(),
+            'display_order' => $topic->display_order,
+            'created_at' => $topic->created_at?->toISOString(),
+            'updated_at' => $topic->updated_at?->toISOString(),
         ];
     }
 
@@ -470,10 +452,8 @@ class AdminTaxonomyManagementController extends Controller
             'id' => $skill->id,
             'name' => $skill->name,
             'description' => $skill->description,
-            'created_at' =>
-                $skill->created_at?->toISOString(),
-            'updated_at' =>
-                $skill->updated_at?->toISOString(),
+            'created_at' => $skill->created_at?->toISOString(),
+            'updated_at' => $skill->updated_at?->toISOString(),
         ];
     }
 }
