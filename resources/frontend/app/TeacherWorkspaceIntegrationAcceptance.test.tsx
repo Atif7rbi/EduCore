@@ -249,7 +249,7 @@ function configureAdapter(): AxiosAdapter {
                 curriculum_id: `curriculum-${suffix}`,
                 id: `version-${suffix}`,
                 label: `الإصدار ${suffix.toUpperCase()}`,
-                status: 'draft',
+                status: suffix === 'b' ? 'published' : 'draft',
                 version_number: 1,
             }]);
         }
@@ -638,6 +638,141 @@ describe('H6-S7 Teacher Workspace cross-section integration acceptance', () => {
         expect(
             reads.filter(({ url }) => url.includes('/versions/version-b/')),
         ).toHaveLength(0);
+    });
+
+    it('resolves selector navigation immediately and keeps context isolated through history and dirty guards', async () => {
+        const confirmation = vi.spyOn(window, 'confirm')
+            .mockReturnValueOnce(false)
+            .mockReturnValueOnce(true);
+
+        await renderProduction('/teacher/workspace');
+        await expectWorkspace();
+
+        const contextSelector = await screen.findByRole('group', {
+            name: 'سياق التأليف',
+        });
+        const assignmentSelect = screen.getByLabelText('تعيين المادة');
+        const curriculumSelect = screen.getByLabelText('المنهج');
+        const versionSelect = screen.getByLabelText('إصدار المنهج');
+
+        expect(contextSelector).toHaveClass('teacher-context-selector');
+        expect(contextSelector).toHaveAttribute('dir', 'rtl');
+        expect(assignmentSelect).toBeEnabled();
+        expect(assignmentSelect).toHaveAttribute(
+            'aria-describedby',
+            'teacher-assignment-hint',
+        );
+        expect(curriculumSelect).toBeDisabled();
+        expect(versionSelect).toBeDisabled();
+        expect(screen.getByText('اختر تعيين المادة أولًا.'))
+            .toHaveAttribute('aria-live', 'polite');
+        expect(screen.getByRole('heading', {
+            name: 'اختر سياق التأليف',
+        })).toBeInTheDocument();
+        expect(screen.queryByRole('navigation', {
+            name: 'أقسام مساحة المعلم',
+        })).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('تعيين المادة'), {
+            target: {
+                value: 'assignment-a',
+            },
+        });
+        await screen.findByRole('option', {
+            name: 'المنهج A',
+        });
+        expect(curriculumSelect).toBeEnabled();
+        expect(versionSelect).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText('المنهج'), {
+            target: {
+                value: 'curriculum-a',
+            },
+        });
+        await screen.findByRole('option', {
+            name: 'الإصدار 1 — الإصدار A',
+        });
+        expect(versionSelect).toBeEnabled();
+
+        fireEvent.change(screen.getByLabelText('إصدار المنهج'), {
+            target: {
+                value: 'version-a',
+            },
+        });
+
+        expect(await screen.findByText('موضوع أ-A')).toBeInTheDocument();
+        expect(exactLocation()).toBe(`${contextA}?section=topics`);
+        expect(screen.queryByRole('heading', {
+            name: 'اختر سياق التأليف',
+        })).not.toBeInTheDocument();
+
+        await openTopicDraft('مسودة محفوظة محليًا');
+        fireEvent.change(screen.getByLabelText('تعيين المادة'), {
+            target: {
+                value: 'assignment-b',
+            },
+        });
+
+        expect(confirmation).toHaveBeenCalledTimes(1);
+        expect(screen.getByLabelText('تعيين المادة'))
+            .toHaveValue('assignment-a');
+        expect(screen.getByLabelText('اسم الموضوع'))
+            .toHaveValue('مسودة محفوظة محليًا');
+        expect(exactLocation()).toBe(`${contextA}?section=topics`);
+
+        fireEvent.change(screen.getByLabelText('تعيين المادة'), {
+            target: {
+                value: 'assignment-b',
+            },
+        });
+
+        expect(confirmation).toHaveBeenCalledTimes(2);
+        expect(screen.queryByText('موضوع أ-A')).not.toBeInTheDocument();
+        expect(screen.getByRole('heading', {
+            name: 'اختر سياق التأليف',
+        })).toBeInTheDocument();
+        await screen.findByRole('option', {
+            name: 'المنهج B',
+        });
+
+        fireEvent.change(screen.getByLabelText('المنهج'), {
+            target: {
+                value: 'curriculum-b',
+            },
+        });
+        await screen.findByRole('option', {
+            name: 'الإصدار 1 — الإصدار B',
+        });
+
+        fireEvent.change(screen.getByLabelText('إصدار المنهج'), {
+            target: {
+                value: 'version-b',
+            },
+        });
+
+        expect(await screen.findByText('موضوع أ-B')).toBeInTheDocument();
+        expect(exactLocation()).toBe(`${contextB}?section=topics`);
+        expect(screen.getAllByText('هذا الإصدار للقراءة فقط.').length)
+            .toBeGreaterThan(0);
+        expect(screen.queryByRole('button', {
+            name: 'إضافة موضوع',
+        })).not.toBeInTheDocument();
+
+        await act(async () => {
+            await router.navigate(-1);
+        });
+
+        expect(await screen.findByText('موضوع أ-A')).toBeInTheDocument();
+        expect(exactLocation()).toBe(`${contextA}?section=topics`);
+        expect(screen.queryByText('موضوع أ-B')).not.toBeInTheDocument();
+
+        await act(async () => {
+            await router.navigate(1);
+        });
+
+        expect(await screen.findByText('موضوع أ-B')).toBeInTheDocument();
+        expect(exactLocation()).toBe(`${contextB}?section=topics`);
+        expect(screen.queryByText('موضوع أ-A')).not.toBeInTheDocument();
     });
 
     it('replaces an authorized context without exposing resources from the previous context', async () => {

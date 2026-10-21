@@ -459,6 +459,78 @@ a:hover {
     gap: 1rem;
 }
 
+.teacher-context-selector {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(12rem, 1fr));
+    gap: 1rem;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    text-align: start;
+}
+
+.teacher-context-selector__legend {
+    grid-column: 1 / -1;
+    margin-block-end: 0.25rem;
+    color: var(--color-neutral-900);
+    font-weight: 800;
+}
+
+.teacher-context-selector__field {
+    display: grid;
+    align-content: start;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.teacher-context-selector__label {
+    color: var(--color-neutral-700);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.teacher-context-selector__field select {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-neutral-300);
+    border-radius: var(--radius-md);
+    background: var(--color-neutral-0);
+    color: var(--color-neutral-900);
+    text-align: start;
+}
+
+.teacher-context-selector__field select:disabled {
+    background: var(--color-neutral-100);
+    color: var(--color-neutral-500);
+    cursor: not-allowed;
+}
+
+.teacher-context-selector__hint {
+    min-height: 1.4rem;
+    color: var(--color-neutral-600);
+    font-size: 0.8125rem;
+}
+
+.teacher-workspace-onboarding {
+    border-style: dashed;
+}
+
+.teacher-workspace-onboarding__steps {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding-inline-start: 1.5rem;
+    color: var(--color-neutral-700);
+}
+
+.teacher-workspace-onboarding__note {
+    margin: 0;
+    color: var(--color-neutral-600);
+}
+
 .teacher-workspace-sections {
     display: flex;
     gap: 0.5rem;
@@ -513,6 +585,12 @@ a:hover {
 .foundation-link {
     width: fit-content;
     font-weight: 700;
+}
+
+@media (max-width: 64rem) {
+    .teacher-context-selector {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 48rem) {
