@@ -58,6 +58,10 @@ import {
 import {
     TeacherWorkspacePage,
 } from '../teacher/TeacherWorkspacePage';
+import {
+    TeacherEnrollmentRequestsPage,
+    TeacherStudentsPage,
+} from '../teacher/TeacherEnrollmentPages';
 
 import {
     AdminProductShell,
@@ -197,6 +201,18 @@ export const router = createBrowserRouter([
                         path: 'workspace/:assignmentId/curricula/:curriculumId/versions/:versionId',
                         element: (
                             <TeacherWorkspacePage />
+                        ),
+                    },
+                    {
+                        path: 'enrollments',
+                        element: (
+                            <TeacherEnrollmentRequestsPage />
+                        ),
+                    },
+                    {
+                        path: 'students',
+                        element: (
+                            <TeacherStudentsPage />
                         ),
                     },
                 ],

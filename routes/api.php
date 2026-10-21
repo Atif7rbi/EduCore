@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Read\LearningReadController;
 use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
 use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherEnrollmentReadController;
 use App\Http\Controllers\Api\Teacher\TeacherLessonAssessmentAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherPracticeExamAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
@@ -807,6 +808,14 @@ Route::middleware([
         [
             TeacherWorkspaceReadController::class,
             'skills',
+        ]
+    );
+
+    Route::get(
+        '/enrollments',
+        [
+            TeacherEnrollmentReadController::class,
+            'index',
         ]
     );
 

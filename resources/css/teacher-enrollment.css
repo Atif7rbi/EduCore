@@ -1,0 +1,104 @@
+.teacher-enrollment-page {
+    display: grid;
+    gap: 1.25rem;
+    direction: rtl;
+}
+
+.teacher-enrollment-page__heading {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.teacher-enrollment-page__heading > p {
+    margin: 0;
+    color: var(--color-text-muted, #64748b);
+}
+
+.teacher-enrollment-page__heading h1 {
+    margin: 0;
+}
+
+.teacher-enrollment-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.teacher-enrollment-card {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-border, #dbe3ee);
+    border-radius: 1rem;
+    background: var(--color-surface, #ffffff);
+}
+
+.teacher-enrollment-card__identity {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.teacher-enrollment-card__identity h2 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.teacher-enrollment-card__status {
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.teacher-enrollment-card__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+}
+
+.teacher-enrollment-card__facts div {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.teacher-enrollment-card__facts dt {
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.85rem;
+}
+
+.teacher-enrollment-card__facts dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.teacher-enrollment-card__actions,
+.teacher-enrollment-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.teacher-enrollment-pagination {
+    justify-content: center;
+}
+
+@media (max-width: 48rem) {
+    .teacher-enrollment-card__identity {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .teacher-enrollment-card__facts {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-enrollment-card__actions .ui-button,
+    .teacher-enrollment-pagination .ui-button {
+        width: 100%;
+    }
+}

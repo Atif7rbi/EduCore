@@ -58,6 +58,27 @@ vi.mock('../teacher/TeacherContextSelector', () => ({
     ),
 }));
 
+vi.mock('../teacher/enrollmentApi', async () => {
+    const actual =
+        await vi.importActual<
+            typeof import('../teacher/enrollmentApi')
+        >('../teacher/enrollmentApi');
+
+    return {
+        ...actual,
+        decideTeacherEnrollment: vi.fn(),
+        fetchTeacherEnrollments: vi.fn().mockResolvedValue({
+            items: [],
+            pagination: {
+                current_page: 1,
+                last_page: 1,
+                per_page: 20,
+                total: 0,
+            },
+        }),
+    };
+});
+
 async function renderAt(
     destination: string,
 ) {
@@ -130,6 +151,28 @@ describe('teacher router foundation', () => {
         ).toBeInTheDocument();
     });
 
+    it('mounts teacher enrollment requests and active students under the teacher guard', async () => {
+        await renderAt('/teacher/enrollments');
+
+        expect(
+            await screen.findByRole('heading', {
+                level: 1,
+                name: 'طلبات الالتحاق',
+            }),
+        ).toBeInTheDocument();
+
+        await act(async () => {
+            await router.navigate('/teacher/students');
+        });
+
+        expect(
+            await screen.findByRole('heading', {
+                level: 1,
+                name: 'طلابي',
+            }),
+        ).toBeInTheDocument();
+    });
+
     it('keeps student accounts outside teacher routes', async () => {
         authState = {
             ...authState,
@@ -139,7 +182,7 @@ describe('teacher router foundation', () => {
             },
         };
 
-        await renderAt('/teacher/workspace');
+        await renderAt('/teacher/enrollments');
 
         expect(
             screen.getByRole('heading', {
