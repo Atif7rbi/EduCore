@@ -272,11 +272,25 @@ export function TeacherWorkspacePage() {
     useEffect(() => {
         approvedNavigationTarget.current = null;
         forcedNavigationTarget.current = null;
-        setContext(null);
+        setContext((current) => {
+            if (
+                current !== null
+                && current.assignmentId === assignmentId
+                && current.curriculumId === curriculumId
+                && current.curriculumVersionId === versionId
+            ) {
+                return current;
+            }
+
+            return null;
+        });
         clearDirtyState();
     }, [
+        assignmentId,
         clearDirtyState,
+        curriculumId,
         routeKey,
+        versionId,
     ]);
 
     useEffect(() => {
@@ -400,6 +414,9 @@ export function TeacherWorkspacePage() {
             navigate,
         ],
     );
+    const handleContextCleared = useCallback(() => {
+        setContext(null);
+    }, []);
     const handleActiveSectionUnavailable = useCallback(
         () => {
             if (currentSectionInstance.current !== sectionInstance) {
@@ -489,6 +506,9 @@ export function TeacherWorkspacePage() {
                         onContextResolved={
                             handleContextResolved
                         }
+                        onContextCleared={
+                            handleContextCleared
+                        }
                         onContextUnavailable={
                             handleContextUnavailable
                         }
@@ -506,6 +526,40 @@ export function TeacherWorkspacePage() {
                     forcedTargetRef={forcedNavigationTarget}
                     onDiscard={discardUnsavedChanges}
                 />
+            ) : null}
+
+            {status === 'authenticated'
+                && user
+                && context === null ? (
+                <Surface className="foundation-card teacher-workspace-onboarding">
+                    <div
+                        aria-labelledby="teacher-workspace-onboarding-title"
+                        className="foundation-stack"
+                    >
+                        <h2
+                            className="foundation-card__title"
+                            id="teacher-workspace-onboarding-title"
+                        >
+                            اختر سياق التأليف
+                        </h2>
+
+                        <p className="foundation-card__text">
+                            أكمل الاختيارات بالترتيب لعرض أدوات التأليف
+                            المصرح بها لهذا السياق.
+                        </p>
+
+                        <ol className="teacher-workspace-onboarding__steps">
+                            <li>اختر تعيين المادة.</li>
+                            <li>اختر المنهج المرتبط بالتعيين.</li>
+                            <li>اختر إصدار المنهج المطلوب.</li>
+                        </ol>
+
+                        <p className="teacher-workspace-onboarding__note">
+                            ستظهر أقسام الموضوعات والدروس والتقييمات
+                            والتدريب والامتحانات بعد التحقق من الاختيارات.
+                        </p>
+                    </div>
+                </Surface>
             ) : null}
 
             {context && user && activeSection ? (

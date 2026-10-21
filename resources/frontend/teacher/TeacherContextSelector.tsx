@@ -43,6 +43,7 @@ interface TeacherContextSelectorProps {
     onContextResolved: (
         context: TeacherContext,
     ) => void;
+    onContextCleared?: () => void;
     onContextUnavailable: () => void;
     onBeforeContextChange?: () => boolean;
 }
@@ -74,6 +75,7 @@ export function TeacherContextSelector({
     curriculumId,
     curriculumVersionId,
     onContextResolved,
+    onContextCleared,
     onContextUnavailable,
     onBeforeContextChange,
 }: TeacherContextSelectorProps) {
@@ -316,6 +318,7 @@ export function TeacherContextSelector({
 
         cancelDependentQueries();
         lastResolvedContext.current = null;
+        onContextCleared?.();
         setSelection({
             assignmentId: nextAssignmentId,
             curriculumId: null,
@@ -342,6 +345,7 @@ export function TeacherContextSelector({
         }
 
         lastResolvedContext.current = null;
+        onContextCleared?.();
         setSelection((current) => ({
             ...current,
             curriculumId: nextCurriculumId,
@@ -357,6 +361,7 @@ export function TeacherContextSelector({
         }
 
         lastResolvedContext.current = null;
+        onContextCleared?.();
         setSelection((current) => ({
             ...current,
             curriculumVersionId: nextVersionId,
@@ -401,14 +406,22 @@ export function TeacherContextSelector({
     }
 
     return (
-        <div
+        <fieldset
             className="teacher-context-selector"
-            aria-label="سياق التأليف"
+            dir="rtl"
         >
-            <label>
-                <span>تعيين المادة</span>
+            <legend className="teacher-context-selector__legend">
+                سياق التأليف
+            </legend>
+
+            <label className="teacher-context-selector__field">
+                <span className="teacher-context-selector__label">
+                    تعيين المادة
+                </span>
                 <select
                     aria-label="تعيين المادة"
+                    aria-describedby="teacher-assignment-hint"
+                    dir="rtl"
                     value={
                         currentSelection.assignmentId ?? ''
                     }
@@ -418,7 +431,7 @@ export function TeacherContextSelector({
                         );
                     }}
                 >
-                    <option value="">
+                    <option dir="auto" value="">
                         اختر تعيين المادة
                     </option>
                     {activeAssignments.map(
@@ -427,6 +440,7 @@ export function TeacherContextSelector({
                         ) => (
                             <option
                                 key={assignment.id}
+                                dir="auto"
                                 value={assignment.id}
                             >
                                 {assignment.subject.name}
@@ -439,6 +453,7 @@ export function TeacherContextSelector({
                                 (assignment) => (
                                     <option
                                         disabled
+                                        dir="auto"
                                         key={assignment.id}
                                         value={assignment.id}
                                     >
@@ -449,12 +464,22 @@ export function TeacherContextSelector({
                         </optgroup>
                     ) : null}
                 </select>
+                <small
+                    className="teacher-context-selector__hint"
+                    id="teacher-assignment-hint"
+                >
+                    اختر المادة التي تملك تعيينًا نشطًا لها.
+                </small>
             </label>
 
-            <label>
-                <span>المنهج</span>
+            <label className="teacher-context-selector__field">
+                <span className="teacher-context-selector__label">
+                    المنهج
+                </span>
                 <select
                     aria-label="المنهج"
+                    aria-describedby="teacher-curriculum-hint"
+                    dir="rtl"
                     value={
                         currentSelection.curriculumId ?? ''
                     }
@@ -470,7 +495,7 @@ export function TeacherContextSelector({
                         );
                     }}
                 >
-                    <option value="">
+                    <option dir="auto" value="">
                         اختر المنهج
                     </option>
                     {curriculaQuery.data?.map(
@@ -479,6 +504,7 @@ export function TeacherContextSelector({
                         ) => (
                             <option
                                 key={curriculum.id}
+                                dir="auto"
                                 value={curriculum.id}
                             >
                                 {curriculum.name}
@@ -486,12 +512,31 @@ export function TeacherContextSelector({
                         ),
                     )}
                 </select>
+                <small
+                    aria-live="polite"
+                    className="teacher-context-selector__hint"
+                    id="teacher-curriculum-hint"
+                >
+                    {activeAssignment === null
+                        ? 'اختر تعيين المادة أولًا.'
+                        : curriculaQuery.isPending
+                            ? 'جار تحميل المناهج…'
+                            : curriculaQuery.isError
+                                ? 'راجع رسالة تحميل المناهج أدناه.'
+                                : curriculaQuery.data?.length === 0
+                                    ? 'راجع حالة المناهج المتاحة أدناه.'
+                                    : 'اختر المنهج المرتبط بالتعيين.'}
+                </small>
             </label>
 
-            <label>
-                <span>إصدار المنهج</span>
+            <label className="teacher-context-selector__field">
+                <span className="teacher-context-selector__label">
+                    إصدار المنهج
+                </span>
                 <select
                     aria-label="إصدار المنهج"
+                    aria-describedby="teacher-version-hint"
+                    dir="rtl"
                     value={
                         currentSelection.curriculumVersionId
                         ?? ''
@@ -508,13 +553,14 @@ export function TeacherContextSelector({
                         );
                     }}
                 >
-                    <option value="">
+                    <option dir="auto" value="">
                         اختر إصدار المنهج
                     </option>
                     {versionsQuery.data?.map(
                         (version) => (
                             <option
                                 key={version.id}
+                                dir="auto"
                                 value={version.id}
                             >
                                 {versionLabel(version)}
@@ -522,6 +568,21 @@ export function TeacherContextSelector({
                         ),
                     )}
                 </select>
+                <small
+                    aria-live="polite"
+                    className="teacher-context-selector__hint"
+                    id="teacher-version-hint"
+                >
+                    {selectedCurriculum === null
+                        ? 'اختر المنهج أولًا.'
+                        : versionsQuery.isPending
+                            ? 'جار تحميل إصدارات المنهج…'
+                            : versionsQuery.isError
+                                ? 'راجع رسالة تحميل الإصدارات أدناه.'
+                                : versionsQuery.data?.length === 0
+                                    ? 'راجع حالة الإصدارات المتاحة أدناه.'
+                                    : 'اختر الإصدار الذي تريد تأليفه أو مراجعته.'}
+                </small>
             </label>
 
             {activeAssignment
@@ -551,6 +612,6 @@ export function TeacherContextSelector({
                     تعذر تحميل إصدارات المنهج.
                 </Feedback>
             ) : null}
-        </div>
+        </fieldset>
     );
 }
