@@ -301,6 +301,14 @@ describe('ProductShell', () => {
             'href',
             '/teacher/workspace',
         );
+        expect(screen.getByRole('link', { name: 'طلبات الالتحاق' })).toHaveAttribute(
+            'href',
+            '/teacher/enrollments',
+        );
+        expect(screen.getByRole('link', { name: 'طلابي' })).toHaveAttribute(
+            'href',
+            '/teacher/students',
+        );
         expect(screen.queryByRole('link', { name: 'المحتوى' })).not.toBeInTheDocument();
     });
 

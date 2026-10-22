@@ -332,6 +332,14 @@ export const teacherNavigation: NavigationItem[] = [
         label: 'مساحة التأليف',
         to: '/teacher/workspace',
     },
+    {
+        label: 'طلبات الالتحاق',
+        to: '/teacher/enrollments',
+    },
+    {
+        label: 'طلابي',
+        to: '/teacher/students',
+    },
 ];
 
 export const adminNavigation: NavigationItem[] = [
