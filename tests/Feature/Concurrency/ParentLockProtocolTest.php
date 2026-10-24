@@ -24,6 +24,7 @@ use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\Concerns\CreatesOwnedCurriculumFixtures;
 use Tests\Concerns\ResetsDedicatedTestDatabase;
+use Tests\Support\ParentLockReadyArtifact;
 use Tests\TestCase;
 
 class ParentLockProtocolTest extends TestCase
@@ -1446,22 +1447,18 @@ SELECT
 SQL
     );
 
-file_put_contents(
+\Tests\Support\ParentLockReadyArtifact::publish(
     %s,
-    json_encode(
-        [
-            'pid' =>
-                (int) $__educoreReady->pid,
-            'database' =>
-                (string)
-                $__educoreReady->database_name,
-            'user' =>
-                (string)
-                $__educoreReady->database_user,
-        ],
-        JSON_THROW_ON_ERROR
-    ),
-    LOCK_EX
+    [
+        'pid' =>
+            (int) $__educoreReady->pid,
+        'database' =>
+            (string)
+            $__educoreReady->database_name,
+        'user' =>
+            (string)
+            $__educoreReady->database_user,
+    ]
 );
 PHP,
             var_export(
@@ -1530,48 +1527,23 @@ PHP,
             );
         }
 
-        $readyDeadline =
-            microtime(true) + 8.0;
+        try {
+            $ready =
+                ParentLockReadyArtifact::waitForValid(
+                    $this->readyFile,
+                    static function () use ($process): bool {
+                        $status =
+                            proc_get_status($process);
 
-        do {
-            if (
-                is_file(
-                    $this->readyFile
-                )
-            ) {
-                break;
-            }
-
-            $status =
-                proc_get_status($process);
-
-            if (! $status['running']) {
-                $this->fail(
-                    $message
-                    .' Child exited before READY.'
+                        return (bool) $status['running'];
+                    },
+                    8.0,
                 );
-            }
-
-            usleep(10_000);
-        } while (
-            microtime(true)
-                < $readyDeadline
-        );
-
-        $this->assertFileExists(
-            $this->readyFile,
-            $message
-            .' Child never reached PostgreSQL READY.'
-        );
-
-        $ready = json_decode(
-            (string) file_get_contents(
-                $this->readyFile
-            ),
-            true,
-            512,
-            JSON_THROW_ON_ERROR,
-        );
+        } catch (RuntimeException $exception) {
+            $this->fail(
+                $message.' '.$exception->getMessage()
+            );
+        }
 
         $this->assertSame(
             'sewaellf_educore_test',
