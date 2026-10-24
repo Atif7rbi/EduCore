@@ -33,9 +33,11 @@ use App\Http\Controllers\Api\Read\ExamReadController;
 use App\Http\Controllers\Api\Read\LearningReadController;
 use App\Http\Controllers\Api\Read\ProgressReadController;
 use App\Http\Controllers\Api\Read\SkillAnalyticsReadController;
+use App\Http\Controllers\Api\Teacher\TeacherAttemptMonitoringController;
 use App\Http\Controllers\Api\Teacher\TeacherCurriculumAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherEnrollmentReadController;
 use App\Http\Controllers\Api\Teacher\TeacherLessonAssessmentAuthoringController;
+use App\Http\Controllers\Api\Teacher\TeacherLessonProgressController;
 use App\Http\Controllers\Api\Teacher\TeacherPracticeExamAuthoringController;
 use App\Http\Controllers\Api\Teacher\TeacherWorkspaceReadController;
 use Illuminate\Support\Facades\Route;
@@ -818,6 +820,24 @@ Route::middleware([
             'index',
         ]
     );
+
+    Route::get(
+        '/monitoring/enrollments/{enrollmentId}/progress',
+        [
+            TeacherLessonProgressController::class,
+            'index',
+        ],
+    )->whereUuid('enrollmentId');
+
+    Route::get(
+        '/monitoring/enrollments/{enrollmentId}/attempts',
+        [TeacherAttemptMonitoringController::class, 'index'],
+    )->whereUuid('enrollmentId');
+
+    Route::get(
+        '/monitoring/enrollments/{enrollmentId}/attempts/{attemptId}/result',
+        [TeacherAttemptMonitoringController::class, 'result'],
+    )->whereUuid('enrollmentId')->whereUuid('attemptId');
 
     Route::prefix('subject-assignments/{assignmentId}')
         ->whereUuid('assignmentId')

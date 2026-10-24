@@ -62,6 +62,10 @@ import {
     TeacherEnrollmentRequestsPage,
     TeacherStudentsPage,
 } from '../teacher/TeacherEnrollmentPages';
+import {
+    TeacherMonitoringDetailPage,
+    TeacherMonitoringOverviewPage,
+} from '../teacher/TeacherMonitoringPages';
 
 import {
     AdminProductShell,
@@ -213,6 +217,18 @@ export const router = createBrowserRouter([
                         path: 'students',
                         element: (
                             <TeacherStudentsPage />
+                        ),
+                    },
+                    {
+                        path: 'monitoring',
+                        element: (
+                            <TeacherMonitoringOverviewPage />
+                        ),
+                    },
+                    {
+                        path: 'monitoring/enrollments/:enrollmentId',
+                        element: (
+                            <TeacherMonitoringDetailPage />
                         ),
                     },
                 ],

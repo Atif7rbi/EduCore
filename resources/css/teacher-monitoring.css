@@ -1,0 +1,262 @@
+.teacher-monitoring-page {
+    display: grid;
+    gap: 1.25rem;
+    direction: rtl;
+}
+
+.teacher-monitoring-page__heading {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.teacher-monitoring-page__heading h1,
+.teacher-monitoring-page__heading p,
+.teacher-monitoring-student-card h2,
+.teacher-monitoring-student-card p,
+.teacher-monitoring-record h3,
+.teacher-monitoring-record p {
+    margin: 0;
+}
+
+.teacher-monitoring-page__heading p,
+.teacher-monitoring-muted,
+.teacher-monitoring-record p {
+    color: var(--color-text-muted, #64748b);
+}
+
+.teacher-monitoring-filter-card,
+.teacher-monitoring-version-selector,
+.teacher-monitoring-enrollment-identity,
+.teacher-monitoring-scope,
+.teacher-monitoring-attempt-filters {
+    display: grid;
+    gap: 1rem;
+}
+
+.teacher-monitoring-filter-card {
+    padding: 1rem;
+    max-width: 34rem;
+}
+
+.teacher-monitoring-filter-card label,
+.teacher-monitoring-version-selector label,
+.teacher-monitoring-attempt-filters label {
+    display: grid;
+    gap: 0.4rem;
+    font-weight: 700;
+}
+
+.teacher-monitoring-filter-card select,
+.teacher-monitoring-version-selector select,
+.teacher-monitoring-attempt-filters select {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-border, #cbd5e1);
+    border-radius: 0.75rem;
+    background: var(--color-surface, #fff);
+    color: inherit;
+    text-align: start;
+}
+
+.teacher-monitoring-students,
+.teacher-monitoring-records {
+    display: grid;
+    gap: 1rem;
+}
+
+.teacher-monitoring-student-card,
+.teacher-monitoring-record {
+    display: grid;
+    gap: 1rem;
+    padding: 1.1rem;
+    border: 1px solid var(--color-border, #dbe3ee);
+    border-radius: 1rem;
+    background: var(--color-surface, #fff);
+}
+
+.teacher-monitoring-student-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+}
+
+.teacher-monitoring-link {
+    color: var(--color-primary, #1d4ed8);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.teacher-monitoring-link:hover,
+.teacher-monitoring-link:focus-visible {
+    text-decoration: underline;
+}
+
+.teacher-monitoring-enrollment-status {
+    margin-block-start: 0.35rem !important;
+    color: #166534 !important;
+    font-weight: 700;
+}
+
+.teacher-monitoring-pagination,
+.teacher-monitoring-tabs,
+.teacher-monitoring-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.teacher-monitoring-version-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 1rem;
+    border: 1px solid var(--color-border, #dbe3ee);
+    border-radius: 1rem;
+}
+
+.teacher-monitoring-version-selector legend {
+    padding-inline: 0.5rem;
+    font-weight: 800;
+}
+
+.teacher-monitoring-tabs {
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--color-border, #dbe3ee);
+}
+
+.teacher-monitoring-tabs button {
+    padding: 0.75rem 1rem;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.teacher-monitoring-tabs button[aria-selected="true"] {
+    border-bottom-color: var(--color-primary, #1d4ed8);
+    color: var(--color-primary, #1d4ed8);
+}
+
+.teacher-monitoring-tabs button:focus-visible,
+[role="tabpanel"]:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--color-primary, #1d4ed8) 35%, transparent);
+    outline-offset: 2px;
+}
+
+.teacher-monitoring-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.teacher-monitoring-scope {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 1rem;
+}
+
+.teacher-monitoring-enrollment-identity {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 1rem;
+}
+
+.teacher-monitoring-enrollment-identity div,
+.teacher-monitoring-scope div {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.teacher-monitoring-enrollment-identity span,
+.teacher-monitoring-scope span {
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.85rem;
+}
+
+.teacher-monitoring-summary span,
+.teacher-monitoring-status {
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    font-weight: 700;
+}
+
+.teacher-monitoring-status--completed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.teacher-monitoring-status--not_recorded {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.teacher-monitoring-record {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+}
+
+.teacher-monitoring-record dl,
+.teacher-monitoring-result-summary {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.teacher-monitoring-record dl div,
+.teacher-monitoring-result-summary div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.teacher-monitoring-record dt,
+.teacher-monitoring-result-summary dt {
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.82rem;
+}
+
+.teacher-monitoring-record dd,
+.teacher-monitoring-result-summary dd {
+    margin: 0;
+    font-weight: 700;
+}
+
+.teacher-monitoring-attempt-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teacher-monitoring-result-detail {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.teacher-monitoring-result-detail h3 {
+    margin: 0;
+}
+
+@media (max-width: 64rem) {
+    .teacher-monitoring-enrollment-identity,
+    .teacher-monitoring-scope {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 48rem) {
+    .teacher-monitoring-student-card,
+    .teacher-monitoring-record,
+    .teacher-monitoring-version-selector,
+    .teacher-monitoring-attempt-filters,
+    .teacher-monitoring-enrollment-identity,
+    .teacher-monitoring-scope,
+    .teacher-monitoring-record dl,
+    .teacher-monitoring-result-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .teacher-monitoring-pagination .ui-button {
+        width: 100%;
+    }
+}

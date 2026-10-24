@@ -117,7 +117,10 @@ function NavigationIcon({
         );
     }
 
-    if (to.endsWith('/progress')) {
+    if (
+        to.endsWith('/progress')
+        || to.endsWith('/monitoring')
+    ) {
         return (
             <svg {...common}>
                 <circle cx="12" cy="12" r="8" />
@@ -339,6 +342,10 @@ export const teacherNavigation: NavigationItem[] = [
     {
         label: 'طلابي',
         to: '/teacher/students',
+    },
+    {
+        label: 'متابعة الطلاب',
+        to: '/teacher/monitoring',
     },
 ];
 

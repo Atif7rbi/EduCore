@@ -217,6 +217,35 @@ describe('ProductShell', () => {
         ).not.toBeInTheDocument();
     });
 
+    it('keeps Teacher authoring and enrollment navigation beside monitoring', () => {
+        renderShell(
+            teacherNavigation,
+            '/teacher/monitoring',
+            'مساحة المعلم',
+        );
+
+        expect(
+            screen.getByRole('link', {
+                name: 'مساحة التأليف',
+            }),
+        ).toHaveAttribute('href', '/teacher/workspace');
+        expect(
+            screen.getByRole('link', {
+                name: 'طلبات الالتحاق',
+            }),
+        ).toHaveAttribute('href', '/teacher/enrollments');
+        expect(
+            screen.getByRole('link', {
+                name: 'طلابي',
+            }),
+        ).toHaveAttribute('href', '/teacher/students');
+        expect(
+            screen.getByRole('link', {
+                name: 'متابعة الطلاب',
+            }),
+        ).toHaveAttribute('href', '/teacher/monitoring');
+    });
+
     it('persists the collapsed sidebar preference for the user and area', () => {
         renderShell(
             adminNavigation,

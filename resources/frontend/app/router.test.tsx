@@ -79,6 +79,51 @@ vi.mock('../teacher/enrollmentApi', async () => {
     };
 });
 
+vi.mock('../teacher/api', async () => {
+    const actual =
+        await vi.importActual<
+            typeof import('../teacher/api')
+        >('../teacher/api');
+
+    return {
+        ...actual,
+        fetchTeacherAssignments: vi.fn().mockResolvedValue([]),
+        fetchTeacherCurricula: vi.fn().mockResolvedValue([]),
+        fetchTeacherCurriculumVersions: vi.fn().mockResolvedValue([]),
+    };
+});
+
+vi.mock('../teacher/monitoringApi', async () => {
+    const actual =
+        await vi.importActual<
+            typeof import('../teacher/monitoringApi')
+        >('../teacher/monitoringApi');
+
+    return {
+        ...actual,
+        resolveTeacherMonitoringEnrollment: vi.fn().mockResolvedValue({
+            id: 'enrollment-one',
+            student: {
+                user_id: 'student-one',
+                name: 'Student',
+            },
+            teacher_subject_assignment: {
+                id: 'assignment-one',
+                status: 'active',
+                subject: {
+                    id: 'subject-one',
+                    code: 'mathematics',
+                    name: 'Mathematics',
+                },
+            },
+            status: 'active',
+            created_at: null,
+            accepted_at: null,
+            updated_at: null,
+        }),
+    };
+});
+
 async function renderAt(
     destination: string,
 ) {
@@ -173,6 +218,30 @@ describe('teacher router foundation', () => {
         ).toBeInTheDocument();
     });
 
+    it('mounts monitoring overview and detail under the Teacher guard', async () => {
+        await renderAt('/teacher/monitoring');
+
+        expect(
+            await screen.findByRole('heading', {
+                level: 1,
+                name: 'متابعة الطلاب',
+            }),
+        ).toBeInTheDocument();
+
+        await act(async () => {
+            await router.navigate(
+                '/teacher/monitoring/enrollments/enrollment-one',
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('heading', {
+                level: 1,
+                name: 'تفاصيل متابعة الطالب',
+            })).toBeInTheDocument();
+        });
+    });
+
     it('keeps student accounts outside teacher routes', async () => {
         authState = {
             ...authState,
@@ -182,7 +251,7 @@ describe('teacher router foundation', () => {
             },
         };
 
-        await renderAt('/teacher/enrollments');
+        await renderAt('/teacher/monitoring');
 
         expect(
             screen.getByRole('heading', {
@@ -201,7 +270,9 @@ describe('teacher router foundation', () => {
             },
         };
 
-        await renderAt('/teacher/workspace');
+        await renderAt(
+            '/teacher/monitoring/enrollments/enrollment-one?assignment_id=assignment-one',
+        );
 
         expect(
             screen.getByRole('heading', {
