@@ -5,7 +5,9 @@ import '../../css/admin-content-ux-polish.css';
 
 import {
     useCallback,
+    useRef,
     useState,
+    type KeyboardEvent,
 } from 'react';
 import {
     useSearchParams,
@@ -20,6 +22,10 @@ import {
 
 import {
     ContentContextSelector,
+} from './content/ContentContextSelector';
+import type {
+    ContentContextState,
+    ContextNavigationMode,
 } from './content/ContentContextSelector';
 import {
     TeacherOwnedContentInspection,
@@ -297,25 +303,104 @@ function WorkspaceIcon({
 export function AdminContentPage() {
     const [searchParams, setSearchParams] =
         useSearchParams();
-    const [subjectId, setSubjectId] =
-        useState<string | null>(null);
-    const [curriculumId, setCurriculumId] =
-        useState<string | null>(null);
-    const [curriculumVersionId, setCurriculumVersionId] =
-        useState<string | null>(null);
+    const subjectId =
+        searchParams.get('subject_id');
+    const curriculumId =
+        searchParams.get('curriculum_id');
+    const curriculumVersionId =
+        searchParams.get('version_id');
     const [selectedCurriculum, setSelectedCurriculum] =
         useState<Curriculum | null>(null);
     const [selectedVersion, setSelectedVersion] =
         useState<CurriculumVersion | null>(null);
-    const [activeSection, setActiveSection] =
-        useState<WorkspaceSection>(() =>
-            workspaceSectionFromSearch(
-                searchParams.get('section'),
-            )
+    const [contextError, setContextError] =
+        useState<string | null>(null);
+    const [contextState, setContextState] =
+        useState<ContentContextState>(
+            'subjects-loading',
+        );
+    const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const activeSection =
+        workspaceSectionFromSearch(
+            searchParams.get('section'),
         );
 
+    const updateSubject = useCallback((
+        value: string | null,
+        mode: ContextNavigationMode = 'push',
+    ) => {
+        setSearchParams((current) => {
+            const next =
+                new URLSearchParams(current);
+
+            if (value) {
+                next.set('subject_id', value);
+            } else {
+                next.delete('subject_id');
+            }
+
+            next.delete('curriculum_id');
+            next.delete('version_id');
+
+            return next;
+        }, {
+            replace: mode === 'replace',
+        });
+    }, [setSearchParams]);
+
+    const updateCurriculum = useCallback((
+        value: string | null,
+        mode: ContextNavigationMode = 'push',
+    ) => {
+        setSearchParams((current) => {
+            const next =
+                new URLSearchParams(current);
+
+            if (value) {
+                next.set('curriculum_id', value);
+            } else {
+                next.delete('curriculum_id');
+            }
+
+            next.delete('version_id');
+
+            return next;
+        }, {
+            replace: mode === 'replace',
+        });
+    }, [setSearchParams]);
+
+    const updateVersion = useCallback((
+        value: string | null,
+        mode: ContextNavigationMode = 'push',
+    ) => {
+        setSearchParams((current) => {
+            const next =
+                new URLSearchParams(current);
+
+            if (value) {
+                next.set('version_id', value);
+            } else {
+                next.delete('version_id');
+            }
+
+            return next;
+        }, {
+            replace: mode === 'replace',
+        });
+    }, [setSearchParams]);
+
+    const contextReady =
+        selectedCurriculum?.id
+            === curriculumId
+        && selectedVersion?.id
+            === curriculumVersionId
+        && selectedVersion?.curriculum_id
+            === curriculumId;
+
     const isTeacherOwned =
-        selectedCurriculum
+        contextReady
+        && selectedCurriculum
             ?.teacher_subject_assignment_id
         != null;
 
@@ -352,7 +437,6 @@ export function AdminContentPage() {
     function selectSection(
         section: WorkspaceSection,
     ) {
-        setActiveSection(section);
         setSearchParams(
             (current) => {
                 const next =
@@ -360,14 +444,15 @@ export function AdminContentPage() {
                 next.set('section', section);
                 return next;
             },
-            { replace: true },
+            { replace: false },
         );
     }
 
     function renderWorkspace(
+        section: WorkspaceSection,
         version: CurriculumVersion,
     ) {
-        switch (activeSection) {
+        switch (section) {
             case 'topics':
                 return <TopicsPanel version={version} />;
             case 'skills':
@@ -397,6 +482,49 @@ export function AdminContentPage() {
         }
     }
 
+    function focusAndSelectTab(
+        index: number,
+    ) {
+        const section =
+            workspaceSections[index];
+
+        if (!section) {
+            return;
+        }
+
+        selectSection(section.id);
+        tabRefs.current[index]?.focus();
+    }
+
+    function handleTabKeyDown(
+        event: KeyboardEvent<HTMLButtonElement>,
+        index: number,
+    ) {
+        let nextIndex: number | null = null;
+
+        if (event.key === 'ArrowLeft') {
+            nextIndex =
+                (index + 1)
+                % workspaceSections.length;
+        } else if (event.key === 'ArrowRight') {
+            nextIndex =
+                (index - 1 + workspaceSections.length)
+                % workspaceSections.length;
+        } else if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex =
+                workspaceSections.length - 1;
+        }
+
+        if (nextIndex === null) {
+            return;
+        }
+
+        event.preventDefault();
+        focusAndSelectTab(nextIndex);
+    }
+
     return (
         <section
             className="admin-authoring"
@@ -421,17 +549,38 @@ export function AdminContentPage() {
                 subjectId={subjectId}
                 curriculumId={curriculumId}
                 curriculumVersionId={curriculumVersionId}
-                onSubjectChange={setSubjectId}
-                onCurriculumChange={setCurriculumId}
-                onCurriculumVersionChange={setCurriculumVersionId}
+                onSubjectChange={updateSubject}
+                onCurriculumChange={updateCurriculum}
+                onCurriculumVersionChange={updateVersion}
                 onCurriculumResolved={resolveCurriculum}
                 onVersionResolved={resolveVersion}
+                onContextErrorChange={setContextError}
+                onContextStateChange={setContextState}
             />
 
-            {!curriculumVersionId ? (
+            {contextError ? null
+            : contextState.endsWith('-loading')
+                || contextState.endsWith('-fetching')
+                || contextState.endsWith('-error')
+                || contextState.endsWith('-empty')
+                || contextState.endsWith('-invalid')
+                ? null
+            : contextState === 'subject-missing' ? (
+                <Feedback>
+                    اختر مادة لعرض سياق المحتوى.
+                </Feedback>
+            ) : contextState === 'curriculum-missing' ? (
                 <Feedback>
                     اختر منهجًا لعرض المحتوى.
                 </Feedback>
+            ) : contextState === 'version-missing' ? (
+                <Feedback>
+                    اختر إصدارًا لعرض المحتوى.
+                </Feedback>
+            ) : !contextReady ? (
+                <div className="admin-authoring__loading">
+                    جار التحقق من سياق المحتوى…
+                </div>
             ) : isTeacherOwned ? (
                 <div className="admin-authoring__workspace">
                     <Feedback tone="info">
@@ -522,9 +671,13 @@ export function AdminContentPage() {
                         role="tablist"
                         aria-label="أقسام إدارة المحتوى"
                     >
-                        {workspaceSections.map((section) => {
+                        {workspaceSections.map((section, index) => {
                             const active =
                                 section.id === activeSection;
+                            const tabId =
+                                `admin-content-tab-${section.id}`;
+                            const panelId =
+                                `admin-content-panel-${section.id}`;
 
                             const readinessState =
                                 publishingTabState(
@@ -536,9 +689,15 @@ export function AdminContentPage() {
                             return (
                                 <button
                                     key={section.id}
+                                    ref={(node) => {
+                                        tabRefs.current[index] = node;
+                                    }}
+                                    id={tabId}
                                     type="button"
                                     role="tab"
+                                    aria-controls={panelId}
                                     aria-selected={active}
+                                    tabIndex={active ? 0 : -1}
                                     data-readiness-state={
                                         readinessState
                                         ?? undefined
@@ -558,6 +717,12 @@ export function AdminContentPage() {
                                     onClick={() =>
                                         selectSection(section.id)
                                     }
+                                    onKeyDown={(event) => {
+                                        handleTabKeyDown(
+                                            event,
+                                            index,
+                                        );
+                                    }}
                                 >
                                     <WorkspaceIcon section={section.id} />
                                     <span>{section.label}</span>
@@ -567,18 +732,33 @@ export function AdminContentPage() {
                     </nav>
 
                     {selectedVersion ? (
-                        <div
-                            className="admin-authoring__panel"
-                            role="tabpanel"
-                            aria-label={
-                                workspaceSections.find(
-                                    (section) =>
-                                        section.id === activeSection,
-                                )?.label
-                            }
-                        >
-                            {renderWorkspace(selectedVersion)}
-                        </div>
+                        workspaceSections.map((section) => {
+                            const active =
+                                section.id === activeSection;
+                            const tabId =
+                                `admin-content-tab-${section.id}`;
+                            const panelId =
+                                `admin-content-panel-${section.id}`;
+
+                            return (
+                                <div
+                                    key={section.id}
+                                    id={panelId}
+                                    className="admin-authoring__panel"
+                                    role="tabpanel"
+                                    aria-labelledby={tabId}
+                                    hidden={!active}
+                                    tabIndex={active ? 0 : -1}
+                                >
+                                    {active
+                                        ? renderWorkspace(
+                                            section.id,
+                                            selectedVersion,
+                                        )
+                                        : null}
+                                </div>
+                            );
+                        })
                     ) : (
                         <div className="admin-authoring__loading">
                             جار تجهيز مساحة العمل…

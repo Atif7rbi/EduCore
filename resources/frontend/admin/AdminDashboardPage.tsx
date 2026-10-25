@@ -463,7 +463,7 @@ export function AdminDashboardPage() {
                             <Link to="/admin/curricula">
                                 <span><DashboardIcon name="curricula" /></span>
                                 <strong>استعراض المناهج</strong>
-                                <small>المواد، المناهج، والإصدارات</small>
+                                <small>قراءة المناهج وإصداراتها دون تعديل محتوى المعلمين</small>
                             </Link>
                             <Link to="/admin/content?section=lessons">
                                 <span><DashboardIcon name="lessons" /></span>
@@ -472,13 +472,13 @@ export function AdminDashboardPage() {
                             </Link>
                             <Link to="/admin/content?section=assessment-items">
                                 <span><DashboardIcon name="questions" /></span>
-                                <strong>بنك الأسئلة</strong>
-                                <small>بناء وتصنيف أسئلة التقييم</small>
+                                <strong>استعراض أسئلة التقييم</strong>
+                                <small>إدارة المحتوى التاريخي واستعراض محتوى المعلمين فقط</small>
                             </Link>
                             <Link to="/admin/content?section=exam-templates">
                                 <span><DashboardIcon name="exams" /></span>
-                                <strong>الاختبارات</strong>
-                                <small>إدارة قوالب الاختبارات وإعداداتها</small>
+                                <strong>استعراض قوالب الاختبارات</strong>
+                                <small>إدارة التاريخي واستعراض المملوك للمعلمين دون تعديل</small>
                             </Link>
                         </div>
                     </section>

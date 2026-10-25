@@ -1,4 +1,5 @@
 import {
+    act,
     fireEvent,
     render,
     screen,
@@ -97,6 +98,17 @@ vi.mock('./api', () => ({
 
 const operationUuid =
     '11111111-1111-4111-8111-111111111111';
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+
+    return { promise, resolve, reject };
+}
 
 function teacher(
     status:
@@ -492,6 +504,22 @@ describe(
                 deactivate
             );
 
+            expect(
+                screen.getByRole('dialog', {
+                    name: 'تأكيد إلغاء إسناد المادة',
+                }),
+            ).toHaveTextContent('تنظيف إداري.');
+
+            expect(
+                deactivateTeacherAssignmentMock
+            ).not.toHaveBeenCalled();
+
+            const confirmButton = screen.getByRole('button', {
+                name: 'تأكيد إلغاء الإسناد',
+            });
+            fireEvent.click(confirmButton);
+            fireEvent.click(confirmButton);
+
             await waitFor(() => {
                 expect(
                     deactivateTeacherAssignmentMock
@@ -506,9 +534,80 @@ describe(
                 );
             });
 
+            await waitFor(() => {
+                expect(
+                    deactivateTeacherAssignmentMock,
+                ).toHaveBeenCalledTimes(1);
+            });
+
             expect(
                 reactivateTeacherAssignmentMock
             ).not.toHaveBeenCalled();
+        });
+
+        it('blocks native cancellation synchronously after assignment deactivation dispatch', async () => {
+            const operation = deferred<Record<string, never>>();
+            deactivateTeacherAssignmentMock
+                .mockReturnValue(operation.promise);
+            fetchTeacherAssignmentsMock
+                .mockResolvedValue([
+                    assignment({
+                        id: 'assignment-active',
+                        subjectId: 'subject-math',
+                        subjectCode: 'mathematics',
+                        subjectName: 'الرياضيات',
+                        status: 'active',
+                    }),
+                ]);
+            fetchAdminCanonicalSubjectsMock
+                .mockResolvedValue([]);
+
+            renderPanel();
+            await screen.findByText('الرياضيات');
+
+            fireEvent.change(screen.getByLabelText(
+                'سبب العملية',
+            ), {
+                target: { value: 'سبب متزامن ثابت.' },
+            });
+            const openButton = screen.getByRole('button', {
+                name: 'إلغاء الإسناد',
+            });
+            fireEvent.click(openButton);
+
+            const dialog = screen.getByRole('dialog', {
+                name: 'تأكيد إلغاء إسناد المادة',
+            });
+            const confirm = screen.getByRole('button', {
+                name: 'تأكيد إلغاء الإسناد',
+            });
+            fireEvent.click(confirm);
+            fireEvent.click(confirm);
+            fireEvent(dialog, new Event('cancel', {
+                cancelable: true,
+            }));
+
+            expect(dialog).toBeInTheDocument();
+            expect(openButton).toBeDisabled();
+            await waitFor(() => {
+                expect(
+                    deactivateTeacherAssignmentMock,
+                ).toHaveBeenCalledTimes(1);
+            });
+            expect(dialog).toHaveTextContent(
+                'سبب متزامن ثابت.',
+            );
+
+            await act(async () => {
+                operation.resolve({});
+                await operation.promise;
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByRole(
+                    'dialog',
+                )).not.toBeInTheDocument();
+            });
         });
 
         it('blocks reactivation when the canonical subject is inactive', async () => {

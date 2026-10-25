@@ -1,4 +1,5 @@
 import {
+    useRef,
     useState,
 } from 'react';
 import {
@@ -18,6 +19,9 @@ import {
     studentEnrollmentKey,
     studentEnrollmentsKey,
 } from './studentApi';
+import {
+    ImpactConfirmationDialog,
+} from './ImpactConfirmationDialog';
 
 import type {
     StudentEnrollmentRead,
@@ -38,6 +42,17 @@ export function StudentEnrollmentDeactivationPanel({
     const [reason, setReason] =
         useState('');
 
+    const [pendingDeactivation, setPendingDeactivation] =
+        useState<{
+            enrollmentId: string;
+            studentUserId: string;
+            studentName: string;
+            subjectName: string;
+            reason: string;
+        } | null>(null);
+    const deactivationSubmissionStarted =
+        useRef(false);
+
     const studentUserId =
         enrollment.student.user_id;
 
@@ -46,19 +61,27 @@ export function StudentEnrollmentDeactivationPanel({
 
     const mutation =
         useMutation({
-            mutationFn: () =>
+            mutationFn: (
+                confirmed: NonNullable<
+                    typeof pendingDeactivation
+                >,
+            ) =>
                 deactivateStudentEnrollment(
-                    enrollment.id,
+                    confirmed.enrollmentId,
                     {
                         operation_id:
                             operationId(),
                         reason:
-                            trimmedReason,
+                            confirmed.reason,
                     },
                 ),
 
-            onSuccess: async () => {
+            onSuccess: async (
+                _result,
+                confirmed,
+            ) => {
                 setReason('');
+                setPendingDeactivation(null);
 
                 await Promise.all([
                     queryClient
@@ -71,7 +94,7 @@ export function StudentEnrollmentDeactivationPanel({
                         .invalidateQueries({
                             queryKey:
                                 adminStudentKey(
-                                    studentUserId
+                                    confirmed.studentUserId
                                 ),
                         }),
 
@@ -79,7 +102,7 @@ export function StudentEnrollmentDeactivationPanel({
                         .invalidateQueries({
                             queryKey:
                                 studentEnrollmentsKey(
-                                    studentUserId
+                                    confirmed.studentUserId
                                 ),
                         }),
 
@@ -87,12 +110,36 @@ export function StudentEnrollmentDeactivationPanel({
                         .invalidateQueries({
                             queryKey:
                                 studentEnrollmentKey(
-                                    enrollment.id
+                                    confirmed.enrollmentId
                                 ),
                         }),
                 ]);
             },
+            onSettled: () => {
+                deactivationSubmissionStarted.current = false;
+            },
         });
+
+    function confirmDeactivation() {
+        if (
+            pendingDeactivation === null
+            || deactivationSubmissionStarted.current
+            || mutation.isPending
+        ) {
+            return;
+        }
+
+        deactivationSubmissionStarted.current = true;
+
+        mutation.mutate(
+            pendingDeactivation,
+        );
+    }
+
+    function deactivationCancellationLocked() {
+        return deactivationSubmissionStarted.current
+            || mutation.isPending;
+    }
 
     if (
         enrollment.status
@@ -162,9 +209,27 @@ export function StudentEnrollmentDeactivationPanel({
                 }
                 disabled={
                     !trimmedReason
+                    || pendingDeactivation !== null
+                    || mutation.isPending
                 }
                 onClick={() => {
-                    mutation.mutate();
+                    if (
+                        trimmedReason
+                        && pendingDeactivation === null
+                        && !mutation.isPending
+                    ) {
+                        setPendingDeactivation({
+                            enrollmentId: enrollment.id,
+                            studentUserId,
+                            studentName:
+                                enrollment.student.name,
+                            subjectName:
+                                enrollment
+                                    .teacher_subject_assignment
+                                    .subject.name,
+                            reason: trimmedReason,
+                        });
+                    }
                 }}
             >
                 إلغاء التسجيل
@@ -178,6 +243,31 @@ export function StudentEnrollmentDeactivationPanel({
                     البيانات قبل المحاولة مرة
                     أخرى.
                 </Feedback>
+            ) : null}
+
+            {pendingDeactivation ? (
+                <ImpactConfirmationDialog
+                    title="تأكيد إلغاء تسجيل الطالب"
+                    target={`${pendingDeactivation.studentName} — ${pendingDeactivation.subjectName}`}
+                    impact="سيتحول التسجيل النشط إلى غير نشط مع الاحتفاظ بسجل الانتقالات التاريخي."
+                    reason={pendingDeactivation.reason}
+                    confirmLabel="تأكيد إلغاء التسجيل"
+                    isPending={mutation.isPending}
+                    isCancellationLocked={
+                        deactivationCancellationLocked
+                    }
+                    errorMessage={
+                        mutation.isError
+                            ? 'تعذر إلغاء التسجيل. لم يتم افتراض نجاح العملية، ولا تزال إعادة المحاولة بحاجة إلى تأكيد صريح.'
+                            : null
+                    }
+                    onCancel={() => {
+                        if (!deactivationCancellationLocked()) {
+                            setPendingDeactivation(null);
+                        }
+                    }}
+                    onConfirm={confirmDeactivation}
+                />
             ) : null}
         </section>
     );
