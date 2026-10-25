@@ -1,4 +1,5 @@
 import {
+    act,
     fireEvent,
     render,
     screen,
@@ -70,6 +71,17 @@ vi.mock('./studentApi', () => ({
 
 const operationUuid =
     '22222222-2222-4222-8222-222222222222';
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+
+    return { promise, resolve, reject };
+}
 
 function enrollment(
     status:
@@ -224,6 +236,22 @@ describe(
 
             fireEvent.click(button);
 
+            expect(
+                screen.getByRole('dialog', {
+                    name: 'تأكيد إلغاء تسجيل الطالب',
+                }),
+            ).toHaveTextContent('إلغاء إداري تشغيلي.');
+
+            expect(
+                deactivateStudentEnrollmentMock
+            ).not.toHaveBeenCalled();
+
+            const confirmButton = screen.getByRole('button', {
+                name: 'تأكيد إلغاء التسجيل',
+            });
+            fireEvent.click(confirmButton);
+            fireEvent.click(confirmButton);
+
             await waitFor(() => {
                 expect(
                     deactivateStudentEnrollmentMock
@@ -236,6 +264,120 @@ describe(
                             'إلغاء إداري تشغيلي.',
                     },
                 );
+            });
+
+            await waitFor(() => {
+                expect(
+                    deactivateStudentEnrollmentMock,
+                ).toHaveBeenCalledTimes(1);
+            });
+        });
+
+        it('keeps a failed mutation explicit and retries only after a fresh confirmation', async () => {
+            deactivateStudentEnrollmentMock
+                .mockRejectedValueOnce(
+                    new Error('request failed'),
+                )
+                .mockResolvedValueOnce({
+                    id: 'enrollment-1',
+                    status: 'inactive',
+                });
+
+            renderPanel('active');
+
+            fireEvent.change(
+                screen.getByLabelText(
+                    'سبب إلغاء التسجيل',
+                ),
+                {
+                    target: {
+                        value: 'سبب ثابت للمحاولة.',
+                    },
+                },
+            );
+
+            fireEvent.click(screen.getByRole('button', {
+                name: 'إلغاء التسجيل',
+            }));
+            fireEvent.click(screen.getByRole('button', {
+                name: 'تأكيد إلغاء التسجيل',
+            }));
+
+            expect(await screen.findByText(
+                /لا تزال إعادة المحاولة بحاجة إلى تأكيد صريح/,
+            )).toBeInTheDocument();
+            expect(screen.getByRole('dialog')).toHaveTextContent(
+                'سبب ثابت للمحاولة.',
+            );
+            expect(
+                deactivateStudentEnrollmentMock,
+            ).toHaveBeenCalledTimes(1);
+
+            fireEvent.click(screen.getByRole('button', {
+                name: 'تأكيد إلغاء التسجيل',
+            }));
+
+            await waitFor(() => {
+                expect(
+                    deactivateStudentEnrollmentMock,
+                ).toHaveBeenCalledTimes(2);
+            });
+        });
+
+        it('blocks native cancellation synchronously after enrollment deactivation dispatch', async () => {
+            const operation = deferred<{
+                id: string;
+                status: string;
+            }>();
+            deactivateStudentEnrollmentMock
+                .mockReturnValue(operation.promise);
+
+            renderPanel('active');
+            fireEvent.change(screen.getByLabelText(
+                'سبب إلغاء التسجيل',
+            ), {
+                target: { value: 'سبب تسجيل ثابت.' },
+            });
+            const openButton = screen.getByRole('button', {
+                name: 'إلغاء التسجيل',
+            });
+            fireEvent.click(openButton);
+
+            const dialog = screen.getByRole('dialog', {
+                name: 'تأكيد إلغاء تسجيل الطالب',
+            });
+            const confirm = screen.getByRole('button', {
+                name: 'تأكيد إلغاء التسجيل',
+            });
+            fireEvent.click(confirm);
+            fireEvent.click(confirm);
+            fireEvent(dialog, new Event('cancel', {
+                cancelable: true,
+            }));
+
+            expect(dialog).toBeInTheDocument();
+            expect(openButton).toBeDisabled();
+            await waitFor(() => {
+                expect(
+                    deactivateStudentEnrollmentMock,
+                ).toHaveBeenCalledTimes(1);
+            });
+            expect(dialog).toHaveTextContent(
+                'سبب تسجيل ثابت.',
+            );
+
+            await act(async () => {
+                operation.resolve({
+                    id: 'enrollment-1',
+                    status: 'inactive',
+                });
+                await operation.promise;
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByRole(
+                    'dialog',
+                )).not.toBeInTheDocument();
             });
         });
 
@@ -321,6 +463,16 @@ describe(
                     {
                         name:
                             'إلغاء التسجيل',
+                    },
+                ),
+            );
+
+            fireEvent.click(
+                screen.getByRole(
+                    'button',
+                    {
+                        name:
+                            'تأكيد إلغاء التسجيل',
                     },
                 ),
             );

@@ -5,6 +5,9 @@ import {
 import {
     useQuery,
 } from '@tanstack/react-query';
+import {
+    Link,
+} from 'react-router-dom';
 
 import {
     apiRequest,
@@ -726,6 +729,17 @@ export function AdminCurriculaPage() {
                                                                 {curriculum.subject.code}
                                                                 )
                                                             </span>
+
+                                                            <Link
+                                                                className="admin-curricula__content-link"
+                                                                to={`/admin/content?subject_id=${encodeURIComponent(
+                                                                    curriculum.subject_id,
+                                                                )}&curriculum_id=${encodeURIComponent(
+                                                                    curriculum.id,
+                                                                )}`}
+                                                            >
+                                                                استعراض الإصدارات والمحتوى
+                                                            </Link>
                                                         </div>
                                                     </div>
                                                 ),

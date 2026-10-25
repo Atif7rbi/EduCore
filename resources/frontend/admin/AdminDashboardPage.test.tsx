@@ -322,5 +322,14 @@ describe('AdminDashboardPage', () => {
             .toBeInTheDocument();
         expect(screen.getAllByRole('link', { name: /استعراض المناهج/ }).length)
             .toBeGreaterThan(0);
+        expect(
+            screen.getByText('استعراض أسئلة التقييم'),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText('استعراض قوالب الاختبارات'),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText(/دون تعديل محتوى المعلمين/),
+        ).toBeInTheDocument();
     });
 });

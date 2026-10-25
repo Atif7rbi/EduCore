@@ -1,4 +1,5 @@
 import {
+    useRef,
     useState,
 } from 'react';
 import {
@@ -23,6 +24,9 @@ import {
     reactivateTeacherAssignment,
     teacherAssignmentsKey,
 } from './api';
+import {
+    ImpactConfirmationDialog,
+} from './ImpactConfirmationDialog';
 
 import type {
     AdminTeacher,
@@ -48,6 +52,15 @@ export function TeacherAssignmentsPanel({
 
     const [reason, setReason] =
         useState('');
+
+    const [pendingDeactivation, setPendingDeactivation] =
+        useState<{
+            assignment: TeacherSubjectAssignment;
+            teacherName: string;
+            reason: string;
+        } | null>(null);
+    const deactivationSubmissionStarted =
+        useRef(false);
 
     const assignmentsQuery =
         useQuery({
@@ -142,8 +155,23 @@ export function TeacherAssignmentsPanel({
                 );
             },
 
-            onSuccess:
-                refreshTeacherTruth,
+            onSuccess: async (
+                _result,
+                variables,
+            ) => {
+                if (
+                    variables.operation
+                    === 'deactivate'
+                ) {
+                    setPendingDeactivation(null);
+                    setReason('');
+                }
+
+                await refreshTeacherTruth();
+            },
+            onSettled: () => {
+                deactivationSubmissionStarted.current = false;
+            },
         });
 
     const assignments =
@@ -201,7 +229,23 @@ export function TeacherAssignmentsPanel({
             'deactivate'
             | 'reactivate',
     ) {
-        if (!trimmedReason) {
+        if (
+            !trimmedReason
+            || pendingDeactivation !== null
+            || lifecycleMutation.isPending
+        ) {
+            return;
+        }
+
+        if (
+            operation === 'deactivate'
+        ) {
+            setPendingDeactivation({
+                assignment,
+                teacherName: teacher.name,
+                reason: trimmedReason,
+            });
+
             return;
         }
 
@@ -215,6 +259,35 @@ export function TeacherAssignmentsPanel({
                     trimmedReason,
             },
         });
+    }
+
+    function confirmDeactivation() {
+        if (
+            pendingDeactivation === null
+            || deactivationSubmissionStarted.current
+            || lifecycleMutation.isPending
+        ) {
+            return;
+        }
+
+        deactivationSubmissionStarted.current = true;
+
+        lifecycleMutation.mutate({
+            assignment:
+                pendingDeactivation.assignment,
+            operation: 'deactivate',
+            payload: {
+                operation_id:
+                    operationId(),
+                reason:
+                    pendingDeactivation.reason,
+            },
+        });
+    }
+
+    function deactivationCancellationLocked() {
+        return deactivationSubmissionStarted.current
+            || lifecycleMutation.isPending;
     }
 
     if (
@@ -428,6 +501,8 @@ export function TeacherAssignmentsPanel({
                                             size="sm"
                                             disabled={
                                                 !trimmedReason
+                                                || pendingDeactivation !== null
+                                                || lifecycleMutation.isPending
                                             }
                                             isLoading={
                                                 lifecycleMutation
@@ -449,6 +524,8 @@ export function TeacherAssignmentsPanel({
                                             disabled={
                                                 !trimmedReason
                                                 || !canReactivate
+                                                || pendingDeactivation !== null
+                                                || lifecycleMutation.isPending
                                             }
                                             isLoading={
                                                 lifecycleMutation
@@ -470,6 +547,33 @@ export function TeacherAssignmentsPanel({
                     )
                 )}
             </div>
+
+            {pendingDeactivation ? (
+                <ImpactConfirmationDialog
+                    title="تأكيد إلغاء إسناد المادة"
+                    target={`${pendingDeactivation.teacherName} — ${pendingDeactivation.assignment.subject.name}`}
+                    impact="سيصبح الإسناد غير نشط، وقد يتوقف الوصول التعليمي المرتبط به وفق قواعد الأهلية الحالية."
+                    reason={pendingDeactivation.reason}
+                    confirmLabel="تأكيد إلغاء الإسناد"
+                    isPending={lifecycleMutation.isPending}
+                    isCancellationLocked={
+                        deactivationCancellationLocked
+                    }
+                    errorMessage={
+                        lifecycleMutation.isError
+                            ? 'تعذر إلغاء الإسناد. لم يتم افتراض نجاح العملية، ويمكنك التراجع أو المحاولة مرة أخرى.'
+                            : null
+                    }
+                    onCancel={() => {
+                        if (
+                            !deactivationCancellationLocked()
+                        ) {
+                            setPendingDeactivation(null);
+                        }
+                    }}
+                    onConfirm={confirmDeactivation}
+                />
+            ) : null}
         </section>
     );
 }

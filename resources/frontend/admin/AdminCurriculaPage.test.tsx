@@ -10,6 +10,9 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
     beforeEach,
     describe,
     expect,
@@ -55,9 +58,11 @@ function renderPage() {
     });
 
     render(
-        <QueryClientProvider client={client}>
-            <AdminCurriculaPage />
-        </QueryClientProvider>,
+        <MemoryRouter>
+            <QueryClientProvider client={client}>
+                <AdminCurriculaPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
@@ -633,6 +638,15 @@ describe('AdminCurriculaPage', () => {
                 'مملوك للمعلم — استعراض فقط',
             ),
         ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('link', {
+                name: 'استعراض الإصدارات والمحتوى',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/admin/content?subject_id=subject-math&curriculum_id=curriculum-1',
+        );
 
         expect(
             screen.queryByRole(

@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 
 import {
+    Button,
     Feedback,
 } from '../../ui';
 
@@ -29,12 +30,15 @@ interface ContentContextSelectorProps {
     curriculumVersionId: string | null;
     onSubjectChange: (
         value: string | null,
+        mode?: ContextNavigationMode,
     ) => void;
     onCurriculumChange: (
         value: string | null,
+        mode?: ContextNavigationMode,
     ) => void;
     onCurriculumVersionChange: (
         value: string | null,
+        mode?: ContextNavigationMode,
     ) => void;
     onCurriculumResolved: (
         curriculum: Curriculum | null,
@@ -42,7 +46,37 @@ interface ContentContextSelectorProps {
     onVersionResolved: (
         version: CurriculumVersion | null,
     ) => void;
+    onContextErrorChange: (
+        message: string | null,
+    ) => void;
+    onContextStateChange: (
+        state: ContentContextState,
+    ) => void;
 }
+
+export type ContextNavigationMode =
+    | 'push'
+    | 'replace';
+
+export type ContentContextState =
+    | 'subjects-loading'
+    | 'subjects-error'
+    | 'subjects-empty'
+    | 'subject-invalid'
+    | 'subject-missing'
+    | 'curricula-loading'
+    | 'curricula-fetching'
+    | 'curricula-error'
+    | 'curricula-empty'
+    | 'curriculum-invalid'
+    | 'curriculum-missing'
+    | 'versions-loading'
+    | 'versions-fetching'
+    | 'versions-error'
+    | 'versions-empty'
+    | 'version-invalid'
+    | 'version-missing'
+    | 'ready';
 
 function statusLabel(
     status: CurriculumVersion['status'],
@@ -66,11 +100,28 @@ export function ContentContextSelector({
     onCurriculumVersionChange,
     onCurriculumResolved,
     onVersionResolved,
+    onContextErrorChange,
+    onContextStateChange,
 }: ContentContextSelectorProps) {
     const subjectsQuery = useQuery({
         queryKey: adminSubjectsKey(),
         queryFn: fetchSubjects,
     });
+
+    const selectedSubject =
+        subjectsQuery.data?.find(
+            (subject) =>
+                subject.id === subjectId,
+        ) ?? null;
+
+    const subjectSelectionInvalid =
+        subjectId !== null
+        && subjectsQuery.isSuccess
+        && selectedSubject === null;
+
+    const curriculaQueryEnabled =
+        subjectId !== null
+        && selectedSubject !== null;
 
     const curriculaQuery = useQuery({
         queryKey:
@@ -79,8 +130,23 @@ export function ContentContextSelector({
             ),
         queryFn: () =>
             fetchCurricula(subjectId!),
-        enabled: subjectId !== null,
+        enabled: curriculaQueryEnabled,
     });
+
+    const selectedCurriculum =
+        curriculaQuery.data?.find(
+            (curriculum) =>
+                curriculum.id === curriculumId,
+        ) ?? null;
+
+    const curriculumSelectionInvalid =
+        curriculumId !== null
+        && curriculaQuery.isSuccess
+        && selectedCurriculum === null;
+
+    const versionsQueryEnabled =
+        curriculumId !== null
+        && selectedCurriculum !== null;
 
     const versionsQuery = useQuery({
         queryKey:
@@ -89,8 +155,20 @@ export function ContentContextSelector({
             ),
         queryFn: () =>
             fetchVersions(curriculumId!),
-        enabled: curriculumId !== null,
+        enabled: versionsQueryEnabled,
     });
+
+    const selectedVersion =
+        versionsQuery.data?.find(
+            (version) =>
+                version.id
+                === curriculumVersionId,
+        ) ?? null;
+
+    const versionSelectionInvalid =
+        curriculumVersionId !== null
+        && versionsQuery.isSuccess
+        && selectedVersion === null;
 
     useEffect(() => {
         if (
@@ -100,6 +178,7 @@ export function ContentContextSelector({
         ) {
             onSubjectChange(
                 subjectsQuery.data[0].id,
+                'replace',
             );
         }
     }, [
@@ -116,15 +195,10 @@ export function ContentContextSelector({
         ) {
             onCurriculumChange(
                 curriculaQuery.data[0].id,
+                'replace',
             );
         }
 
-        if (
-            curriculaQuery.data
-            && curriculaQuery.data.length === 0
-        ) {
-            onCurriculumChange(null);
-        }
     }, [
         curriculumId,
         curriculaQuery.data,
@@ -139,41 +213,15 @@ export function ContentContextSelector({
         ) {
             onCurriculumVersionChange(
                 versionsQuery.data[0].id,
+                'replace',
             );
         }
 
-        if (
-            versionsQuery.data
-            && versionsQuery.data.length === 0
-        ) {
-            onCurriculumVersionChange(
-                null,
-            );
-        }
     }, [
         curriculumVersionId,
         onCurriculumVersionChange,
         versionsQuery.data,
     ]);
-
-    const selectedSubject =
-        subjectsQuery.data?.find(
-            (subject) =>
-                subject.id === subjectId,
-        ) ?? null;
-
-    const selectedCurriculum =
-        curriculaQuery.data?.find(
-            (curriculum) =>
-                curriculum.id === curriculumId,
-        ) ?? null;
-
-    const selectedVersion =
-        versionsQuery.data?.find(
-            (version) =>
-                version.id
-                === curriculumVersionId,
-        ) ?? null;
 
     useEffect(() => {
         onCurriculumResolved(
@@ -193,6 +241,88 @@ export function ContentContextSelector({
         selectedVersion,
     ]);
 
+    const contextError =
+        subjectsQuery.isError
+            ? 'تعذر تحميل المواد.'
+            : subjectSelectionInvalid
+                ? 'المادة المحددة في الرابط غير متاحة.'
+                : curriculaQueryEnabled
+                    && curriculaQuery.isError
+                    && !curriculaQuery.isFetching
+                    ? 'تعذر تحميل المناهج.'
+                    : curriculumSelectionInvalid
+                        ? 'المنهج المحدد لا يتبع المادة الحالية أو لا يمكن الوصول إليه.'
+                        : versionsQueryEnabled
+                            && versionsQuery.isError
+                            && !versionsQuery.isFetching
+                            ? 'تعذر تحميل إصدارات المنهج.'
+                            : versionSelectionInvalid
+                                ? 'إصدار المنهج المحدد غير متاح ضمن المنهج الحالي.'
+                                : null;
+
+    const contextState: ContentContextState =
+        subjectsQuery.isPending
+            ? 'subjects-loading'
+            : subjectsQuery.isError
+                ? 'subjects-error'
+                : subjectsQuery.data.length === 0
+                    ? 'subjects-empty'
+                    : subjectSelectionInvalid
+                        ? 'subject-invalid'
+                        : subjectId === null
+                            ? 'subject-missing'
+                            : curriculaQueryEnabled
+                                && curriculaQuery.isPending
+                                ? 'curricula-loading'
+                                : curriculaQueryEnabled
+                                    && curriculaQuery.isFetching
+                                    ? 'curricula-fetching'
+                                : curriculaQueryEnabled
+                                    && curriculaQuery.isError
+                                    ? 'curricula-error'
+                                    : (curriculaQuery.data?.length ?? 0) === 0
+                                        ? 'curricula-empty'
+                                        : curriculumSelectionInvalid
+                                            ? 'curriculum-invalid'
+                                            : curriculumId === null
+                                                ? 'curriculum-missing'
+                                                : versionsQueryEnabled
+                                                    && versionsQuery.isPending
+                                                    ? 'versions-loading'
+                                                    : versionsQueryEnabled
+                                                        && versionsQuery.isFetching
+                                                        ? 'versions-fetching'
+                                                    : versionsQueryEnabled
+                                                        && versionsQuery.isError
+                                                        ? 'versions-error'
+                                                        : (versionsQuery.data?.length ?? 0) === 0
+                                                            ? 'versions-empty'
+                                                            : versionSelectionInvalid
+                                                                ? 'version-invalid'
+                                                                : curriculumVersionId === null
+                                                                    ? 'version-missing'
+                                                                    : 'ready';
+
+    useEffect(() => {
+        onContextErrorChange(
+            contextError,
+        );
+
+        return () => {
+            onContextErrorChange(null);
+        };
+    }, [
+        contextError,
+        onContextErrorChange,
+    ]);
+
+    useEffect(() => {
+        onContextStateChange(contextState);
+    }, [
+        contextState,
+        onContextStateChange,
+    ]);
+
     if (subjectsQuery.isPending) {
         return (
             <div className="admin-context-bar admin-context-bar--loading">
@@ -204,7 +334,18 @@ export function ContentContextSelector({
     if (subjectsQuery.isError) {
         return (
             <Feedback tone="danger">
-                تعذر تحميل المواد.
+                <div className="foundation-stack">
+                    <span>تعذر تحميل المواد.</span>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                            void subjectsQuery.refetch();
+                        }}
+                    >
+                        إعادة المحاولة
+                    </Button>
+                </div>
             </Feedback>
         );
     }
@@ -232,8 +373,7 @@ export function ContentContextSelector({
                                 event.target.value || null;
 
                             onSubjectChange(value);
-                            onCurriculumChange(null);
-                            onCurriculumVersionChange(null);
+                            onCurriculumResolved(null);
                             onVersionResolved(null);
                         }}
                     >
@@ -272,7 +412,7 @@ export function ContentContextSelector({
                                 event.target.value || null;
 
                             onCurriculumChange(value);
-                            onCurriculumVersionChange(null);
+                            onCurriculumResolved(null);
                             onVersionResolved(null);
                         }}
                     >
@@ -333,15 +473,128 @@ export function ContentContextSelector({
                 </span>
             </div>
 
-            {curriculaQuery.isError ? (
+            {subjectSelectionInvalid ? (
                 <Feedback tone="danger">
-                    تعذر تحميل المناهج.
+                    <div className="foundation-stack">
+                        <span>
+                            المادة المحددة في الرابط غير متاحة.
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                onSubjectChange(
+                                    null,
+                                    'replace',
+                                );
+                            }}
+                        >
+                            مسح السياق غير الصالح
+                        </Button>
+                    </div>
+                </Feedback>
+            ) : curriculaQueryEnabled
+                && curriculaQuery.isPending ? (
+                <Feedback>
+                    جار تحميل مناهج المادة…
+                </Feedback>
+            ) : curriculaQueryEnabled
+                && curriculaQuery.isFetching ? (
+                <Feedback>
+                    جار تحديث مناهج المادة…
+                </Feedback>
+            ) : curriculaQueryEnabled
+                && curriculaQuery.isError ? (
+                <Feedback tone="danger">
+                    <div className="foundation-stack">
+                        <span>تعذر تحميل المناهج.</span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                void curriculaQuery.refetch();
+                            }}
+                        >
+                            إعادة محاولة تحميل المناهج
+                        </Button>
+                    </div>
+                </Feedback>
+            ) : curriculaQuery.data?.length === 0 ? (
+                <Feedback>
+                    لا توجد مناهج متاحة لهذه المادة.
+                </Feedback>
+            ) : curriculumSelectionInvalid ? (
+                <Feedback tone="danger">
+                    <div className="foundation-stack">
+                        <span>
+                            المنهج المحدد لا يتبع المادة الحالية أو لا يمكن الوصول إليه.
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                onCurriculumChange(
+                                    null,
+                                    'replace',
+                                );
+                            }}
+                        >
+                            مسح المنهج غير الصالح
+                        </Button>
+                    </div>
                 </Feedback>
             ) : null}
 
-            {versionsQuery.isError ? (
+            {versionsQueryEnabled
+                && versionsQuery.isPending ? (
+                <Feedback>
+                    جار تحميل إصدارات المنهج…
+                </Feedback>
+            ) : versionsQueryEnabled
+                && versionsQuery.isFetching ? (
+                <Feedback>
+                    جار تحديث إصدارات المنهج…
+                </Feedback>
+            ) : versionsQueryEnabled
+                && versionsQuery.isError ? (
                 <Feedback tone="danger">
-                    تعذر تحميل إصدارات المنهج.
+                    <div className="foundation-stack">
+                        <span>تعذر تحميل إصدارات المنهج.</span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                void versionsQuery.refetch();
+                            }}
+                        >
+                            إعادة محاولة تحميل الإصدارات
+                        </Button>
+                    </div>
+                </Feedback>
+            ) : versionsQueryEnabled
+                && versionsQuery.data?.length === 0 ? (
+                <Feedback>
+                    لا توجد إصدارات متاحة لهذا المنهج.
+                </Feedback>
+            ) : versionSelectionInvalid ? (
+                <Feedback tone="danger">
+                    <div className="foundation-stack">
+                        <span>
+                            إصدار المنهج المحدد غير متاح ضمن المنهج الحالي.
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                onCurriculumVersionChange(
+                                    null,
+                                    'replace',
+                                );
+                            }}
+                        >
+                            مسح الإصدار غير الصالح
+                        </Button>
+                    </div>
                 </Feedback>
             ) : null}
         </div>
