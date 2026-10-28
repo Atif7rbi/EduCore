@@ -90,6 +90,169 @@ jobs:
       - name: Run complete backend suite serially
         run: php artisan test
 
+  backend-historical-regression:
+    name: Backend historical regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      HISTORICAL_DATABASE: educore_historical_regression
+      HISTORICAL_BOOTSTRAP_ROLE: educore_historical_bootstrap
+      HISTORICAL_APPLICATION_ROLE: educore_historical_app
+      HISTORICAL_APPLICATION_PASSWORD: historical-app-${{ github.run_id }}-${{ github.run_attempt }}
+      TZ: UTC
+    services:
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_DB: educore_historical_regression
+          POSTGRES_USER: educore_historical_bootstrap
+          POSTGRES_PASSWORD: historical-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          TZ: UTC
+        options: >-
+          --publish 127.0.0.1:5432:5432
+          --health-cmd "pg_isready -U educore_historical_bootstrap -d educore_historical_regression"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out exact submitted source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
+        with:
+          php-version: "8.5"
+          extensions: pdo_pgsql, pgsql, mbstring, xml, dom, fileinfo, intl, pcntl, posix
+          ini-values: date.timezone=UTC
+          tools: composer:2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Bootstrap isolated PostgreSQL application role
+        env:
+          PGPASSWORD: historical-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          EDUCORE_HISTORICAL_APPLICATION_PASSWORD: ${{ env.HISTORICAL_APPLICATION_PASSWORD }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PGCONNECT_TIMEOUT=5
+          export PGOPTIONS="-c statement_timeout=15000 -c lock_timeout=5000 -c timezone=UTC"
+
+          identity="$({
+            psql \
+              -X \
+              -v ON_ERROR_STOP=1 \
+              -h 127.0.0.1 \
+              -p 5432 \
+              -U "$HISTORICAL_BOOTSTRAP_ROLE" \
+              -d "$HISTORICAL_DATABASE" \
+              -qAt \
+              -F '|'
+          } <<'SQL'
+          SELECT
+              current_database(),
+              current_user,
+              current_setting('server_version_num'),
+              current_setting('TimeZone'),
+              (
+                  SELECT count(*)
+                  FROM pg_catalog.pg_class AS relation
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = relation.relnamespace
+                  WHERE namespace.nspname = 'public'
+                    AND relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+              ),
+              to_regclass('public.migrations') IS NULL,
+              (
+                  SELECT count(*)
+                  FROM pg_catalog.pg_roles
+                  WHERE rolname = 'educore_historical_app'
+              );
+          SQL
+          )"
+
+          IFS='|' read -r database role version timezone relations migrations_absent app_roles <<<"$identity"
+          [[ "$database" == "$HISTORICAL_DATABASE" ]]
+          [[ "$role" == "$HISTORICAL_BOOTSTRAP_ROLE" ]]
+          [[ "$version" =~ ^16[0-9]{4}$ ]]
+          [[ "$timezone" == "UTC" ]]
+          [[ "$relations" == "0" ]]
+          [[ "$migrations_absent" == "t" ]]
+          [[ "$app_roles" == "0" ]]
+
+          psql \
+            -X \
+            -v ON_ERROR_STOP=1 \
+            -h 127.0.0.1 \
+            -p 5432 \
+            -U "$HISTORICAL_BOOTSTRAP_ROLE" \
+            -d "$HISTORICAL_DATABASE" \
+            -v application_role="$HISTORICAL_APPLICATION_ROLE" \
+            -v database_name="$HISTORICAL_DATABASE" <<'SQL'
+          \getenv application_password EDUCORE_HISTORICAL_APPLICATION_PASSWORD
+          SELECT format(
+              'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT',
+              :'application_role',
+              :'application_password'
+          )
+          \gexec
+          SELECT format(
+              'ALTER DATABASE %I OWNER TO %I',
+              :'database_name',
+              :'application_role'
+          )
+          \gexec
+          SELECT format(
+              'REVOKE CONNECT ON DATABASE %I FROM PUBLIC',
+              :'database_name'
+          )
+          \gexec
+          SQL
+
+          application_identity="$(
+            PGPASSWORD="$HISTORICAL_APPLICATION_PASSWORD" psql \
+              -X \
+              -v ON_ERROR_STOP=1 \
+              -h 127.0.0.1 \
+              -p 5432 \
+              -U "$HISTORICAL_APPLICATION_ROLE" \
+              -d "$HISTORICAL_DATABASE" \
+              -qAt \
+              -F '|' <<'SQL'
+          SELECT
+              current_database(),
+              current_user,
+              pg_get_userbyid(database.datdba),
+              current_setting('TimeZone'),
+              role.rolsuper,
+              role.rolcreatedb,
+              role.rolcreaterole,
+              role.rolcanlogin
+          FROM pg_catalog.pg_database AS database
+          JOIN pg_catalog.pg_roles AS role
+            ON role.rolname = current_user
+          WHERE database.datname = current_database();
+          SQL
+          )"
+
+          [[ "$application_identity" == "$HISTORICAL_DATABASE|$HISTORICAL_APPLICATION_ROLE|$HISTORICAL_APPLICATION_ROLE|UTC|f|f|f|t" ]]
+          echo "Ephemeral PostgreSQL identity, privileges, empty state and UTC session verified."
+
+      - name: Run ephemeral historical Dashboard regression
+        env:
+          EDUCORE_HISTORICAL_DATABASE_HOST: 127.0.0.1
+          EDUCORE_HISTORICAL_DATABASE_PORT: "5432"
+          EDUCORE_HISTORICAL_DATABASE: ${{ env.HISTORICAL_DATABASE }}
+          EDUCORE_HISTORICAL_ROLE: ${{ env.HISTORICAL_APPLICATION_ROLE }}
+          EDUCORE_HISTORICAL_PASSWORD: ${{ env.HISTORICAL_APPLICATION_PASSWORD }}
+          EDUCORE_HISTORICAL_EXPECTED_CURRENT_SHA: ${{ github.sha }}
+          EDUCORE_HISTORICAL_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: tests/Support/AdminDashboardHistorical/run.sh
+
   frontend-validation:
     name: Frontend validation
     runs-on: ubuntu-latest
