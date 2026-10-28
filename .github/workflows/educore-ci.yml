@@ -95,6 +95,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
       HISTORICAL_DATABASE: educore_historical_regression
       HISTORICAL_BOOTSTRAP_ROLE: educore_historical_bootstrap
       HISTORICAL_APPLICATION_ROLE: educore_historical_app
@@ -128,6 +130,13 @@ jobs:
           extensions: pdo_pgsql, pgsql, mbstring, xml, dom, fileinfo, intl, pcntl, posix
           ini-values: date.timezone=UTC
           tools: composer:2
+
+      - name: Provision CI-only Laravel environment
+        run: |
+          cp .env.example .env
+          app_key="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf '\nAPP_KEY=%s\n' "$app_key" >> .env
+          printf 'APP_KEY=%s\n' "$app_key" >> "$GITHUB_ENV"
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
