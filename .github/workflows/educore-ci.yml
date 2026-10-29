@@ -391,7 +391,7 @@ jobs:
           SQL
 
           application_identity="$(
-            PGPASSWORD="$HISTORICAL_APPLICATION_PASSWORD" psql \
+            PGPASSWORD="$EDUCORE_HISTORICAL_APPLICATION_PASSWORD" psql \
               -X \
               -v ON_ERROR_STOP=1 \
               -h 127.0.0.1 \
