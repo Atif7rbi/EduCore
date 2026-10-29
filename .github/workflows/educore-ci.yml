@@ -151,6 +151,12 @@ jobs:
           readonly image="postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97"
           readonly container_name="educore-historical-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
+          fail_container_check()
+          {
+              printf 'Historical PostgreSQL container verification failed: %s\n' "$1" >&2
+              exit 1
+          }
+
           [[ -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
           runner_temp="$(realpath -e "$RUNNER_TEMP")"
           credential_dir="$(mktemp -d "$runner_temp/educore-historical-postgres.XXXXXX")"
@@ -186,8 +192,14 @@ jobs:
           chmod 600 "$credential_file"
 
           if docker inspect "$container_name" >/dev/null 2>&1; then
-              echo "Historical PostgreSQL container name collision." >&2
-              exit 1
+              fail_container_check "container name collision"
+          fi
+
+          preexisting_volume_output="$(docker volume ls --quiet)" \
+            || fail_container_check "unable to inventory pre-existing volumes"
+          preexisting_volume_names=()
+          if [[ -n "$preexisting_volume_output" ]]; then
+              mapfile -t preexisting_volume_names <<<"$preexisting_volume_output"
           fi
 
           docker run \
@@ -202,11 +214,68 @@ jobs:
             --health-retries 30 \
             "$image" >/dev/null
 
-          [[ "$(docker inspect --format '{{.Name}}' "$container_name")" == "/$container_name" ]]
-          [[ "$(docker inspect --format '{{.Config.Image}}' "$container_name")" == "$image" ]]
-          [[ "$(docker inspect --format '{{len .Mounts}}' "$container_name")" == "0" ]]
-          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostIp}}' "$container_name")" == "127.0.0.1" ]]
-          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostPort}}' "$container_name")" == "5432" ]]
+          [[ "$(docker inspect --format '{{.Name}}' "$container_name")" == "/$container_name" ]] \
+            || fail_container_check "unexpected container name"
+          [[ "$(docker inspect --format '{{.Config.Image}}' "$container_name")" == "$image" ]] \
+            || fail_container_check "unexpected image reference"
+
+          container_id="$(docker inspect --format '{{.Id}}' "$container_name")"
+          [[ "$container_id" =~ ^[0-9a-f]{64}$ ]] \
+            || fail_container_check "invalid container identity"
+
+          declared_volume_output="$(
+              docker image inspect \
+                --format '{{range $destination, $_ := .Config.Volumes}}{{println $destination}}{{end}}' \
+                "$image"
+          )" || fail_container_check "unable to inspect image-declared volumes"
+          mapfile -t declared_volume_destinations <<<"$declared_volume_output"
+          [[ "${#declared_volume_destinations[@]}" -eq 1 ]] \
+            || fail_container_check "image must declare exactly one data volume"
+          declared_volume_destination="${declared_volume_destinations[0]}"
+          [[ -n "$declared_volume_destination" ]] \
+            || fail_container_check "image data-volume destination is empty"
+
+          container_mount_output="$(
+              docker inspect \
+                --format '{{range .Mounts}}{{printf "%s|%s|%s|%t\n" .Type .Name .Destination .RW}}{{end}}' \
+                "$container_name"
+          )" || fail_container_check "unable to inspect container mounts"
+          mapfile -t container_mounts <<<"$container_mount_output"
+          [[ "${#container_mounts[@]}" -eq 1 ]] \
+            || fail_container_check "unexpected mount count"
+
+          IFS='|' read -r mount_type mount_name mount_destination mount_read_write \
+            <<<"${container_mounts[0]}"
+          [[ "$mount_type" == "volume" ]] \
+            || fail_container_check "bind, tmpfs or non-volume mount rejected"
+          [[ -n "$mount_name" ]] \
+            || fail_container_check "anonymous volume identity is missing"
+          [[ "$mount_destination" == "$declared_volume_destination" ]] \
+            || fail_container_check "mount destination is not image-declared"
+          [[ "$mount_read_write" == "true" ]] \
+            || fail_container_check "data volume is unexpectedly read-only"
+
+          for preexisting_volume_name in "${preexisting_volume_names[@]}"; do
+              [[ "$mount_name" != "$preexisting_volume_name" ]] \
+                || fail_container_check "pre-existing or externally supplied volume rejected"
+          done
+
+          [[ "$(docker volume inspect --format '{{.Driver}}' "$mount_name")" == "local" ]] \
+            || fail_container_check "unexpected volume driver"
+          [[ "$(docker volume inspect --format '{{.Scope}}' "$mount_name")" == "local" ]] \
+            || fail_container_check "unexpected volume scope"
+
+          volume_consumer_output="$(
+              docker ps --all --no-trunc --quiet --filter "volume=$mount_name"
+          )" || fail_container_check "unable to verify volume consumers"
+          mapfile -t volume_consumers <<<"$volume_consumer_output"
+          [[ "${#volume_consumers[@]}" -eq 1 && "${volume_consumers[0]}" == "$container_id" ]] \
+            || fail_container_check "anonymous volume is not container-exclusive"
+
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostIp}}' "$container_name")" == "127.0.0.1" ]] \
+            || fail_container_check "PostgreSQL port is not loopback-only"
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostPort}}' "$container_name")" == "5432" ]] \
+            || fail_container_check "unexpected PostgreSQL host port"
 
           ready=false
 
