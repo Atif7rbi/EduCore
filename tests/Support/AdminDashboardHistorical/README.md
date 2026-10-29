@@ -11,20 +11,26 @@ prohibited.
 
 ## Ephemeral CI boundary
 
-The dedicated job runs on a fresh GitHub-hosted Ubuntu 24.04 virtual machine
-with its own PostgreSQL 16 service container. The service has no persistent
-volume and publishes PostgreSQL only to the job VM's loopback address. GitHub
-Actions disposes of both the VM filesystem and the service container when the
-job finishes or is cancelled.
+The dedicated job runs on a fresh GitHub-hosted Ubuntu 24.04 virtual machine.
+After generating and masking two cryptographically random credentials, it
+starts the digest-pinned PostgreSQL 16 image as one explicitly named Docker
+container. The container has no persistent volume and publishes PostgreSQL
+only to the job VM's loopback address. GitHub Actions disposes of both the VM
+filesystem and the container when the job finishes or is cancelled.
 
-The service starts one database named `educore_historical_regression`. A
-bounded bootstrap step connects with the service-local bootstrap superuser,
+The container starts one database named `educore_historical_test`. A
+bounded bootstrap step connects with the container-local bootstrap superuser,
 verifies PostgreSQL 16, UTC, and an empty `public` schema, then creates the
 restricted login role `educore_historical_app`. That role is explicitly
 `NOSUPERUSER`, `NOCREATEDB`, and `NOCREATEROLE` and becomes the database owner.
 
-Bootstrap credentials are scoped only to that workflow step. The historical
-runner receives only the restricted application credentials and cannot create,
+The bootstrap credential reaches Docker through a mode-0600 environment file
+inside a new mode-0700 directory below `RUNNER_TEMP`; the file is removed as
+soon as the bounded readiness check completes. The bootstrap login is disabled
+and its password cleared immediately after application-role provisioning,
+before historical or current application code executes. The independently
+generated application credential is passed only through a masked step output
+to the provisioning step and historical runner. The runner cannot create,
 drop, or terminate PostgreSQL resources.
 
 ## Source and filesystem isolation

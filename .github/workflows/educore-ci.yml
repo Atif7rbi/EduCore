@@ -97,25 +97,10 @@ jobs:
     env:
       APP_ENV: testing
       APP_DEBUG: "false"
-      HISTORICAL_DATABASE: educore_historical_regression
+      HISTORICAL_DATABASE: educore_historical_test
       HISTORICAL_BOOTSTRAP_ROLE: educore_historical_bootstrap
       HISTORICAL_APPLICATION_ROLE: educore_historical_app
-      HISTORICAL_APPLICATION_PASSWORD: historical-app-${{ github.run_id }}-${{ github.run_attempt }}
       TZ: UTC
-    services:
-      postgres:
-        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
-        env:
-          POSTGRES_DB: educore_historical_regression
-          POSTGRES_USER: educore_historical_bootstrap
-          POSTGRES_PASSWORD: historical-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
-          TZ: UTC
-        options: >-
-          --publish 127.0.0.1:5432:5432
-          --health-cmd "pg_isready -U educore_historical_bootstrap -d educore_historical_regression"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - name: Check out exact submitted source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -131,6 +116,20 @@ jobs:
           ini-values: date.timezone=UTC
           tools: composer:2
 
+      - name: Generate and mask runtime database credentials
+        id: historical-database-credentials
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bootstrap_password="$(openssl rand -hex 32)"
+          application_password="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$bootstrap_password"
+          printf '::add-mask::%s\n' "$application_password"
+          printf 'bootstrap_password=%s\n' "$bootstrap_password" \
+            >> "$GITHUB_OUTPUT"
+          printf 'application_password=%s\n' "$application_password" \
+            >> "$GITHUB_OUTPUT"
+
       - name: Provision CI-only Laravel environment
         run: |
           cp .env.example .env
@@ -141,10 +140,105 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Start isolated PostgreSQL container
+        env:
+          HISTORICAL_BOOTSTRAP_PASSWORD: ${{ steps.historical-database-credentials.outputs.bootstrap_password }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          readonly image="postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97"
+          readonly container_name="educore-historical-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          [[ -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          runner_temp="$(realpath -e "$RUNNER_TEMP")"
+          credential_dir="$(mktemp -d "$runner_temp/educore-historical-postgres.XXXXXX")"
+          credential_dir="$(realpath -e "$credential_dir")"
+
+          case "$credential_dir/" in
+            "$runner_temp/"*) ;;
+            *)
+              echo "Credential directory escaped RUNNER_TEMP." >&2
+              exit 1
+              ;;
+          esac
+
+          chmod 700 "$credential_dir"
+          credential_file="$credential_dir/postgres.env"
+
+          cleanup_credentials()
+          {
+              if [[ -f "$credential_file" ]]; then
+                  rm -- "$credential_file"
+              fi
+
+              rmdir -- "$credential_dir" 2>/dev/null || true
+          }
+
+          trap cleanup_credentials EXIT
+
+          printf '%s\n' \
+            "POSTGRES_DB=$HISTORICAL_DATABASE" \
+            "POSTGRES_USER=$HISTORICAL_BOOTSTRAP_ROLE" \
+            "POSTGRES_PASSWORD=$HISTORICAL_BOOTSTRAP_PASSWORD" \
+            "TZ=UTC" > "$credential_file"
+          chmod 600 "$credential_file"
+
+          if docker inspect "$container_name" >/dev/null 2>&1; then
+              echo "Historical PostgreSQL container name collision." >&2
+              exit 1
+          fi
+
+          docker run \
+            --detach \
+            --name "$container_name" \
+            --restart no \
+            --publish 127.0.0.1:5432:5432 \
+            --env-file "$credential_file" \
+            --health-cmd "pg_isready -U $HISTORICAL_BOOTSTRAP_ROLE -d $HISTORICAL_DATABASE" \
+            --health-interval 2s \
+            --health-timeout 3s \
+            --health-retries 30 \
+            "$image" >/dev/null
+
+          [[ "$(docker inspect --format '{{.Name}}' "$container_name")" == "/$container_name" ]]
+          [[ "$(docker inspect --format '{{.Config.Image}}' "$container_name")" == "$image" ]]
+          [[ "$(docker inspect --format '{{len .Mounts}}' "$container_name")" == "0" ]]
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostIp}}' "$container_name")" == "127.0.0.1" ]]
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostPort}}' "$container_name")" == "5432" ]]
+
+          ready=false
+
+          for attempt in $(seq 1 45); do
+              state="$(docker inspect --format '{{.State.Status}}' "$container_name")"
+              health="$(docker inspect --format '{{.State.Health.Status}}' "$container_name")"
+
+              if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+                  docker logs "$container_name" >&2
+                  exit 1
+              fi
+
+              if [[ "$health" == "healthy" ]]; then
+                  ready=true
+                  break
+              fi
+
+              sleep 2
+          done
+
+          if [[ "$ready" != "true" ]]; then
+              docker logs "$container_name" >&2
+              echo "Historical PostgreSQL readiness timed out." >&2
+              exit 1
+          fi
+
+          echo "Isolated PostgreSQL 16 container is healthy on loopback."
+
       - name: Bootstrap isolated PostgreSQL application role
         env:
-          PGPASSWORD: historical-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
-          EDUCORE_HISTORICAL_APPLICATION_PASSWORD: ${{ env.HISTORICAL_APPLICATION_PASSWORD }}
+          PGPASSWORD: ${{ steps.historical-database-credentials.outputs.bootstrap_password }}
+          EDUCORE_HISTORICAL_APPLICATION_PASSWORD: ${{ steps.historical-database-credentials.outputs.application_password }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -220,6 +314,11 @@ jobs:
               :'database_name'
           )
           \gexec
+          SELECT format(
+              'ALTER ROLE %I NOLOGIN PASSWORD NULL',
+              current_user
+          )
+          \gexec
           SQL
 
           application_identity="$(
@@ -231,6 +330,7 @@ jobs:
               -U "$HISTORICAL_APPLICATION_ROLE" \
               -d "$HISTORICAL_DATABASE" \
               -qAt \
+              -v bootstrap_role="$HISTORICAL_BOOTSTRAP_ROLE" \
               -F '|' <<'SQL'
           SELECT
               current_database(),
@@ -240,7 +340,12 @@ jobs:
               role.rolsuper,
               role.rolcreatedb,
               role.rolcreaterole,
-              role.rolcanlogin
+              role.rolcanlogin,
+              (
+                  SELECT bootstrap.rolcanlogin
+                  FROM pg_catalog.pg_roles AS bootstrap
+                  WHERE bootstrap.rolname = :'bootstrap_role'
+              )
           FROM pg_catalog.pg_database AS database
           JOIN pg_catalog.pg_roles AS role
             ON role.rolname = current_user
@@ -248,8 +353,8 @@ jobs:
           SQL
           )"
 
-          [[ "$application_identity" == "$HISTORICAL_DATABASE|$HISTORICAL_APPLICATION_ROLE|$HISTORICAL_APPLICATION_ROLE|UTC|f|f|f|t" ]]
-          echo "Ephemeral PostgreSQL identity, privileges, empty state and UTC session verified."
+          [[ "$application_identity" == "$HISTORICAL_DATABASE|$HISTORICAL_APPLICATION_ROLE|$HISTORICAL_APPLICATION_ROLE|UTC|f|f|f|t|f" ]]
+          echo "Ephemeral PostgreSQL identity, restricted role, disabled bootstrap login, empty state and UTC session verified."
 
       - name: Run ephemeral historical Dashboard regression
         env:
@@ -257,7 +362,7 @@ jobs:
           EDUCORE_HISTORICAL_DATABASE_PORT: "5432"
           EDUCORE_HISTORICAL_DATABASE: ${{ env.HISTORICAL_DATABASE }}
           EDUCORE_HISTORICAL_ROLE: ${{ env.HISTORICAL_APPLICATION_ROLE }}
-          EDUCORE_HISTORICAL_PASSWORD: ${{ env.HISTORICAL_APPLICATION_PASSWORD }}
+          EDUCORE_HISTORICAL_PASSWORD: ${{ steps.historical-database-credentials.outputs.application_password }}
           EDUCORE_HISTORICAL_EXPECTED_CURRENT_SHA: ${{ github.sha }}
           EDUCORE_HISTORICAL_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: tests/Support/AdminDashboardHistorical/run.sh

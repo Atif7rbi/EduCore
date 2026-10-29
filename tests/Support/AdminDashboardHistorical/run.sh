@@ -5,7 +5,7 @@ umask 077
 
 readonly HISTORICAL_SHA="e3f42f3b17b8f3e38881710289fac2944a3e89bd"
 readonly CURRENT_BASELINE_SHA="0494a0666d7beebe225d7687a29d29f2ea519a4d"
-readonly EXPECTED_DATABASE="educore_historical_regression"
+readonly EXPECTED_DATABASE="educore_historical_test"
 readonly EXPECTED_ROLE="educore_historical_app"
 readonly ROOT="$(git rev-parse --show-toplevel)"
 readonly SUPPORT_DIR="$ROOT/tests/Support/AdminDashboardHistorical"
