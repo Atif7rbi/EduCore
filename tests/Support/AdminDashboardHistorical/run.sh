@@ -381,8 +381,7 @@ verify_forward_integrity()
     local preserved
     local subject_id
     local rejected_id
-    local rejection_log="$RUN_DIRECTORY/ownerless-rejection.log"
-    local status
+    local rejection_diagnostic
 
     preserved="$(application_psql -v fixture_name="$FIXTURE_NAME" -qAt -F '|' <<'SQL'
 SELECT
@@ -422,36 +421,82 @@ SQL
         );
     ')"
 
-    set +e
-    application_psql \
+    rejection_diagnostic="$(application_psql \
         -v rejected_id="$rejected_id" \
         -v subject_id="$subject_id" \
         -v rejected_name="Rejected Ownerless $DATABASE_NAME" \
-        -qAt <<'SQL' >"$rejection_log" 2>&1
-INSERT INTO curricula (
+        -qAt -F '|' <<'SQL'
+BEGIN;
+CREATE TEMPORARY TABLE ownerless_rejection_input (
+    id UUID NOT NULL,
+    subject_id UUID NOT NULL,
+    name TEXT NOT NULL
+) ON COMMIT DROP;
+CREATE TEMPORARY TABLE ownerless_rejection_diagnostic (
+    returned_sqlstate TEXT NOT NULL,
+    constraint_name TEXT NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO ownerless_rejection_input (
     id,
     subject_id,
-    name,
-    teacher_subject_assignment_id,
-    created_at,
-    updated_at
+    name
 )
 VALUES (
     :'rejected_id',
     :'subject_id',
-    :'rejected_name',
-    NULL,
-    transaction_timestamp(),
-    transaction_timestamp()
+    :'rejected_name'
 );
-SQL
-    status=$?
-    set -e
 
-    [[ "$status" -ne 0 ]] \
-        || fail "current ownership trigger accepted a new ownerless Curriculum"
-    grep -Fq 'chk_curricula_owner_required' "$rejection_log" \
-        || fail "ownerless rejection did not identify the ownership constraint"
+DO $diagnostic$
+DECLARE
+    rejected_sqlstate TEXT;
+    rejected_constraint TEXT;
+BEGIN
+    BEGIN
+        INSERT INTO curricula (
+            id,
+            subject_id,
+            name,
+            teacher_subject_assignment_id,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            subject_id,
+            name,
+            NULL,
+            transaction_timestamp(),
+            transaction_timestamp()
+        FROM ownerless_rejection_input;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS
+            rejected_sqlstate = RETURNED_SQLSTATE,
+            rejected_constraint = CONSTRAINT_NAME;
+
+        INSERT INTO ownerless_rejection_diagnostic (
+            returned_sqlstate,
+            constraint_name
+        )
+        VALUES (
+            rejected_sqlstate,
+            rejected_constraint
+        );
+    END;
+END;
+$diagnostic$;
+
+SELECT
+    returned_sqlstate,
+    constraint_name
+FROM ownerless_rejection_diagnostic;
+ROLLBACK;
+SQL
+)"
+
+    [[ "$rejection_diagnostic" == "23514|chk_curricula_owner_required" ]] \
+        || fail "ownerless rejection did not expose the expected SQLSTATE and constraint"
     [[ "$(application_psql \
         -v rejected_name="Rejected Ownerless $DATABASE_NAME" \
         -qAt \
