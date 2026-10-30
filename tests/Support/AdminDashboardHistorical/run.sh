@@ -382,6 +382,7 @@ verify_forward_integrity()
     local subject_id
     local rejected_id
     local rejection_diagnostic
+    local residue_count
 
     preserved="$(application_psql -v fixture_name="$FIXTURE_NAME" -qAt -F '|' <<'SQL'
 SELECT
@@ -497,10 +498,15 @@ SQL
 
     [[ "$rejection_diagnostic" == "23514|chk_curricula_owner_required" ]] \
         || fail "ownerless rejection did not expose the expected SQLSTATE and constraint"
-    [[ "$(application_psql \
+    residue_count="$(application_psql \
         -v rejected_name="Rejected Ownerless $DATABASE_NAME" \
-        -qAt \
-        -c "SELECT count(*) FROM curricula WHERE name = :'rejected_name';")" == "0" ]] \
+        -qAt <<'SQL'
+SELECT count(*)
+FROM curricula
+WHERE name = :'rejected_name';
+SQL
+)"
+    [[ "$residue_count" == "0" ]] \
         || fail "rejected ownerless fixture left persistent residue"
 }
 
