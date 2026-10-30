@@ -323,28 +323,55 @@ verify_historical_fixture()
     local record
 
     record="$(application_psql -v fixture_name="$FIXTURE_NAME" -qAt -F '|' <<'SQL'
+WITH historical_fixture AS (
+    SELECT
+        curriculum.id AS curriculum_id,
+        version.id AS version_id,
+        version.status AS version_status,
+        lesson.id AS lesson_id,
+        lesson.status AS lesson_status,
+        practice.id AS practice_id,
+        practice.status AS practice_status,
+        template_version.id AS template_version_id,
+        template_version.status AS template_version_status
+    FROM curricula AS curriculum
+    JOIN curriculum_versions AS version
+      ON version.curriculum_id = curriculum.id
+    JOIN lessons AS lesson
+      ON lesson.curriculum_version_id = version.id
+    JOIN practice_activities AS practice
+      ON practice.curriculum_version_id = version.id
+     AND practice.lesson_id = lesson.id
+    JOIN exam_templates AS template
+      ON template.curriculum_version_id = version.id
+    JOIN exam_template_versions AS template_version
+      ON template_version.exam_template_id = template.id
+     AND template.published_version_id = template_version.id
+    WHERE curriculum.name = :'fixture_name'
+      AND version.version_number = 1
+      AND version.label = 'Historical Ownerless v1'
+      AND lesson.title = 'Ratios'
+      AND practice.name = 'Ratios Practice'
+      AND template.name = 'Ratios Mock'
+      AND template_version.version_number = 1
+      AND template_version.label = 'Ratios Mock v1'
+)
 SELECT
-    curriculum.teacher_subject_assignment_id IS NULL,
-    version.status,
-    lesson.status,
-    practice.status,
-    template_version.status
-FROM curricula AS curriculum
-JOIN curriculum_versions AS version
-  ON version.curriculum_id = curriculum.id
-JOIN lessons AS lesson
-  ON lesson.curriculum_version_id = version.id
-JOIN practice_activities AS practice
-  ON practice.curriculum_version_id = version.id
-JOIN exam_templates AS template
-  ON template.curriculum_version_id = version.id
-JOIN exam_template_versions AS template_version
-  ON template_version.exam_template_id = template.id
-WHERE curriculum.name = :'fixture_name';
+    count(*),
+    count(DISTINCT curriculum_id),
+    count(DISTINCT version_id),
+    count(DISTINCT lesson_id),
+    count(DISTINCT practice_id),
+    count(DISTINCT template_version_id),
+    min(version_status),
+    min(lesson_status),
+    min(practice_status),
+    min(template_version_status)
+FROM historical_fixture;
 SQL
 )"
 
-    [[ "$record" == "t|published|published|active|published" ]] \
+    [[ "$record" == "1|1|1|1|1|1|published|published|active|published" ]] \
         || fail "historical publication workflow did not persist expected state"
 }
 
