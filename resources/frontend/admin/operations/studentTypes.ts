@@ -19,7 +19,7 @@ export interface AdminStudent {
      * Educational identity.
      * Never interchangeable with user_id.
      */
-    learner_profile_id: string;
+    learner_profile_id: string | null;
 
     name: string;
     email: string;

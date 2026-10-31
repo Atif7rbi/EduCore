@@ -27,6 +27,30 @@ export interface AdminDashboardSummary {
         active_practice_activities: number;
         active_exam_templates: number;
     };
+    snapshot_at: string;
+    operations: {
+        teacher_accounts: {
+            active: number;
+            disabled: number;
+            total: number;
+        };
+        student_accounts: {
+            active: number;
+            disabled: number;
+            total: number;
+        };
+        teacher_subject_assignments: {
+            active: number;
+            inactive: number;
+            total: number;
+        };
+        student_enrollments: {
+            pending: number;
+            active: number;
+            inactive: number;
+            total: number;
+        };
+    };
 }
 
 export function adminDashboardKey() {
@@ -36,9 +60,12 @@ export function adminDashboardKey() {
     ] as const;
 }
 
-export function fetchAdminDashboard(): Promise<AdminDashboardSummary> {
+export function fetchAdminDashboard(
+    signal?: AbortSignal,
+): Promise<AdminDashboardSummary> {
     return apiRequest<AdminDashboardSummary>({
         method: 'GET',
         url: '/api/admin/dashboard',
+        signal,
     });
 }

@@ -17,14 +17,6 @@ import {
     adminDashboardKey,
     fetchAdminDashboard,
 } from './dashboard/api';
-import {
-    adminTeachersKey,
-    fetchAdminTeachers,
-} from './operations/api';
-import {
-    adminStudentsKey,
-    fetchAdminStudents,
-} from './operations/studentApi';
 
 function requestId(error: unknown) {
     return error instanceof EduCoreApiError
@@ -34,6 +26,28 @@ function requestId(error: unknown) {
 
 function formatCount(value: number): string {
     return value.toLocaleString('en-US');
+}
+
+function formatSnapshot(value: string): string {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return 'وقت اللقطة غير متاح';
+    }
+
+    return new Intl.DateTimeFormat(
+        'ar-SA-u-ca-gregory-nu-latn',
+        {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: 'UTC',
+            timeZoneName: 'short',
+        },
+    ).format(date);
 }
 
 function DashboardIcon({ name }: { name: string }) {
@@ -125,71 +139,11 @@ function StatCard({
 export function AdminDashboardPage() {
     const dashboardQuery = useQuery({
         queryKey: adminDashboardKey(),
-        queryFn: fetchAdminDashboard,
-    });
-
-    const teachersQuery = useQuery({
-        queryKey: adminTeachersKey(),
-        queryFn: fetchAdminTeachers,
-    });
-
-    const studentsQuery = useQuery({
-        queryKey: adminStudentsKey(),
-        queryFn: fetchAdminStudents,
+        queryFn: ({ signal }) =>
+            fetchAdminDashboard(signal),
     });
 
     const data = dashboardQuery.data;
-
-    const operationalSummary =
-        teachersQuery.data
-        && studentsQuery.data
-            ? {
-                teachers:
-                    teachersQuery.data.length,
-
-                students:
-                    studentsQuery.data.length,
-
-                activeAssignments:
-                    teachersQuery.data.reduce(
-                        (
-                            total,
-                            teacher,
-                        ) =>
-                            total
-                            + teacher
-                                .assignment_counts
-                                .active,
-                        0,
-                    ),
-
-                pendingEnrollments:
-                    studentsQuery.data.reduce(
-                        (
-                            total,
-                            student,
-                        ) =>
-                            total
-                            + student
-                                .enrollment_counts
-                                .pending,
-                        0,
-                    ),
-
-                activeEnrollments:
-                    studentsQuery.data.reduce(
-                        (
-                            total,
-                            student,
-                        ) =>
-                            total
-                            + student
-                                .enrollment_counts
-                                .active,
-                        0,
-                    ),
-            }
-            : null;
     const id = requestId(dashboardQuery.error);
 
     return (
@@ -232,98 +186,61 @@ export function AdminDashboardPage() {
                                 </p>
                             </div>
 
-                            <span className="admin-dashboard__live-badge">
-                                بيانات مباشرة
-                            </span>
+                            <time
+                                className="admin-dashboard__snapshot"
+                                dateTime={data.snapshot_at}
+                            >
+                                لقطة قاعدة البيانات:{' '}
+                                {formatSnapshot(data.snapshot_at)}
+                            </time>
                         </div>
 
-                        {teachersQuery.isPending
-                        || studentsQuery.isPending ? (
-                            <div
-                                className="admin-dashboard__loading"
-                                aria-live="polite"
-                            >
-                                <span className="admin-dashboard__loading-dot" />
-                                جار تحميل المؤشرات التشغيلية…
+                        <>
+                            <div className="admin-dashboard__stats-grid">
+                                <StatCard
+                                    accent="blue"
+                                    icon="learners"
+                                    label="حسابات المعلمين"
+                                    value={data.operations.teacher_accounts.total}
+                                    to="/admin/teachers"
+                                    hint={`نشط ${formatCount(data.operations.teacher_accounts.active)} · معطّل ${formatCount(data.operations.teacher_accounts.disabled)}`}
+                                />
+
+                                <StatCard
+                                    accent="cyan"
+                                    icon="learners"
+                                    label="حسابات الطلاب"
+                                    value={data.operations.student_accounts.total}
+                                    to="/admin/students"
+                                    hint={`نشط ${formatCount(data.operations.student_accounts.active)} · معطّل ${formatCount(data.operations.student_accounts.disabled)}`}
+                                />
+
+                                <StatCard
+                                    accent="indigo"
+                                    icon="subjects"
+                                    label="إسنادات المواد"
+                                    value={data.operations.teacher_subject_assignments.total}
+                                    to="/admin/teachers"
+                                    hint={`نشط ${formatCount(data.operations.teacher_subject_assignments.active)} · غير نشط ${formatCount(data.operations.teacher_subject_assignments.inactive)}`}
+                                />
+
+                                <StatCard
+                                    accent="amber"
+                                    icon="learners"
+                                    label="التسجيلات"
+                                    value={data.operations.student_enrollments.total}
+                                    to="/admin/students"
+                                    hint={`معلّق ${formatCount(data.operations.student_enrollments.pending)} · نشط ${formatCount(data.operations.student_enrollments.active)} · غير نشط ${formatCount(data.operations.student_enrollments.inactive)}`}
+                                />
                             </div>
-                        ) : teachersQuery.isError
-                        || studentsQuery.isError ? (
-                            <Feedback tone="danger">
-                                تعذر تحميل المؤشرات التشغيلية
-                                للمعلمين والطلاب.
+
+                            <Feedback tone="info">
+                                أرقام التسجيلات أعلاه تمثل حالات
+                                StudentEnrollment الخام فقط؛
+                                التسجيل النشط لا يعني بمفرده أن
+                                الطالب يملك وصولًا تعليميًا فعليًا.
                             </Feedback>
-                        ) : operationalSummary ? (
-                            <>
-                                <div className="admin-dashboard__stats-grid">
-                                    <StatCard
-                                        accent="blue"
-                                        icon="learners"
-                                        label="حسابات المعلمين"
-                                        value={
-                                            operationalSummary
-                                                .teachers
-                                        }
-                                        to="/admin/teachers"
-                                        hint="Teacher Users"
-                                    />
-
-                                    <StatCard
-                                        accent="cyan"
-                                        icon="learners"
-                                        label="حسابات الطلاب"
-                                        value={
-                                            operationalSummary
-                                                .students
-                                        }
-                                        to="/admin/students"
-                                        hint="Student Users"
-                                    />
-
-                                    <StatCard
-                                        accent="indigo"
-                                        icon="subjects"
-                                        label="إسنادات المواد النشطة"
-                                        value={
-                                            operationalSummary
-                                                .activeAssignments
-                                        }
-                                        to="/admin/teachers"
-                                        hint="TeacherSubjectAssignment"
-                                    />
-
-                                    <StatCard
-                                        accent="amber"
-                                        icon="learners"
-                                        label="طلبات التسجيل المعلقة"
-                                        value={
-                                            operationalSummary
-                                                .pendingEnrollments
-                                        }
-                                        to="/admin/students"
-                                        hint="بانتظار قرار المعلم"
-                                    />
-
-                                    <StatCard
-                                        accent="blue"
-                                        icon="learners"
-                                        label="التسجيلات النشطة"
-                                        value={
-                                            operationalSummary
-                                                .activeEnrollments
-                                        }
-                                        to="/admin/students"
-                                        hint="Raw enrollment state"
-                                    />
-                                </div>
-
-                                <Feedback tone="info">
-                                    أرقام التسجيلات أعلاه تمثل حالات
-                                    StudentEnrollment الخام فقط؛
-                                    التسجيل النشط لا يعني بمفرده أن
-                                    الطالب يملك وصولًا تعليميًا فعليًا.
-                                </Feedback>
-                            </>
-                        ) : null}
+                        </>
                     </section>
 
                     <section className="admin-dashboard__section" aria-labelledby="dashboard-key-numbers">

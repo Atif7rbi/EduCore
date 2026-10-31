@@ -61,6 +61,10 @@ export function TeacherAssignmentsPanel({
         } | null>(null);
     const deactivationSubmissionStarted =
         useRef(false);
+    const currentTeacherUserId =
+        useRef(teacher.user_id);
+    currentTeacherUserId.current =
+        teacher.user_id;
 
     const assignmentsQuery =
         useQuery({
@@ -68,9 +72,10 @@ export function TeacherAssignmentsPanel({
                 teacherAssignmentsKey(
                     teacher.user_id
                 ),
-            queryFn: () =>
+            queryFn: ({ signal }) =>
                 fetchTeacherAssignments(
-                    teacher.user_id
+                    teacher.user_id,
+                    signal,
                 ),
         });
 
@@ -78,22 +83,26 @@ export function TeacherAssignmentsPanel({
         useQuery({
             queryKey:
                 adminCanonicalSubjectsKey(),
-            queryFn:
-                fetchAdminCanonicalSubjects,
+            queryFn: ({ signal }) =>
+                fetchAdminCanonicalSubjects(
+                    signal,
+                ),
         });
 
-    async function refreshTeacherTruth() {
+    async function refreshTeacherTruth(
+        teacherUserId: string,
+    ) {
         await Promise.all([
             queryClient.invalidateQueries({
                 queryKey:
                     teacherAssignmentsKey(
-                        teacher.user_id
+                        teacherUserId
                     ),
             }),
             queryClient.invalidateQueries({
                 queryKey:
                     adminTeacherKey(
-                        teacher.user_id
+                        teacherUserId
                     ),
             }),
             queryClient.invalidateQueries({
@@ -106,21 +115,33 @@ export function TeacherAssignmentsPanel({
     const assignMutation =
         useMutation({
             mutationFn: ({
+                teacherUserId,
                 payload,
             }: {
+                teacherUserId: string;
                 payload:
                     AssignTeacherSubjectPayload;
             }) =>
                 assignTeacherSubject(
-                    teacher.user_id,
+                    teacherUserId,
                     payload,
                 ),
 
-            onSuccess: async () => {
-                setSubjectId('');
-                setReason('');
+            onSuccess: async (
+                _result,
+                variables,
+            ) => {
+                if (
+                    currentTeacherUserId.current
+                    === variables.teacherUserId
+                ) {
+                    setSubjectId('');
+                    setReason('');
+                }
 
-                await refreshTeacherTruth();
+                await refreshTeacherTruth(
+                    variables.teacherUserId,
+                );
             },
         });
 
@@ -130,6 +151,7 @@ export function TeacherAssignmentsPanel({
                 assignment,
                 operation,
                 payload,
+                teacherUserId,
             }: {
                 assignment:
                     TeacherSubjectAssignment;
@@ -138,6 +160,7 @@ export function TeacherAssignmentsPanel({
                     | 'reactivate';
                 payload:
                     AssignmentOperationPayload;
+                teacherUserId: string;
             }) => {
                 if (
                     operation
@@ -162,12 +185,16 @@ export function TeacherAssignmentsPanel({
                 if (
                     variables.operation
                     === 'deactivate'
+                    && currentTeacherUserId.current
+                        === variables.teacherUserId
                 ) {
                     setPendingDeactivation(null);
                     setReason('');
                 }
 
-                await refreshTeacherTruth();
+                await refreshTeacherTruth(
+                    variables.teacherUserId,
+                );
             },
             onSettled: () => {
                 deactivationSubmissionStarted.current = false;
@@ -211,6 +238,7 @@ export function TeacherAssignmentsPanel({
         }
 
         assignMutation.mutate({
+            teacherUserId: teacher.user_id,
             payload: {
                 subject_id:
                     subjectId,
@@ -250,6 +278,7 @@ export function TeacherAssignmentsPanel({
         }
 
         lifecycleMutation.mutate({
+            teacherUserId: teacher.user_id,
             assignment,
             operation,
             payload: {
@@ -273,6 +302,7 @@ export function TeacherAssignmentsPanel({
         deactivationSubmissionStarted.current = true;
 
         lifecycleMutation.mutate({
+            teacherUserId: teacher.user_id,
             assignment:
                 pendingDeactivation.assignment,
             operation: 'deactivate',

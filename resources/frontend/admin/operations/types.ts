@@ -2,6 +2,23 @@ export type UserStatus =
     | 'active'
     | 'disabled';
 
+export interface AdminDirectoryParameters {
+    page: number;
+    perPage: number;
+    search: string;
+    status: UserStatus | null;
+}
+
+export interface DirectoryPage<T> {
+    items: T[];
+    pagination: {
+        current_page: number;
+        per_page: number;
+        total: number;
+        last_page: number;
+    };
+}
+
 export type CatalogStatus =
     | 'active'
     | 'inactive';

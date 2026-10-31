@@ -7,6 +7,9 @@ import {
     useState,
 } from 'react';
 import {
+    useSearchParams,
+} from 'react-router-dom';
+import {
     useMutation,
     useQuery,
     useQueryClient,
@@ -23,10 +26,11 @@ import {
 } from '../ui';
 
 import {
+    adminTeacherDirectoryKey,
     adminTeacherKey,
     adminTeachersKey,
+    fetchAdminTeacherDirectory,
     fetchAdminTeacher,
-    fetchAdminTeachers,
     provisionTeacher,
 } from './operations/api';
 
@@ -63,7 +67,36 @@ function teacherStatusLabel(
 ): string {
     return status === 'active'
         ? 'نشط'
-        : 'غير نشط';
+        : 'معطّل';
+}
+
+function positivePage(value: string | null): number {
+    const parsed = Number(value);
+
+    return Number.isSafeInteger(parsed) && parsed > 0
+        ? parsed
+        : 1;
+}
+
+function directoryStatus(
+    value: string | null,
+): AdminTeacher['status'] | null {
+    return value === 'active' || value === 'disabled'
+        ? value
+        : null;
+}
+
+const DIRECTORY_SEARCH_MAX_LENGTH = 120;
+
+function directorySearch(
+    value: string | null,
+): string {
+    return Array.from(
+        (value ?? '').trim(),
+    ).slice(
+        0,
+        DIRECTORY_SEARCH_MAX_LENGTH,
+    ).join('');
 }
 
 function provisioningLabel(
@@ -97,12 +130,24 @@ function provisionErrorMessage(
 
 export function AdminTeachersPage() {
     const queryClient = useQueryClient();
+    const [searchParams, setSearchParams] =
+        useSearchParams();
 
     const [selectedTeacherId, setSelectedTeacherId] =
         useState<string | null>(null);
 
+    const committedSearch =
+        directorySearch(
+            searchParams.get('search'),
+        );
+    const page = positivePage(
+        searchParams.get('page'),
+    );
+    const status = directoryStatus(
+        searchParams.get('status'),
+    );
     const [search, setSearch] =
-        useState('');
+        useState(committedSearch);
 
     const [name, setName] =
         useState('');
@@ -117,87 +162,46 @@ export function AdminTeachersPage() {
         ProvisionTeacherResult | null
     >(null);
 
+    const directoryParameters = useMemo(
+        () => ({
+            page,
+            perPage: 20,
+            search: committedSearch,
+            status,
+        }),
+        [committedSearch, page, status],
+    );
+
     const teachersQuery = useQuery({
-        queryKey: adminTeachersKey(),
-        queryFn: fetchAdminTeachers,
+        queryKey: adminTeacherDirectoryKey(
+            directoryParameters,
+        ),
+        queryFn: ({ signal }) =>
+            fetchAdminTeacherDirectory(
+                directoryParameters,
+                signal,
+            ),
     });
 
     const teacherQuery = useQuery({
         queryKey: adminTeacherKey(
             selectedTeacherId ?? 'none'
         ),
-        queryFn: () =>
+        queryFn: ({ signal }) =>
             fetchAdminTeacher(
-                selectedTeacherId!
+                selectedTeacherId!,
+                signal,
             ),
         enabled:
             selectedTeacherId !== null,
     });
 
     useEffect(() => {
-        const teachers =
-            teachersQuery.data;
+        setSearch(committedSearch);
+    }, [committedSearch]);
 
-        if (!teachers) {
-            return;
-        }
-
-        if (teachers.length === 0) {
-            setSelectedTeacherId(null);
-            return;
-        }
-
-        const selectedStillExists =
-            selectedTeacherId !== null
-            && teachers.some(
-                (teacher) =>
-                    teacher.user_id
-                    === selectedTeacherId,
-            );
-
-        if (!selectedStillExists) {
-            setSelectedTeacherId(
-                teachers[0].user_id
-            );
-        }
-    }, [
-        selectedTeacherId,
-        teachersQuery.data,
-    ]);
-
-    const normalizedSearch =
-        search
-            .trim()
-            .toLocaleLowerCase('ar');
-
-    const visibleTeachers =
-        useMemo(
-            () =>
-                teachersQuery.data?.filter(
-                    (teacher) => {
-                        if (!normalizedSearch) {
-                            return true;
-                        }
-
-                        return (
-                            teacher.name
-                                .toLocaleLowerCase('ar')
-                                .includes(
-                                    normalizedSearch
-                                )
-                            || teacher.email
-                                .toLocaleLowerCase()
-                                .includes(
-                                    normalizedSearch
-                                )
-                        );
-                    },
-                ) ?? [],
-            [
-                normalizedSearch,
-                teachersQuery.data,
-            ],
-        );
+    const teachers =
+        teachersQuery.data?.items ?? [];
 
     const provisionMutation =
         useMutation({
@@ -246,50 +250,49 @@ export function AdminTeachersPage() {
         });
     }
 
-    if (teachersQuery.isPending) {
-        return (
-            <section
-                className="foundation-page"
-                aria-busy="true"
-            >
-                <Surface>
-                    جار تحميل المعلمين…
-                </Surface>
-            </section>
+    function submitDirectorySearch(
+        event: FormEvent,
+    ) {
+        event.preventDefault();
+        const next = new URLSearchParams(
+            searchParams,
         );
+        const normalized =
+            directorySearch(search);
+
+        if (normalized) {
+            next.set('search', normalized);
+        } else {
+            next.delete('search');
+        }
+
+        next.set('page', '1');
+        setSearchParams(next);
     }
 
-    if (teachersQuery.isError) {
-        const id =
-            requestId(
-                teachersQuery.error
-            );
-
-        return (
-            <section className="foundation-page">
-                <Feedback tone="danger">
-                    <strong>
-                        تعذر تحميل المعلمين.
-                    </strong>
-
-                    {id ? (
-                        <p>
-                            رقم الطلب: {id}
-                        </p>
-                    ) : null}
-                </Feedback>
-
-                <Button
-                    variant="secondary"
-                    onClick={() => {
-                        void teachersQuery
-                            .refetch();
-                    }}
-                >
-                    إعادة المحاولة
-                </Button>
-            </section>
+    function changeStatus(
+        nextStatus: AdminTeacher['status'] | null,
+    ) {
+        const next = new URLSearchParams(
+            searchParams,
         );
+
+        if (nextStatus) {
+            next.set('status', nextStatus);
+        } else {
+            next.delete('status');
+        }
+
+        next.set('page', '1');
+        setSearchParams(next);
+    }
+
+    function changePage(nextPage: number) {
+        const next = new URLSearchParams(
+            searchParams,
+        );
+        next.set('page', String(nextPage));
+        setSearchParams(next);
     }
 
     return (
@@ -437,40 +440,89 @@ export function AdminTeachersPage() {
                                 {
                                     teachersQuery
                                         .data
-                                        ?.length ?? 0
+                                        ?.pagination
+                                        .total ?? 0
                                 } حساب
                             </p>
                         </div>
                     </div>
 
-                    <label className="admin-operations__search">
-                        <span>
-                            بحث في المعلمين
-                        </span>
+                    <form
+                        className="admin-operations__directory-controls"
+                        onSubmit={submitDirectorySearch}
+                    >
+                        <label className="admin-operations__search">
+                            <span>
+                                بحث في المعلمين
+                            </span>
 
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(
-                                    event.target
-                                        .value
-                                );
-                            }}
-                        />
-                    </label>
+                            <input
+                                type="search"
+                                maxLength={120}
+                                value={search}
+                                onChange={(event) => {
+                                    setSearch(
+                                        event.target.value
+                                    );
+                                }}
+                            />
+                        </label>
+
+                        <label className="admin-operations__filter">
+                            <span>حالة الحساب</span>
+                            <select
+                                value={status ?? ''}
+                                onChange={(event) => {
+                                    changeStatus(
+                                        directoryStatus(
+                                            event.target.value,
+                                        ),
+                                    );
+                                }}
+                            >
+                                <option value="">كل الحالات</option>
+                                <option value="active">نشط</option>
+                                <option value="disabled">معطّل</option>
+                            </select>
+                        </label>
+
+                        <Button type="submit" variant="secondary">
+                            بحث
+                        </Button>
+                    </form>
 
                     <div
                         className="admin-operations__entity-list"
                         aria-label="قائمة المعلمين"
                     >
-                        {visibleTeachers.length
-                        === 0 ? (
+                        {teachersQuery.isPending ? (
+                            <Feedback>
+                                جار تحميل المعلمين…
+                            </Feedback>
+                        ) : teachersQuery.isError ? (
+                            <Feedback tone="danger">
+                                <strong>تعذر تحميل المعلمين.</strong>
+                                {requestId(teachersQuery.error) ? (
+                                    <p>
+                                        رقم الطلب:{' '}
+                                        {requestId(teachersQuery.error)}
+                                    </p>
+                                ) : null}
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        void teachersQuery.refetch();
+                                    }}
+                                >
+                                    إعادة المحاولة
+                                </Button>
+                            </Feedback>
+                        ) : teachers.length === 0 ? (
                             <Feedback>
                                 لا توجد نتائج مطابقة.
                             </Feedback>
                         ) : (
-                            visibleTeachers.map(
+                            teachers.map(
                                 (teacher) => {
                                     const selected =
                                         teacher
@@ -493,6 +545,7 @@ export function AdminTeachersPage() {
                                             aria-label={
                                                 `عرض المعلم ${teacher.name}`
                                             }
+                                            aria-pressed={selected}
                                             onClick={() => {
                                                 setSelectedTeacherId(
                                                     teacher
@@ -551,6 +604,36 @@ export function AdminTeachersPage() {
                             )
                         )}
                     </div>
+
+                    {teachersQuery.data ? (
+                        <nav
+                            className="admin-operations__pagination"
+                            aria-label="صفحات المعلمين"
+                        >
+                            <Button
+                                variant="secondary"
+                                disabled={page <= 1 || teachersQuery.isFetching}
+                                onClick={() => changePage(page - 1)}
+                            >
+                                السابق
+                            </Button>
+                            <span>
+                                صفحة {teachersQuery.data.pagination.current_page}
+                                {' '}من{' '}
+                                {teachersQuery.data.pagination.last_page}
+                            </span>
+                            <Button
+                                variant="secondary"
+                                disabled={
+                                    page >= teachersQuery.data.pagination.last_page
+                                    || teachersQuery.isFetching
+                                }
+                                onClick={() => changePage(page + 1)}
+                            >
+                                التالي
+                            </Button>
+                        </nav>
+                    ) : null}
                 </Surface>
 
                 <Surface
@@ -685,6 +768,7 @@ function TeacherSummary({
             </Feedback>
 
             <TeacherAssignmentsPanel
+                key={teacher.user_id}
                 teacher={teacher}
             />
         </div>

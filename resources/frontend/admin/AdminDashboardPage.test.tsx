@@ -155,6 +155,30 @@ const summary = {
         active_practice_activities: 4,
         active_exam_templates: 3,
     },
+    snapshot_at: '2026-10-31T05:30:45.123456Z',
+    operations: {
+        teacher_accounts: {
+            active: 2,
+            disabled: 1,
+            total: 3,
+        },
+        student_accounts: {
+            active: 20,
+            disabled: 4,
+            total: 24,
+        },
+        teacher_subject_assignments: {
+            active: 3,
+            inactive: 1,
+            total: 4,
+        },
+        student_enrollments: {
+            pending: 3,
+            active: 3,
+            inactive: 1,
+            total: 7,
+        },
+    },
 };
 
 function installDashboardApi() {
@@ -168,20 +192,6 @@ function installDashboardApi() {
                 && url === '/api/admin/dashboard'
             ) {
                 return Promise.resolve(summary);
-            }
-
-            if (
-                method === 'GET'
-                && url === '/api/admin/teachers'
-            ) {
-                return Promise.resolve(teachers);
-            }
-
-            if (
-                method === 'GET'
-                && url === '/api/admin/students'
-            ) {
-                return Promise.resolve(students);
             }
 
             throw new Error(
@@ -226,16 +236,19 @@ describe('AdminDashboardPage', () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText('إسنادات المواد النشطة')
+            screen.getByText('إسنادات المواد')
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText('طلبات التسجيل المعلقة')
+            screen.getByText('التسجيلات')
         ).toBeInTheDocument();
 
         expect(
-            screen.getByText('التسجيلات النشطة')
-        ).toBeInTheDocument();
+            screen.getByText(/لقطة قاعدة البيانات:/),
+        ).toHaveAttribute(
+            'datetime',
+            summary.snapshot_at,
+        );
 
         expect(
             screen.getByText(
@@ -282,24 +295,16 @@ describe('AdminDashboardPage', () => {
         expect(
             screen.queryByText('إصدارات المناهج')
         ).not.toBeInTheDocument();
-        expect(screen.getByText('24')).toBeInTheDocument();
+        expect(screen.getAllByText('24').length).toBeGreaterThan(0);
         expect(screen.getByText('12')).toBeInTheDocument();
-        expect(screen.getByText('7')).toBeInTheDocument();
+        expect(screen.getAllByText('7').length).toBeGreaterThan(0);
 
         expect(apiRequestMock).toHaveBeenCalledWith({
             method: 'GET',
             url: '/api/admin/dashboard',
+            signal: expect.any(AbortSignal),
         });
-
-        expect(apiRequestMock).toHaveBeenCalledWith({
-            method: 'GET',
-            url: '/api/admin/teachers',
-        });
-
-        expect(apiRequestMock).toHaveBeenCalledWith({
-            method: 'GET',
-            url: '/api/admin/students',
-        });
+        expect(apiRequestMock).toHaveBeenCalledTimes(1);
     });
 
     it('routes dashboard cards and quick actions to matching content tabs', async () => {

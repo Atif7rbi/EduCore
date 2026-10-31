@@ -3,6 +3,10 @@ import {
 } from '../../api/client';
 
 import type {
+    AdminDirectoryParameters,
+    DirectoryPage,
+} from './types';
+import type {
     AdminStudent,
     StudentEnrollmentLifecycleResult,
     StudentEnrollmentOperationPayload,
@@ -14,6 +18,19 @@ export function adminStudentsKey() {
         'admin',
         'operations',
         'students',
+    ] as const;
+}
+
+export function adminStudentDirectoryKey(
+    parameters: AdminDirectoryParameters,
+) {
+    return [
+        ...adminStudentsKey(),
+        'directory',
+        parameters.page,
+        parameters.perPage,
+        parameters.search,
+        parameters.status ?? 'all',
     ] as const;
 }
 
@@ -48,26 +65,49 @@ export function studentEnrollmentKey(
     ] as const;
 }
 
-export function fetchAdminStudents():
+export function fetchAdminStudents(
+    signal?: AbortSignal,
+):
 Promise<AdminStudent[]> {
     return apiRequest<AdminStudent[]>({
         method: 'GET',
         url: '/api/admin/students',
+        signal,
+    });
+}
+
+export function fetchAdminStudentDirectory(
+    parameters: AdminDirectoryParameters,
+    signal?: AbortSignal,
+): Promise<DirectoryPage<AdminStudent>> {
+    return apiRequest<DirectoryPage<AdminStudent>>({
+        method: 'GET',
+        url: '/api/admin/directories/students',
+        params: {
+            page: parameters.page,
+            per_page: parameters.perPage,
+            search: parameters.search || undefined,
+            status: parameters.status ?? undefined,
+        },
+        signal,
     });
 }
 
 export function fetchAdminStudent(
     studentUserId: string,
+    signal?: AbortSignal,
 ): Promise<AdminStudent> {
     return apiRequest<AdminStudent>({
         method: 'GET',
         url:
             `/api/admin/students/${studentUserId}`,
+        signal,
     });
 }
 
 export function fetchStudentEnrollments(
     studentUserId: string,
+    signal?: AbortSignal,
 ): Promise<StudentEnrollmentRead[]> {
     return apiRequest<
         StudentEnrollmentRead[]
@@ -80,11 +120,13 @@ export function fetchStudentEnrollments(
          */
         url:
             `/api/admin/students/${studentUserId}/enrollments`,
+        signal,
     });
 }
 
 export function fetchStudentEnrollment(
     enrollmentId: string,
+    signal?: AbortSignal,
 ): Promise<StudentEnrollmentRead> {
     return apiRequest<
         StudentEnrollmentRead
@@ -92,6 +134,7 @@ export function fetchStudentEnrollment(
         method: 'GET',
         url:
             `/api/admin/student-enrollments/${enrollmentId}`,
+        signal,
     });
 }
 

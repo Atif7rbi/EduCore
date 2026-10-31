@@ -9,6 +9,9 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 import {
+    MemoryRouter,
+} from 'react-router-dom';
+import {
     beforeEach,
     describe,
     expect,
@@ -55,6 +58,15 @@ vi.mock('./operations/studentApi', () => ({
         'students',
         id,
     ],
+    adminStudentDirectoryKey: (
+        parameters: unknown,
+    ) => [
+        'admin',
+        'operations',
+        'students',
+        'directory',
+        parameters,
+    ],
     studentEnrollmentsKey: (
         id: string,
     ) => [
@@ -72,8 +84,13 @@ vi.mock('./operations/studentApi', () => ({
         'student-enrollments',
         id,
     ],
-    fetchAdminStudents: () =>
-        fetchAdminStudentsMock(),
+    fetchAdminStudentDirectory: (
+        parameters: unknown,
+        signal: AbortSignal,
+    ) => fetchAdminStudentsMock(
+        parameters,
+        signal,
+    ),
     fetchAdminStudent: (
         id: string,
     ) =>
@@ -121,6 +138,25 @@ function student({
             profileId
                 ? null
                 : null,
+    };
+}
+
+function directoryPage(
+    items: Array<
+        Omit<ReturnType<typeof student>, 'status'>
+        & { status: 'active' | 'disabled' }
+    >,
+    currentPage = 1,
+    lastPage = 1,
+) {
+    return {
+        items,
+        pagination: {
+            current_page: currentPage,
+            per_page: 20,
+            total: items.length,
+            last_page: lastPage,
+        },
     };
 }
 
@@ -227,7 +263,9 @@ function enrollmentDetail() {
     };
 }
 
-function renderPage() {
+function renderPage(
+    initialEntry = '/admin/students',
+) {
     const client =
         new QueryClient({
             defaultOptions: {
@@ -238,11 +276,15 @@ function renderPage() {
         });
 
     render(
-        <QueryClientProvider
-            client={client}
+        <MemoryRouter
+            initialEntries={[initialEntry]}
         >
-            <AdminStudentsPage />
-        </QueryClientProvider>,
+            <QueryClientProvider
+                client={client}
+            >
+                <AdminStudentsPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
@@ -263,9 +305,11 @@ describe(
                 .mockReset();
 
             fetchAdminStudentsMock
-                .mockResolvedValue([
-                    student(),
-                ]);
+                .mockResolvedValue(
+                    directoryPage([
+                        student(),
+                    ]),
+                );
 
             fetchAdminStudentMock
                 .mockResolvedValue(
@@ -295,6 +339,16 @@ describe(
                     },
                 ),
             ).toBeInTheDocument();
+
+            expect(
+                await screen.findByText('طالب أول'),
+            ).toBeInTheDocument();
+
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'عرض الطالب طالب أول',
+                }),
+            );
 
             expect(
                 await screen.findByText(
@@ -329,9 +383,11 @@ describe(
                 });
 
             fetchAdminStudentsMock
-                .mockResolvedValue([
-                    malformed,
-                ]);
+                .mockResolvedValue(
+                    directoryPage([
+                        malformed,
+                    ]),
+                );
 
             fetchAdminStudentMock
                 .mockResolvedValue(
@@ -339,6 +395,12 @@ describe(
                 );
 
             renderPage();
+
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب بدون ملف',
+                }),
+            );
 
             expect(
                 await screen.findByText(
@@ -353,6 +415,12 @@ describe(
 
         it('shows raw enrollment relationship without claiming effective access', async () => {
             renderPage();
+
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب أول',
+                }),
+            );
 
             expect(
                 await screen.findByText(
@@ -382,6 +450,12 @@ describe(
         it('separates immutable transition actor provenance from current actor display state', async () => {
             renderPage();
 
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب أول',
+                }),
+            );
+
             expect(
                 await screen.findByText(
                     /actor_user_id هو/
@@ -407,19 +481,22 @@ describe(
             ).toBeInTheDocument();
         });
 
-        it('filters Student list locally', async () => {
-            fetchAdminStudentsMock
-                .mockResolvedValue([
-                    student(),
-                    student({
-                        id:
-                            'student-user-2',
-                        profileId:
-                            'profile-2',
-                        name:
-                            'طالب الفيزياء',
-                    }),
-                ]);
+        it('submits Student search to the server', async () => {
+            const physicsStudent = student({
+                id: 'student-user-2',
+                profileId: 'profile-2',
+                name: 'طالب الفيزياء',
+            });
+            fetchAdminStudentsMock.mockImplementation(
+                (parameters: { search: string }) =>
+                    Promise.resolve(
+                        directoryPage(
+                            parameters.search
+                                ? [physicsStudent]
+                                : [student(), physicsStudent],
+                        ),
+                    ),
+            );
 
             renderPage();
 
@@ -428,7 +505,7 @@ describe(
             );
 
             expect(
-                screen.getByText(
+                await screen.findByText(
                     'طالب الفيزياء'
                 ),
             ).toBeInTheDocument();
@@ -445,21 +522,136 @@ describe(
                 },
             );
 
-            expect(
-                screen.queryByText(
-                    'طالب أول'
-                ),
-            ).not.toBeInTheDocument();
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'بحث',
+                }),
+            );
+
+            await waitFor(() => {
+                expect(
+                    fetchAdminStudentsMock,
+                ).toHaveBeenLastCalledWith(
+                    expect.objectContaining({
+                        page: 1,
+                        perPage: 20,
+                        search: 'الفيزياء',
+                        status: null,
+                    }),
+                    expect.any(AbortSignal),
+                );
+            });
 
             expect(
-                screen.getByText(
+                await screen.findByText(
                     'طالب الفيزياء'
                 ),
             ).toBeInTheDocument();
         });
 
+        it('limits an oversized URL search before the first Student directory request', async () => {
+            const effectiveSearch =
+                'أ'.repeat(120);
+            const params = new URLSearchParams({
+                page: '4',
+                search:
+                    `  ${effectiveSearch}أ  `,
+            });
+
+            renderPage(
+                `/admin/students?${params.toString()}`,
+            );
+
+            await waitFor(() => {
+                expect(
+                    fetchAdminStudentsMock,
+                ).toHaveBeenCalledTimes(1);
+                expect(
+                    fetchAdminStudentsMock,
+                ).toHaveBeenNthCalledWith(
+                    1,
+                    expect.objectContaining({
+                        page: 4,
+                        perPage: 20,
+                        search: effectiveSearch,
+                        status: null,
+                    }),
+                    expect.any(AbortSignal),
+                );
+            });
+
+            expect(
+                screen.getByRole('searchbox'),
+            ).toHaveValue(effectiveSearch);
+        });
+
+        it('applies Student status and pagination without changing selected User identity', async () => {
+            const disabledStudent = {
+                ...student({
+                    id: 'student-disabled',
+                    profileId: null,
+                    name: 'طالب معطّل',
+                }),
+                status: 'disabled' as const,
+            };
+            fetchAdminStudentsMock.mockImplementation(
+                (parameters: { page: number; status: string | null }) =>
+                    Promise.resolve(
+                        parameters.status === 'disabled'
+                            ? directoryPage(
+                                [disabledStudent],
+                                parameters.page,
+                                2,
+                            )
+                            : directoryPage([student()], 1, 2),
+                    ),
+            );
+
+            renderPage();
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب أول',
+                }),
+            );
+            expect(await screen.findByText('student-user-1'))
+                .toBeInTheDocument();
+
+            fireEvent.change(
+                screen.getByLabelText('حالة الحساب'),
+                { target: { value: 'disabled' } },
+            );
+
+            expect(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب معطّل',
+                }),
+            ).toBeInTheDocument();
+            expect(screen.getAllByText('student-user-1').length)
+                .toBeGreaterThan(0);
+
+            fireEvent.click(
+                screen.getByRole('button', { name: 'التالي' }),
+            );
+
+            await waitFor(() => {
+                expect(fetchAdminStudentsMock).toHaveBeenLastCalledWith(
+                    expect.objectContaining({
+                        page: 2,
+                        status: 'disabled',
+                    }),
+                    expect.any(AbortSignal),
+                );
+            });
+        });
+
         it('does not expose enrollment create accept or decline controls', async () => {
             renderPage();
+
+            fireEvent.click(
+                await screen.findByRole('button', {
+                    name: 'عرض الطالب طالب أول',
+                }),
+            );
 
             await screen.findByText(
                 'الرياضيات'

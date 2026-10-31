@@ -1,10 +1,14 @@
 import '../../css/admin-operations.css';
 
 import {
+    type FormEvent,
     useEffect,
     useMemo,
     useState,
 } from 'react';
+import {
+    useSearchParams,
+} from 'react-router-dom';
 import {
     useQuery,
 } from '@tanstack/react-query';
@@ -16,10 +20,10 @@ import {
 } from '../ui';
 
 import {
+    adminStudentDirectoryKey,
     adminStudentKey,
-    adminStudentsKey,
+    fetchAdminStudentDirectory,
     fetchAdminStudent,
-    fetchAdminStudents,
     fetchStudentEnrollment,
     fetchStudentEnrollments,
     studentEnrollmentKey,
@@ -54,7 +58,36 @@ function userStatusLabel(
 ): string {
     return status === 'active'
         ? 'نشط'
-        : 'غير نشط';
+        : 'معطّل';
+}
+
+function positivePage(value: string | null): number {
+    const parsed = Number(value);
+
+    return Number.isSafeInteger(parsed) && parsed > 0
+        ? parsed
+        : 1;
+}
+
+function directoryStatus(
+    value: string | null,
+): AdminStudent['status'] | null {
+    return value === 'active' || value === 'disabled'
+        ? value
+        : null;
+}
+
+const DIRECTORY_SEARCH_MAX_LENGTH = 120;
+
+function directorySearch(
+    value: string | null,
+): string {
+    return Array.from(
+        (value ?? '').trim(),
+    ).slice(
+        0,
+        DIRECTORY_SEARCH_MAX_LENGTH,
+    ).join('');
 }
 
 function identifier(
@@ -64,6 +97,8 @@ function identifier(
 }
 
 export function AdminStudentsPage() {
+    const [searchParams, setSearchParams] =
+        useSearchParams();
     const [
         selectedStudentId,
         setSelectedStudentId,
@@ -78,15 +113,40 @@ export function AdminStudentsPage() {
         null
     );
 
+    const committedSearch =
+        directorySearch(
+            searchParams.get('search'),
+        );
+    const page = positivePage(
+        searchParams.get('page'),
+    );
+    const status = directoryStatus(
+        searchParams.get('status'),
+    );
     const [search, setSearch] =
-        useState('');
+        useState(committedSearch);
+
+    const directoryParameters = useMemo(
+        () => ({
+            page,
+            perPage: 20,
+            search: committedSearch,
+            status,
+        }),
+        [committedSearch, page, status],
+    );
 
     const studentsQuery =
         useQuery({
             queryKey:
-                adminStudentsKey(),
-            queryFn:
-                fetchAdminStudents,
+                adminStudentDirectoryKey(
+                    directoryParameters,
+                ),
+            queryFn: ({ signal }) =>
+                fetchAdminStudentDirectory(
+                    directoryParameters,
+                    signal,
+                ),
         });
 
     const studentQuery =
@@ -96,9 +156,10 @@ export function AdminStudentsPage() {
                     selectedStudentId
                         ?? 'none'
                 ),
-            queryFn: () =>
+            queryFn: ({ signal }) =>
                 fetchAdminStudent(
-                    selectedStudentId!
+                    selectedStudentId!,
+                    signal,
                 ),
             enabled:
                 selectedStudentId
@@ -117,9 +178,10 @@ export function AdminStudentsPage() {
                     selectedStudentId
                         ?? 'none'
                 ),
-            queryFn: () =>
+            queryFn: ({ signal }) =>
                 fetchStudentEnrollments(
-                    selectedStudentId!
+                    selectedStudentId!,
+                    signal,
                 ),
             enabled:
                 selectedStudentId
@@ -135,9 +197,10 @@ export function AdminStudentsPage() {
                     selectedEnrollmentId
                         ?? 'none'
                 ),
-            queryFn: () =>
+            queryFn: ({ signal }) =>
                 fetchStudentEnrollment(
-                    selectedEnrollmentId!
+                    selectedEnrollmentId!,
+                    signal,
                 ),
             enabled:
                 selectedEnrollmentId
@@ -145,38 +208,8 @@ export function AdminStudentsPage() {
         });
 
     useEffect(() => {
-        const students =
-            studentsQuery.data;
-
-        if (!students) {
-            return;
-        }
-
-        if (students.length === 0) {
-            setSelectedStudentId(
-                null
-            );
-            return;
-        }
-
-        const exists =
-            selectedStudentId
-                !== null
-            && students.some(
-                (student) =>
-                    student.user_id
-                    === selectedStudentId
-            );
-
-        if (!exists) {
-            setSelectedStudentId(
-                students[0].user_id
-            );
-        }
-    }, [
-        selectedStudentId,
-        studentsQuery.data,
-    ]);
+        setSearch(committedSearch);
+    }, [committedSearch]);
 
     useEffect(() => {
         setSelectedEnrollmentId(
@@ -216,81 +249,52 @@ export function AdminStudentsPage() {
         selectedEnrollmentId,
     ]);
 
-    const normalizedSearch =
-        search
-            .trim()
-            .toLocaleLowerCase('ar');
+    const students =
+        studentsQuery.data?.items ?? [];
 
-    const visibleStudents =
-        useMemo(
-            () =>
-                studentsQuery.data
-                    ?.filter(
-                        (student) => {
-                            if (
-                                !normalizedSearch
-                            ) {
-                                return true;
-                            }
-
-                            return (
-                                student.name
-                                    .toLocaleLowerCase(
-                                        'ar'
-                                    )
-                                    .includes(
-                                        normalizedSearch
-                                    )
-                                || student.email
-                                    .toLocaleLowerCase()
-                                    .includes(
-                                        normalizedSearch
-                                    )
-                            );
-                        }
-                    )
-                ?? [],
-            [
-                normalizedSearch,
-                studentsQuery.data,
-            ]
-        );
-
-    if (
-        studentsQuery.isPending
+    function submitDirectorySearch(
+        event: FormEvent,
     ) {
-        return (
-            <section
-                className="foundation-page"
-                aria-busy="true"
-            >
-                <Surface>
-                    جار تحميل الطلاب…
-                </Surface>
-            </section>
+        event.preventDefault();
+        const next = new URLSearchParams(
+            searchParams,
         );
+        const normalized =
+            directorySearch(search);
+
+        if (normalized) {
+            next.set('search', normalized);
+        } else {
+            next.delete('search');
+        }
+
+        next.set('page', '1');
+        setSearchParams(next);
     }
 
-    if (
-        studentsQuery.isError
+    function changeStatus(
+        nextStatus: AdminStudent['status'] | null,
     ) {
-        return (
-            <section className="foundation-page">
-                <Feedback tone="danger">
-                    تعذر تحميل الطلاب.
-                </Feedback>
-
-                <Button
-                    variant="secondary"
-                    onClick={() => {
-                        void studentsQuery
-                            .refetch();
-                    }}
-                >
-                    إعادة المحاولة
-                </Button>
-            </section>
+        const next = new URLSearchParams(
+            searchParams,
         );
+
+        if (nextStatus) {
+            next.set('status', nextStatus);
+        } else {
+            next.delete('status');
+        }
+
+        next.set('page', '1');
+        setSearchParams(next);
+    }
+
+    function changePage(nextPage: number) {
+        const next = new URLSearchParams(
+            searchParams,
+        );
+        next.set('page', String(nextPage));
+        setSearchParams(next);
     }
 
     return (
@@ -329,43 +333,89 @@ export function AdminStudentsPage() {
                                 {
                                     studentsQuery
                                         .data
-                                        ?.length ?? 0
+                                        ?.pagination
+                                        .total ?? 0
                                 } حساب
                             </p>
                         </div>
                     </div>
 
-                    <label className="admin-operations__search">
-                        <span>
-                            بحث في الطلاب
-                        </span>
+                    <form
+                        className="admin-operations__directory-controls"
+                        onSubmit={submitDirectorySearch}
+                    >
+                        <label className="admin-operations__search">
+                            <span>
+                                بحث في الطلاب
+                            </span>
 
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(
-                                    event
-                                        .target
-                                        .value
-                                );
-                            }}
-                        />
-                    </label>
+                            <input
+                                type="search"
+                                maxLength={120}
+                                value={search}
+                                onChange={(event) => {
+                                    setSearch(
+                                        event.target.value
+                                    );
+                                }}
+                            />
+                        </label>
+
+                        <label className="admin-operations__filter">
+                            <span>حالة الحساب</span>
+                            <select
+                                value={status ?? ''}
+                                onChange={(event) => {
+                                    changeStatus(
+                                        directoryStatus(
+                                            event.target.value,
+                                        ),
+                                    );
+                                }}
+                            >
+                                <option value="">كل الحالات</option>
+                                <option value="active">نشط</option>
+                                <option value="disabled">معطّل</option>
+                            </select>
+                        </label>
+
+                        <Button type="submit" variant="secondary">
+                            بحث
+                        </Button>
+                    </form>
 
                     <div
                         className="admin-operations__entity-list"
                         aria-label="قائمة الطلاب"
                     >
-                        {visibleStudents
-                            .length === 0
+                        {studentsQuery.isPending
+                            ? (
+                                <Feedback>
+                                    جار تحميل الطلاب…
+                                </Feedback>
+                            )
+                            : studentsQuery.isError
+                                ? (
+                                    <Feedback tone="danger">
+                                        تعذر تحميل الطلاب.
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => {
+                                                void studentsQuery.refetch();
+                                            }}
+                                        >
+                                            إعادة المحاولة
+                                        </Button>
+                                    </Feedback>
+                                )
+                            : students.length === 0
                             ? (
                                 <Feedback>
                                     لا توجد نتائج
                                     مطابقة.
                                 </Feedback>
                             )
-                            : visibleStudents
+                            : students
                                 .map(
                                     (
                                         student
@@ -394,6 +444,36 @@ export function AdminStudentsPage() {
                                     )
                                 )}
                     </div>
+
+                    {studentsQuery.data ? (
+                        <nav
+                            className="admin-operations__pagination"
+                            aria-label="صفحات الطلاب"
+                        >
+                            <Button
+                                variant="secondary"
+                                disabled={page <= 1 || studentsQuery.isFetching}
+                                onClick={() => changePage(page - 1)}
+                            >
+                                السابق
+                            </Button>
+                            <span>
+                                صفحة {studentsQuery.data.pagination.current_page}
+                                {' '}من{' '}
+                                {studentsQuery.data.pagination.last_page}
+                            </span>
+                            <Button
+                                variant="secondary"
+                                disabled={
+                                    page >= studentsQuery.data.pagination.last_page
+                                    || studentsQuery.isFetching
+                                }
+                                onClick={() => changePage(page + 1)}
+                            >
+                                التالي
+                            </Button>
+                        </nav>
+                    ) : null}
                 </Surface>
 
                 <Surface
@@ -488,6 +568,7 @@ function StudentListItem({
             aria-label={
                 `عرض الطالب ${student.name}`
             }
+            aria-pressed={selected}
             onClick={onSelect}
         >
             <span className="admin-operations__entity-main">
@@ -958,6 +1039,7 @@ function EnrollmentDetail({
             </div>
 
             <StudentEnrollmentDeactivationPanel
+                key={enrollment.id}
                 enrollment={enrollment}
             />
 
