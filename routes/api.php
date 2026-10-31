@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\AdminAssessmentAuthoringController;
 use App\Http\Controllers\Api\Admin\AdminCurriculumManagementController;
 use App\Http\Controllers\Api\Admin\AdminCurriculumReadController;
 use App\Http\Controllers\Api\Admin\AdminCurriculumReadinessController;
+use App\Http\Controllers\Api\Admin\AdminDirectoryController;
 use App\Http\Controllers\Api\Admin\AdminExamTemplateController;
 use App\Http\Controllers\Api\Admin\AdminLessonAuthoringController;
 use App\Http\Controllers\Api\Admin\AdminPracticeActivityController;
@@ -1009,6 +1010,22 @@ Route::middleware([
     'web',
     'management',
 ])->prefix('admin')->group(function (): void {
+    Route::get(
+        '/directories/teachers',
+        [
+            AdminDirectoryController::class,
+            'teachers',
+        ]
+    );
+
+    Route::get(
+        '/directories/students',
+        [
+            AdminDirectoryController::class,
+            'students',
+        ]
+    );
+
     Route::get(
         '/teachers',
         [

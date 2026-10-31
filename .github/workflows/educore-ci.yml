@@ -90,6 +90,352 @@ jobs:
       - name: Run complete backend suite serially
         run: php artisan test
 
+  backend-historical-regression:
+    name: Backend historical regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      HISTORICAL_DATABASE: educore_historical_test
+      HISTORICAL_BOOTSTRAP_ROLE: educore_historical_bootstrap
+      HISTORICAL_APPLICATION_ROLE: educore_historical_app
+      TZ: UTC
+    steps:
+      - name: Check out exact submitted source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60
+        with:
+          php-version: "8.5"
+          extensions: pdo_pgsql, pgsql, mbstring, xml, dom, fileinfo, intl, pcntl, posix
+          ini-values: date.timezone=UTC
+          tools: composer:2
+
+      - name: Generate and mask runtime database credentials
+        id: historical-database-credentials
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bootstrap_password="$(openssl rand -hex 32)"
+          application_password="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$bootstrap_password"
+          printf '::add-mask::%s\n' "$application_password"
+          printf 'bootstrap_password=%s\n' "$bootstrap_password" \
+            >> "$GITHUB_OUTPUT"
+          printf 'application_password=%s\n' "$application_password" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Provision CI-only Laravel environment
+        run: |
+          cp .env.example .env
+          app_key="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf '\nAPP_KEY=%s\n' "$app_key" >> .env
+          printf 'APP_KEY=%s\n' "$app_key" >> "$GITHUB_ENV"
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Start isolated PostgreSQL container
+        env:
+          HISTORICAL_BOOTSTRAP_PASSWORD: ${{ steps.historical-database-credentials.outputs.bootstrap_password }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          readonly image="postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97"
+          readonly container_name="educore-historical-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          fail_container_check()
+          {
+              printf 'Historical PostgreSQL container verification failed: %s\n' "$1" >&2
+              exit 1
+          }
+
+          [[ -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          runner_temp="$(realpath -e "$RUNNER_TEMP")"
+          credential_dir="$(mktemp -d "$runner_temp/educore-historical-postgres.XXXXXX")"
+          credential_dir="$(realpath -e "$credential_dir")"
+
+          case "$credential_dir/" in
+            "$runner_temp/"*) ;;
+            *)
+              echo "Credential directory escaped RUNNER_TEMP." >&2
+              exit 1
+              ;;
+          esac
+
+          chmod 700 "$credential_dir"
+          credential_file="$credential_dir/postgres.env"
+
+          cleanup_credentials()
+          {
+              if [[ -f "$credential_file" ]]; then
+                  rm -- "$credential_file"
+              fi
+
+              rmdir -- "$credential_dir" 2>/dev/null || true
+          }
+
+          trap cleanup_credentials EXIT
+
+          printf '%s\n' \
+            "POSTGRES_DB=$HISTORICAL_DATABASE" \
+            "POSTGRES_USER=$HISTORICAL_BOOTSTRAP_ROLE" \
+            "POSTGRES_PASSWORD=$HISTORICAL_BOOTSTRAP_PASSWORD" \
+            "TZ=UTC" > "$credential_file"
+          chmod 600 "$credential_file"
+
+          if docker inspect "$container_name" >/dev/null 2>&1; then
+              fail_container_check "container name collision"
+          fi
+
+          preexisting_volume_output="$(docker volume ls --quiet)" \
+            || fail_container_check "unable to inventory pre-existing volumes"
+          preexisting_volume_names=()
+          if [[ -n "$preexisting_volume_output" ]]; then
+              mapfile -t preexisting_volume_names <<<"$preexisting_volume_output"
+          fi
+
+          docker run \
+            --detach \
+            --name "$container_name" \
+            --restart no \
+            --publish 127.0.0.1:5432:5432 \
+            --env-file "$credential_file" \
+            --health-cmd "pg_isready -U $HISTORICAL_BOOTSTRAP_ROLE -d $HISTORICAL_DATABASE" \
+            --health-interval 2s \
+            --health-timeout 3s \
+            --health-retries 30 \
+            "$image" >/dev/null
+
+          [[ "$(docker inspect --format '{{.Name}}' "$container_name")" == "/$container_name" ]] \
+            || fail_container_check "unexpected container name"
+          [[ "$(docker inspect --format '{{.Config.Image}}' "$container_name")" == "$image" ]] \
+            || fail_container_check "unexpected image reference"
+
+          container_id="$(docker inspect --format '{{.Id}}' "$container_name")"
+          [[ "$container_id" =~ ^[0-9a-f]{64}$ ]] \
+            || fail_container_check "invalid container identity"
+
+          declared_volume_output="$(
+              docker image inspect \
+                --format '{{range $destination, $_ := .Config.Volumes}}{{println $destination}}{{end}}' \
+                "$image"
+          )" || fail_container_check "unable to inspect image-declared volumes"
+          mapfile -t declared_volume_destinations <<<"$declared_volume_output"
+          [[ "${#declared_volume_destinations[@]}" -eq 1 ]] \
+            || fail_container_check "image must declare exactly one data volume"
+          declared_volume_destination="${declared_volume_destinations[0]}"
+          [[ -n "$declared_volume_destination" ]] \
+            || fail_container_check "image data-volume destination is empty"
+
+          container_mount_output="$(
+              docker inspect \
+                --format '{{range .Mounts}}{{printf "%s|%s|%s|%t\n" .Type .Name .Destination .RW}}{{end}}' \
+                "$container_name"
+          )" || fail_container_check "unable to inspect container mounts"
+          mapfile -t container_mounts <<<"$container_mount_output"
+          [[ "${#container_mounts[@]}" -eq 1 ]] \
+            || fail_container_check "unexpected mount count"
+
+          IFS='|' read -r mount_type mount_name mount_destination mount_read_write \
+            <<<"${container_mounts[0]}"
+          [[ "$mount_type" == "volume" ]] \
+            || fail_container_check "bind, tmpfs or non-volume mount rejected"
+          [[ -n "$mount_name" ]] \
+            || fail_container_check "anonymous volume identity is missing"
+          [[ "$mount_destination" == "$declared_volume_destination" ]] \
+            || fail_container_check "mount destination is not image-declared"
+          [[ "$mount_read_write" == "true" ]] \
+            || fail_container_check "data volume is unexpectedly read-only"
+
+          for preexisting_volume_name in "${preexisting_volume_names[@]}"; do
+              [[ "$mount_name" != "$preexisting_volume_name" ]] \
+                || fail_container_check "pre-existing or externally supplied volume rejected"
+          done
+
+          [[ "$(docker volume inspect --format '{{.Driver}}' "$mount_name")" == "local" ]] \
+            || fail_container_check "unexpected volume driver"
+          [[ "$(docker volume inspect --format '{{.Scope}}' "$mount_name")" == "local" ]] \
+            || fail_container_check "unexpected volume scope"
+
+          volume_consumer_output="$(
+              docker ps --all --no-trunc --quiet --filter "volume=$mount_name"
+          )" || fail_container_check "unable to verify volume consumers"
+          mapfile -t volume_consumers <<<"$volume_consumer_output"
+          [[ "${#volume_consumers[@]}" -eq 1 && "${volume_consumers[0]}" == "$container_id" ]] \
+            || fail_container_check "anonymous volume is not container-exclusive"
+
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostIp}}' "$container_name")" == "127.0.0.1" ]] \
+            || fail_container_check "PostgreSQL port is not loopback-only"
+          [[ "$(docker inspect --format '{{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostPort}}' "$container_name")" == "5432" ]] \
+            || fail_container_check "unexpected PostgreSQL host port"
+
+          ready=false
+
+          for attempt in $(seq 1 45); do
+              state="$(docker inspect --format '{{.State.Status}}' "$container_name")"
+              health="$(docker inspect --format '{{.State.Health.Status}}' "$container_name")"
+
+              if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+                  docker logs "$container_name" >&2
+                  exit 1
+              fi
+
+              if [[ "$health" == "healthy" ]]; then
+                  ready=true
+                  break
+              fi
+
+              sleep 2
+          done
+
+          if [[ "$ready" != "true" ]]; then
+              docker logs "$container_name" >&2
+              echo "Historical PostgreSQL readiness timed out." >&2
+              exit 1
+          fi
+
+          echo "Isolated PostgreSQL 16 container is healthy on loopback."
+
+      - name: Bootstrap isolated PostgreSQL application role
+        env:
+          PGPASSWORD: ${{ steps.historical-database-credentials.outputs.bootstrap_password }}
+          EDUCORE_HISTORICAL_APPLICATION_PASSWORD: ${{ steps.historical-database-credentials.outputs.application_password }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PGCONNECT_TIMEOUT=5
+          export PGOPTIONS="-c statement_timeout=15000 -c lock_timeout=5000 -c timezone=UTC"
+
+          identity="$({
+            psql \
+              -X \
+              -v ON_ERROR_STOP=1 \
+              -h 127.0.0.1 \
+              -p 5432 \
+              -U "$HISTORICAL_BOOTSTRAP_ROLE" \
+              -d "$HISTORICAL_DATABASE" \
+              -qAt \
+              -F '|'
+          } <<'SQL'
+          SELECT
+              current_database(),
+              current_user,
+              current_setting('server_version_num'),
+              current_setting('TimeZone'),
+              (
+                  SELECT count(*)
+                  FROM pg_catalog.pg_class AS relation
+                  JOIN pg_catalog.pg_namespace AS namespace
+                    ON namespace.oid = relation.relnamespace
+                  WHERE namespace.nspname = 'public'
+                    AND relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+              ),
+              to_regclass('public.migrations') IS NULL,
+              (
+                  SELECT count(*)
+                  FROM pg_catalog.pg_roles
+                  WHERE rolname = 'educore_historical_app'
+              );
+          SQL
+          )"
+
+          IFS='|' read -r database role version timezone relations migrations_absent app_roles <<<"$identity"
+          [[ "$database" == "$HISTORICAL_DATABASE" ]]
+          [[ "$role" == "$HISTORICAL_BOOTSTRAP_ROLE" ]]
+          [[ "$version" =~ ^16[0-9]{4}$ ]]
+          [[ "$timezone" == "UTC" ]]
+          [[ "$relations" == "0" ]]
+          [[ "$migrations_absent" == "t" ]]
+          [[ "$app_roles" == "0" ]]
+
+          psql \
+            -X \
+            -v ON_ERROR_STOP=1 \
+            -h 127.0.0.1 \
+            -p 5432 \
+            -U "$HISTORICAL_BOOTSTRAP_ROLE" \
+            -d "$HISTORICAL_DATABASE" \
+            -v application_role="$HISTORICAL_APPLICATION_ROLE" \
+            -v database_name="$HISTORICAL_DATABASE" <<'SQL'
+          \getenv application_password EDUCORE_HISTORICAL_APPLICATION_PASSWORD
+          SELECT format(
+              'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT',
+              :'application_role',
+              :'application_password'
+          )
+          \gexec
+          SELECT format(
+              'ALTER DATABASE %I OWNER TO %I',
+              :'database_name',
+              :'application_role'
+          )
+          \gexec
+          SELECT format(
+              'REVOKE CONNECT ON DATABASE %I FROM PUBLIC',
+              :'database_name'
+          )
+          \gexec
+          SELECT format(
+              'ALTER ROLE %I NOLOGIN PASSWORD NULL',
+              current_user
+          )
+          \gexec
+          SQL
+
+          application_identity="$(
+            PGPASSWORD="$EDUCORE_HISTORICAL_APPLICATION_PASSWORD" psql \
+              -X \
+              -v ON_ERROR_STOP=1 \
+              -h 127.0.0.1 \
+              -p 5432 \
+              -U "$HISTORICAL_APPLICATION_ROLE" \
+              -d "$HISTORICAL_DATABASE" \
+              -qAt \
+              -v bootstrap_role="$HISTORICAL_BOOTSTRAP_ROLE" \
+              -F '|' <<'SQL'
+          SELECT
+              current_database(),
+              current_user,
+              pg_get_userbyid(database.datdba),
+              current_setting('TimeZone'),
+              role.rolsuper,
+              role.rolcreatedb,
+              role.rolcreaterole,
+              role.rolcanlogin,
+              (
+                  SELECT bootstrap.rolcanlogin
+                  FROM pg_catalog.pg_roles AS bootstrap
+                  WHERE bootstrap.rolname = :'bootstrap_role'
+              )
+          FROM pg_catalog.pg_database AS database
+          JOIN pg_catalog.pg_roles AS role
+            ON role.rolname = current_user
+          WHERE database.datname = current_database();
+          SQL
+          )"
+
+          [[ "$application_identity" == "$HISTORICAL_DATABASE|$HISTORICAL_APPLICATION_ROLE|$HISTORICAL_APPLICATION_ROLE|UTC|f|f|f|t|f" ]]
+          echo "Ephemeral PostgreSQL identity, restricted role, disabled bootstrap login, empty state and UTC session verified."
+
+      - name: Run ephemeral historical Dashboard regression
+        env:
+          EDUCORE_HISTORICAL_DATABASE_HOST: 127.0.0.1
+          EDUCORE_HISTORICAL_DATABASE_PORT: "5432"
+          EDUCORE_HISTORICAL_DATABASE: ${{ env.HISTORICAL_DATABASE }}
+          EDUCORE_HISTORICAL_ROLE: ${{ env.HISTORICAL_APPLICATION_ROLE }}
+          EDUCORE_HISTORICAL_PASSWORD: ${{ steps.historical-database-credentials.outputs.application_password }}
+          EDUCORE_HISTORICAL_EXPECTED_CURRENT_SHA: ${{ github.sha }}
+          EDUCORE_HISTORICAL_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: tests/Support/AdminDashboardHistorical/run.sh
+
   frontend-validation:
     name: Frontend validation
     runs-on: ubuntu-latest
