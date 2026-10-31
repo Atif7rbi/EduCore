@@ -12,9 +12,11 @@ import {
 
 import {
     adminStudentKey,
+    adminStudentDirectoryKey,
     adminStudentsKey,
     deactivateStudentEnrollment,
     fetchAdminStudent,
+    fetchAdminStudentDirectory,
     fetchAdminStudents,
     fetchStudentEnrollment,
     fetchStudentEnrollments,
@@ -95,6 +97,46 @@ describe(
                 method: 'GET',
                 url:
                     '/api/admin/students/student-user-1',
+            });
+        });
+
+        it('scopes Student Directory reads to every parameter and AbortSignal', async () => {
+            const parameters = {
+                page: 2,
+                perPage: 20,
+                search: 'profile-uuid',
+                status: 'active' as const,
+            };
+            const controller = new AbortController();
+
+            expect(
+                adminStudentDirectoryKey(parameters),
+            ).toEqual([
+                'admin',
+                'operations',
+                'students',
+                'directory',
+                2,
+                20,
+                'profile-uuid',
+                'active',
+            ]);
+
+            await fetchAdminStudentDirectory(
+                parameters,
+                controller.signal,
+            );
+
+            expect(apiRequestMock).toHaveBeenLastCalledWith({
+                method: 'GET',
+                url: '/api/admin/directories/students',
+                params: {
+                    page: 2,
+                    per_page: 20,
+                    search: 'profile-uuid',
+                    status: 'active',
+                },
+                signal: controller.signal,
             });
         });
 

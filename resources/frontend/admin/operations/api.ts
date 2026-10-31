@@ -3,10 +3,12 @@ import {
 } from '../../api/client';
 
 import type {
+    AdminDirectoryParameters,
     AdminCanonicalSubject,
     AdminTeacher,
     AssignmentOperationPayload,
     AssignTeacherSubjectPayload,
+    DirectoryPage,
     ProvisionTeacherPayload,
     ProvisionTeacherResult,
     TeacherSubjectAssignment,
@@ -20,11 +22,14 @@ export function adminCanonicalSubjectsKey() {
     ] as const;
 }
 
-export function fetchAdminCanonicalSubjects():
+export function fetchAdminCanonicalSubjects(
+    signal?: AbortSignal,
+):
 Promise<AdminCanonicalSubject[]> {
     return apiRequest<AdminCanonicalSubject[]>({
         method: 'GET',
         url: '/api/admin/subjects',
+        signal,
     });
 }
 
@@ -33,6 +38,19 @@ export function adminTeachersKey() {
         'admin',
         'operations',
         'teachers',
+    ] as const;
+}
+
+export function adminTeacherDirectoryKey(
+    parameters: AdminDirectoryParameters,
+) {
+    return [
+        ...adminTeachersKey(),
+        'directory',
+        parameters.page,
+        parameters.perPage,
+        parameters.search,
+        parameters.status ?? 'all',
     ] as const;
 }
 
@@ -56,21 +74,43 @@ export function teacherAssignmentsKey(
     ] as const;
 }
 
-export function fetchAdminTeachers():
+export function fetchAdminTeachers(
+    signal?: AbortSignal,
+):
 Promise<AdminTeacher[]> {
     return apiRequest<AdminTeacher[]>({
         method: 'GET',
         url: '/api/admin/teachers',
+        signal,
+    });
+}
+
+export function fetchAdminTeacherDirectory(
+    parameters: AdminDirectoryParameters,
+    signal?: AbortSignal,
+): Promise<DirectoryPage<AdminTeacher>> {
+    return apiRequest<DirectoryPage<AdminTeacher>>({
+        method: 'GET',
+        url: '/api/admin/directories/teachers',
+        params: {
+            page: parameters.page,
+            per_page: parameters.perPage,
+            search: parameters.search || undefined,
+            status: parameters.status ?? undefined,
+        },
+        signal,
     });
 }
 
 export function fetchAdminTeacher(
     teacherUserId: string,
+    signal?: AbortSignal,
 ): Promise<AdminTeacher> {
     return apiRequest<AdminTeacher>({
         method: 'GET',
         url:
             `/api/admin/teachers/${teacherUserId}`,
+        signal,
     });
 }
 
@@ -86,6 +126,7 @@ export function provisionTeacher(
 
 export function fetchTeacherAssignments(
     teacherUserId: string,
+    signal?: AbortSignal,
 ): Promise<TeacherSubjectAssignment[]> {
     return apiRequest<
         TeacherSubjectAssignment[]
@@ -93,6 +134,7 @@ export function fetchTeacherAssignments(
         method: 'GET',
         url:
             `/api/admin/teachers/${teacherUserId}/subject-assignments`,
+        signal,
     });
 }
 

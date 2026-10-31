@@ -213,7 +213,7 @@ function renderPanel(
             },
         });
 
-    render(
+    const view = render(
         <QueryClientProvider
             client={client}
         >
@@ -226,6 +226,11 @@ function renderPanel(
             />
         </QueryClientProvider>,
     );
+
+    return {
+        client,
+        ...view,
+    };
 }
 
 describe(
@@ -422,6 +427,78 @@ describe(
                     },
                 );
             });
+        });
+
+        it('invalidates the mutation origin without resetting a newly rendered Teacher', async () => {
+            const operation = deferred<Record<string, never>>();
+            fetchTeacherAssignmentsMock.mockResolvedValue([]);
+            fetchAdminCanonicalSubjectsMock.mockResolvedValue([
+                subject({
+                    id: 'subject-physics',
+                    code: 'physics',
+                    name: 'الفيزياء',
+                }),
+            ]);
+            assignTeacherSubjectMock.mockReturnValue(
+                operation.promise,
+            );
+
+            const { client, rerender } = renderPanel();
+            const invalidate = vi.spyOn(
+                client,
+                'invalidateQueries',
+            );
+            await screen.findByText('إسنادات المواد');
+
+            fireEvent.change(screen.getByLabelText('سبب العملية'), {
+                target: { value: 'سبب المعلم الأول' },
+            });
+            fireEvent.change(screen.getByRole('combobox', {
+                name: 'المادة',
+            }), {
+                target: { value: 'subject-physics' },
+            });
+            fireEvent.click(screen.getByRole('button', {
+                name: 'إسناد المادة',
+            }));
+
+            await waitFor(() => {
+                expect(assignTeacherSubjectMock).toHaveBeenCalled();
+            });
+
+            rerender(
+                <QueryClientProvider client={client}>
+                    <TeacherAssignmentsPanel
+                        teacher={{
+                            ...teacher(),
+                            user_id: 'teacher-2',
+                            name: 'المعلم الثاني',
+                        }}
+                    />
+                </QueryClientProvider>,
+            );
+            await screen.findByText('إسنادات المواد');
+            fireEvent.change(screen.getByLabelText('سبب العملية'), {
+                target: { value: 'سبب المعلم الثاني' },
+            });
+
+            await act(async () => {
+                operation.resolve({});
+            });
+
+            await waitFor(() => {
+                expect(invalidate).toHaveBeenCalledWith({
+                    queryKey: [
+                        'admin',
+                        'operations',
+                        'teachers',
+                        'teacher-1',
+                        'subject-assignments',
+                    ],
+                });
+            });
+            expect(screen.getByLabelText('سبب العملية'))
+                .toHaveValue('سبب المعلم الثاني');
         });
 
         it('allows deactivation for disabled teacher but blocks reactivation', async () => {

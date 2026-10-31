@@ -12,12 +12,14 @@ import {
 
 import {
     adminCanonicalSubjectsKey,
+    adminTeacherDirectoryKey,
     adminTeacherKey,
     adminTeachersKey,
     assignTeacherSubject,
     deactivateTeacherAssignment,
     fetchAdminCanonicalSubjects,
     fetchAdminTeacher,
+    fetchAdminTeacherDirectory,
     fetchAdminTeachers,
     fetchTeacherAssignments,
     provisionTeacher,
@@ -90,6 +92,46 @@ describe('admin operations api', () => {
             'teacher-1',
             'subject-assignments',
         ]);
+    });
+
+    it('scopes Teacher Directory reads to every parameter and AbortSignal', async () => {
+        const parameters = {
+            page: 3,
+            perPage: 20,
+            search: 'Teacher One',
+            status: 'disabled' as const,
+        };
+        const controller = new AbortController();
+
+        expect(
+            adminTeacherDirectoryKey(parameters),
+        ).toEqual([
+            'admin',
+            'operations',
+            'teachers',
+            'directory',
+            3,
+            20,
+            'Teacher One',
+            'disabled',
+        ]);
+
+        await fetchAdminTeacherDirectory(
+            parameters,
+            controller.signal,
+        );
+
+        expect(apiRequestMock).toHaveBeenLastCalledWith({
+            method: 'GET',
+            url: '/api/admin/directories/teachers',
+            params: {
+                page: 3,
+                per_page: 20,
+                search: 'Teacher One',
+                status: 'disabled',
+            },
+            signal: controller.signal,
+        });
     });
 
     it('reads teacher collection and detail', async () => {

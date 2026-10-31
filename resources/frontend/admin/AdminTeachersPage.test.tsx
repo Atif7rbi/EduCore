@@ -1,4 +1,5 @@
 import {
+    act,
     fireEvent,
     render,
     screen,
@@ -8,6 +9,9 @@ import {
     QueryClient,
     QueryClientProvider,
 } from '@tanstack/react-query';
+import {
+    MemoryRouter,
+} from 'react-router-dom';
 import {
     beforeEach,
     describe,
@@ -52,8 +56,22 @@ vi.mock('./operations/api', () => ({
         'teachers',
         teacherUserId,
     ],
-    fetchAdminTeachers: () =>
-        fetchAdminTeachersMock(),
+    adminTeacherDirectoryKey: (
+        parameters: unknown,
+    ) => [
+        'admin',
+        'operations',
+        'teachers',
+        'directory',
+        parameters,
+    ],
+    fetchAdminTeacherDirectory: (
+        parameters: unknown,
+        signal: AbortSignal,
+    ) => fetchAdminTeachersMock(
+        parameters,
+        signal,
+    ),
     fetchAdminTeacher: (
         teacherUserId: string,
     ) =>
@@ -117,7 +135,34 @@ function teacher({
     };
 }
 
-function renderPage() {
+function directoryPage(
+    items: ReturnType<typeof teacher>[],
+    currentPage = 1,
+    lastPage = 1,
+) {
+    return {
+        items,
+        pagination: {
+            current_page: currentPage,
+            per_page: 20,
+            total: items.length,
+            last_page: lastPage,
+        },
+    };
+}
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((resolvePromise) => {
+        resolve = resolvePromise;
+    });
+
+    return { promise, resolve };
+}
+
+function renderPage(
+    initialEntry = '/admin/teachers',
+) {
     const client =
         new QueryClient({
             defaultOptions: {
@@ -131,11 +176,15 @@ function renderPage() {
         });
 
     render(
-        <QueryClientProvider
-            client={client}
+        <MemoryRouter
+            initialEntries={[initialEntry]}
         >
-            <AdminTeachersPage />
-        </QueryClientProvider>,
+            <QueryClientProvider
+                client={client}
+            >
+                <AdminTeachersPage />
+            </QueryClientProvider>
+        </MemoryRouter>,
     );
 }
 
@@ -151,9 +200,11 @@ describe('AdminTeachersPage', () => {
             .mockReset();
 
         fetchAdminTeachersMock
-            .mockResolvedValue([
-                teacher(),
-            ]);
+            .mockResolvedValue(
+                directoryPage([
+                    teacher(),
+                ]),
+            );
 
         fetchAdminTeacherMock
             .mockImplementation(
@@ -186,6 +237,12 @@ describe('AdminTeachersPage', () => {
             ),
         ).toBeInTheDocument();
 
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'عرض المعلم معلم الرياضيات',
+            }),
+        );
+
         expect(
             screen.getByText(
                 'اكتمل إعداد الحساب'
@@ -201,7 +258,7 @@ describe('AdminTeachersPage', () => {
         });
 
         expect(
-            screen.getByText(
+            await screen.findByText(
                 /حالات TeacherSubjectAssignment الخام/
             ),
         ).toBeInTheDocument();
@@ -241,13 +298,17 @@ describe('AdminTeachersPage', () => {
             });
 
         fetchAdminTeachersMock
-            .mockResolvedValueOnce([
-                teacher(),
-            ])
-            .mockResolvedValue([
-                teacher(),
-                newTeacher,
-            ]);
+            .mockResolvedValueOnce(
+                directoryPage([
+                    teacher(),
+                ]),
+            )
+            .mockResolvedValue(
+                directoryPage([
+                    teacher(),
+                    newTeacher,
+                ]),
+            );
 
         fetchAdminTeacherMock
             .mockImplementation(
@@ -342,9 +403,10 @@ describe('AdminTeachersPage', () => {
             });
 
         fetchAdminTeachersMock
-            .mockResolvedValue([
-                teacher(),
-                teacher({
+            .mockResolvedValue(
+                directoryPage([
+                    teacher(),
+                    teacher({
                     id: 'teacher-new',
                     name: 'معلم جديد',
                     email:
@@ -354,8 +416,9 @@ describe('AdminTeachersPage', () => {
                     provisioningState:
                         'pending_setup',
                     activeAssignments: 0,
-                }),
-            ]);
+                    }),
+                ]),
+            );
 
         renderPage();
 
@@ -409,17 +472,22 @@ describe('AdminTeachersPage', () => {
         ).toBeInTheDocument();
     });
 
-    it('filters teachers locally without provisioning authority changes', async () => {
-        fetchAdminTeachersMock
-            .mockResolvedValue([
-                teacher(),
-                teacher({
-                    id: 'teacher-physics',
-                    name: 'معلم الفيزياء',
-                    email:
-                        'physics@example.test',
-                }),
-            ]);
+    it('submits server-side search without changing provisioning authority', async () => {
+        const physicsTeacher = teacher({
+            id: 'teacher-physics',
+            name: 'معلم الفيزياء',
+            email: 'physics@example.test',
+        });
+        fetchAdminTeachersMock.mockImplementation(
+            (parameters: { search: string }) =>
+                Promise.resolve(
+                    directoryPage(
+                        parameters.search
+                            ? [physicsTeacher]
+                            : [teacher(), physicsTeacher],
+                    ),
+                ),
+        );
 
         renderPage();
 
@@ -444,16 +512,180 @@ describe('AdminTeachersPage', () => {
             },
         );
 
-        expect(
-            screen.queryByText(
-                'معلم الرياضيات'
-            ),
-        ).not.toBeInTheDocument();
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'بحث',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(
+                fetchAdminTeachersMock,
+            ).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    page: 1,
+                    perPage: 20,
+                    search: 'فيزياء',
+                    status: null,
+                }),
+                expect.any(AbortSignal),
+            );
+        });
 
         expect(
-            screen.getByText(
+            await screen.findByText(
                 'معلم الفيزياء'
             ),
         ).toBeInTheDocument();
+    });
+
+    it('limits an oversized URL search before the first directory request', async () => {
+        const effectiveSearch =
+            'أ'.repeat(120);
+        const params = new URLSearchParams({
+            page: '3',
+            search:
+                `  ${effectiveSearch}أ  `,
+        });
+
+        renderPage(
+            `/admin/teachers?${params.toString()}`,
+        );
+
+        await waitFor(() => {
+            expect(
+                fetchAdminTeachersMock,
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                fetchAdminTeachersMock,
+            ).toHaveBeenNthCalledWith(
+                1,
+                expect.objectContaining({
+                    page: 3,
+                    perPage: 20,
+                    search: effectiveSearch,
+                    status: null,
+                }),
+                expect.any(AbortSignal),
+            );
+        });
+
+        expect(
+            screen.getByRole('searchbox'),
+        ).toHaveValue(effectiveSearch);
+    });
+
+    it('applies status and pagination on the server while retaining exact selected identity', async () => {
+        const disabledTeacher = teacher({
+            id: 'teacher-disabled',
+            name: 'معلم معطّل',
+            status: 'disabled',
+        });
+        fetchAdminTeachersMock.mockImplementation(
+            (parameters: { page: number; status: string | null }) =>
+                Promise.resolve(
+                    parameters.status === 'disabled'
+                        ? directoryPage(
+                            [disabledTeacher],
+                            parameters.page,
+                            2,
+                        )
+                        : directoryPage([teacher()], 1, 2),
+                ),
+        );
+
+        renderPage();
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'عرض المعلم معلم الرياضيات',
+            }),
+        );
+        expect(
+            await screen.findByText(/حالات TeacherSubjectAssignment الخام/),
+        ).toBeInTheDocument();
+
+        fireEvent.change(
+            screen.getByLabelText('حالة الحساب'),
+            { target: { value: 'disabled' } },
+        );
+
+        expect(
+            await screen.findByRole('button', {
+                name: 'عرض المعلم معلم معطّل',
+            }),
+        ).toBeInTheDocument();
+        expect(fetchAdminTeacherMock).toHaveBeenLastCalledWith(
+            'teacher-1',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'التالي' }),
+        );
+
+        await waitFor(() => {
+            expect(fetchAdminTeachersMock).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    page: 2,
+                    status: 'disabled',
+                }),
+                expect.any(AbortSignal),
+            );
+        });
+    });
+
+    it('aborts and isolates an older search response', async () => {
+        const oldRequest = deferred<ReturnType<typeof directoryPage>>();
+        const newRequest = deferred<ReturnType<typeof directoryPage>>();
+        const oldRequestState: {
+            signal?: AbortSignal;
+        } = {};
+        fetchAdminTeachersMock.mockImplementation(
+            (
+                parameters: { search: string },
+                signal: AbortSignal,
+            ) => {
+                if (parameters.search === 'قديم') {
+                    oldRequestState.signal = signal;
+                    return oldRequest.promise;
+                }
+                if (parameters.search === 'حديث') {
+                    return newRequest.promise;
+                }
+
+                return Promise.resolve(directoryPage([teacher()]));
+            },
+        );
+
+        renderPage();
+        await screen.findByText('معلم الرياضيات');
+
+        fireEvent.change(screen.getByRole('searchbox'), {
+            target: { value: 'قديم' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'بحث' }));
+        await waitFor(() => {
+            expect(oldRequestState.signal).toBeDefined();
+        });
+
+        fireEvent.change(screen.getByRole('searchbox'), {
+            target: { value: 'حديث' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'بحث' }));
+
+        await act(async () => {
+            newRequest.resolve(directoryPage([
+                teacher({ id: 'teacher-new', name: 'المعلم الحديث' }),
+            ]));
+        });
+        expect(await screen.findByText('المعلم الحديث')).toBeInTheDocument();
+        expect(oldRequestState.signal?.aborted).toBe(true);
+
+        await act(async () => {
+            oldRequest.resolve(directoryPage([
+                teacher({ id: 'teacher-old', name: 'المعلم القديم' }),
+            ]));
+        });
+        expect(screen.getByText('المعلم الحديث')).toBeInTheDocument();
+        expect(screen.queryByText('المعلم القديم')).not.toBeInTheDocument();
     });
 });

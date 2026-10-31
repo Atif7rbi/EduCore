@@ -52,6 +52,10 @@ export function StudentEnrollmentDeactivationPanel({
         } | null>(null);
     const deactivationSubmissionStarted =
         useRef(false);
+    const currentEnrollmentId =
+        useRef(enrollment.id);
+    currentEnrollmentId.current =
+        enrollment.id;
 
     const studentUserId =
         enrollment.student.user_id;
@@ -80,8 +84,13 @@ export function StudentEnrollmentDeactivationPanel({
                 _result,
                 confirmed,
             ) => {
-                setReason('');
-                setPendingDeactivation(null);
+                if (
+                    currentEnrollmentId.current
+                    === confirmed.enrollmentId
+                ) {
+                    setReason('');
+                    setPendingDeactivation(null);
+                }
 
                 await Promise.all([
                     queryClient

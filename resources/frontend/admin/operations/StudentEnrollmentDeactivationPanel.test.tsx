@@ -88,16 +88,25 @@ function enrollment(
         | 'pending'
         | 'active'
         | 'inactive',
+    {
+        id = 'enrollment-1',
+        studentUserId = 'student-user-1',
+        studentName = 'طالب أول',
+    }: {
+        id?: string;
+        studentUserId?: string;
+        studentName?: string;
+    } = {},
 ) {
     return {
-        id: 'enrollment-1',
+        id,
 
         student: {
             user_id:
-                'student-user-1',
+                studentUserId,
             learner_profile_id:
                 'profile-1',
-            name: 'طالب أول',
+            name: studentName,
             email:
                 'student@example.test',
             status:
@@ -157,19 +166,22 @@ function renderPanel(
             },
         });
 
-    render(
+    const item = enrollment(status);
+    const view = render(
         <QueryClientProvider
             client={client}
         >
             <StudentEnrollmentDeactivationPanel
-                enrollment={
-                    enrollment(status)
-                }
+                key={item.id}
+                enrollment={item}
             />
         </QueryClientProvider>,
     );
 
-    return client;
+    return {
+        client,
+        ...view,
+    };
 }
 
 describe(
@@ -271,6 +283,76 @@ describe(
                     deactivateStudentEnrollmentMock,
                 ).toHaveBeenCalledTimes(1);
             });
+        });
+
+        it('invalidates the origin enrollment without resetting a newly rendered enrollment', async () => {
+            const operation = deferred<{
+                id: string;
+                status: string;
+            }>();
+            deactivateStudentEnrollmentMock.mockReturnValue(
+                operation.promise,
+            );
+            const { client, rerender } = renderPanel('active');
+            const invalidate = vi.spyOn(
+                client,
+                'invalidateQueries',
+            );
+
+            fireEvent.change(
+                screen.getByLabelText('سبب إلغاء التسجيل'),
+                { target: { value: 'سبب التسجيل الأول' } },
+            );
+            fireEvent.click(screen.getByRole('button', {
+                name: 'إلغاء التسجيل',
+            }));
+            fireEvent.click(screen.getByRole('button', {
+                name: 'تأكيد إلغاء التسجيل',
+            }));
+
+            await waitFor(() => {
+                expect(deactivateStudentEnrollmentMock)
+                    .toHaveBeenCalled();
+            });
+
+            const second = enrollment('active', {
+                id: 'enrollment-2',
+                studentUserId: 'student-user-2',
+                studentName: 'طالب ثان',
+            });
+            rerender(
+                <QueryClientProvider client={client}>
+                    <StudentEnrollmentDeactivationPanel
+                        key={second.id}
+                        enrollment={second}
+                    />
+                </QueryClientProvider>,
+            );
+            fireEvent.change(
+                screen.getByLabelText('سبب إلغاء التسجيل'),
+                { target: { value: 'سبب التسجيل الثاني' } },
+            );
+
+            await act(async () => {
+                operation.resolve({
+                    id: 'enrollment-1',
+                    status: 'inactive',
+                });
+            });
+
+            await waitFor(() => {
+                expect(invalidate).toHaveBeenCalledWith({
+                    queryKey: [
+                        'admin',
+                        'operations',
+                        'student-enrollments',
+                        'enrollment-1',
+                    ],
+                });
+            });
+            expect(
+                screen.getByLabelText('سبب إلغاء التسجيل'),
+            ).toHaveValue('سبب التسجيل الثاني');
         });
 
         it('keeps a failed mutation explicit and retries only after a fresh confirmation', async () => {
@@ -436,7 +518,7 @@ describe(
         });
 
         it('refreshes Student identity counts, list, and historical detail after deactivation', async () => {
-            const client =
+            const { client } =
                 renderPanel('active');
 
             const invalidateSpy =

@@ -80,6 +80,14 @@
     font-weight: 800;
 }
 
+.admin-dashboard__snapshot {
+    color: var(--color-neutral-500);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: end;
+}
+
 .admin-dashboard__live-badge::before {
     width: 0.42rem;
     height: 0.42rem;
