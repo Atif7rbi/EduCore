@@ -148,7 +148,7 @@ export function ExamsPage() {
                 ),
             onSuccess: (attempt) => {
                 navigate(
-                    `/app/attempts/${attempt.id}`,
+                    `/portal/student/attempts/${attempt.id}`,
                 );
             },
         });
@@ -299,14 +299,14 @@ export function ExamsPage() {
                                             === 'in_progress' ? (
                                             <Link
                                                 className="foundation-link learner-exam-card__action"
-                                                to={`/app/attempts/${attempt.id}`}
+                                                to={`/portal/student/attempts/${attempt.id}`}
                                             >
                                                 استئناف الاختبار
                                             </Link>
                                         ) : (
                                             <Link
                                                 className="foundation-link learner-exam-card__action"
-                                                to={`/app/attempts/${attempt.id}`}
+                                                to={`/portal/student/attempts/${attempt.id}`}
                                             >
                                                 عرض النتيجة
                                             </Link>

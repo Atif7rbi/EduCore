@@ -34,6 +34,27 @@ class FrontendEntryRoutesTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_student_entry_serves_frontend_application(): void
+    {
+        $this->get('/portal/student')
+            ->assertOk()
+            ->assertViewIs('app');
+    }
+
+    public function test_student_deep_link_serves_frontend_application(): void
+    {
+        $this->get('/portal/student/lessons/lesson-a?mode=review')
+            ->assertOk()
+            ->assertViewIs('app');
+    }
+
+    public function test_legacy_app_deep_link_still_bootstraps_frontend_application(): void
+    {
+        $this->get('/app/lessons/lesson-a?mode=review')
+            ->assertOk()
+            ->assertViewIs('app');
+    }
+
     public function test_admin_entry_serves_frontend_application(): void
     {
         $response = $this->get('/admin');
@@ -43,7 +64,7 @@ class FrontendEntryRoutesTest extends TestCase
 
     public function test_teacher_entry_serves_frontend_application(): void
     {
-        $response = $this->get('/teacher');
+        $response = $this->get('/portal/teacher');
 
         $response
             ->assertOk()
@@ -52,7 +73,7 @@ class FrontendEntryRoutesTest extends TestCase
 
     public function test_teacher_workspace_entry_serves_frontend_application(): void
     {
-        $response = $this->get('/teacher/workspace');
+        $response = $this->get('/portal/teacher/workspace');
 
         $response
             ->assertOk()
@@ -62,7 +83,7 @@ class FrontendEntryRoutesTest extends TestCase
     public function test_teacher_scoped_workspace_deep_link_serves_frontend_application(): void
     {
         $response = $this->get(
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a'
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a'
         );
 
         $response
@@ -73,7 +94,7 @@ class FrontendEntryRoutesTest extends TestCase
     public function test_teacher_scoped_workspace_section_query_serves_frontend_application(): void
     {
         $response = $this->get(
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons'
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons'
         );
 
         $response
@@ -88,9 +109,18 @@ class FrontendEntryRoutesTest extends TestCase
         $response->assertUnauthorized();
     }
 
-    public function test_teacher_spa_entry_does_not_match_unrelated_urls(): void
+    public function test_reserved_portal_roots_are_not_active_spa_entries(): void
     {
-        $this->get('/teacher-portal')->assertNotFound();
+        $this->get('/teacher')->assertNotFound();
+        $this->get('/teacher/workspace')->assertNotFound();
+        $this->get('/student')->assertNotFound();
+        $this->get('/student/curriculum')->assertNotFound();
+    }
+
+    public function test_canonical_spa_entries_do_not_match_unsafe_prefixes(): void
+    {
+        $this->get('/portal/teacher-portal')->assertNotFound();
+        $this->get('/portal/student-other')->assertNotFound();
         $this->get('/unrelated')->assertNotFound();
     }
 }

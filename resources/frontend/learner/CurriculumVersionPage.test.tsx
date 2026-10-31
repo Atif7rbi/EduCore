@@ -43,12 +43,12 @@ function renderPage() {
         <QueryClientProvider client={queryClient}>
             <MemoryRouter
                 initialEntries={[
-                    '/app/curriculum/version-1',
+                    '/portal/student/curriculum/version-1',
                 ]}
             >
                 <Routes>
                     <Route
-                        path="/app/curriculum/:curriculumVersionId"
+                        path="/portal/student/curriculum/:curriculumVersionId"
                         element={
                             <CurriculumVersionPage />
                         }
@@ -136,7 +136,7 @@ describe('CurriculumVersionPage', () => {
 
         expect(lessonLink).toHaveAttribute(
             'href',
-            '/app/lessons/lesson-1',
+            '/portal/student/lessons/lesson-1',
         );
 
         expect(

@@ -121,7 +121,7 @@ export function LearnerFoundationPage() {
 
                         <Link
                             className="foundation-link"
-                            to="/app/curriculum"
+                            to="/portal/student/curriculum"
                         >
                             استكشاف المناهج
                         </Link>
@@ -140,7 +140,7 @@ export function LearnerFoundationPage() {
 
                         <Link
                             className="foundation-link"
-                            to="/app/progress"
+                            to="/portal/student/progress"
                         >
                             عرض التقدم والتحليلات
                         </Link>
@@ -211,7 +211,7 @@ export function NotFoundFoundationPage() {
             >
                 <Link
                     className="foundation-link"
-                    to="/app"
+                    to="/login"
                 >
                     العودة إلى التطبيق
                 </Link>
@@ -230,7 +230,7 @@ export function ForbiddenFoundationPage() {
             >
                 <Link
                     className="foundation-link"
-                    to="/app"
+                    to="/login"
                 >
                     العودة إلى التطبيق
                 </Link>

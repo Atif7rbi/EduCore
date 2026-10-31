@@ -233,7 +233,7 @@ export function TeacherMonitoringOverviewPage() {
                             <Link
                                 className="teacher-monitoring-link"
                                 to={
-                                    '/teacher/monitoring/enrollments/'
+                                    '/portal/teacher/monitoring/enrollments/'
                                     + enrollment.id
                                     + '?assignment_id='
                                     + enrollment.teacher_subject_assignment.id
@@ -717,7 +717,7 @@ export function TeacherMonitoringDetailPage() {
                         إعادة تحميل بيانات الطالب
                     </Button>
                 </Feedback>
-                <Link className="teacher-monitoring-link" to="/teacher/monitoring">العودة إلى متابعة الطلاب</Link>
+                <Link className="teacher-monitoring-link" to="/portal/teacher/monitoring">العودة إلى متابعة الطلاب</Link>
             </section>
         );
     }
@@ -727,7 +727,7 @@ export function TeacherMonitoringDetailPage() {
             <section className="teacher-monitoring-page" aria-labelledby="teacher-monitoring-detail-title">
                 <h1 id="teacher-monitoring-detail-title">تفاصيل متابعة الطالب</h1>
                 <Feedback tone="danger">هذا الالتحاق غير متاح للمعلم الحالي أو لم يعد نشطًا.</Feedback>
-                <Link className="teacher-monitoring-link" to="/teacher/monitoring">العودة إلى متابعة الطلاب</Link>
+                <Link className="teacher-monitoring-link" to="/portal/teacher/monitoring">العودة إلى متابعة الطلاب</Link>
             </section>
         );
     }
@@ -735,7 +735,7 @@ export function TeacherMonitoringDetailPage() {
     return (
         <section className="teacher-monitoring-page" aria-labelledby="teacher-monitoring-detail-title">
             <header className="teacher-monitoring-page__heading">
-                <Link className="teacher-monitoring-link" to={'/teacher/monitoring?assignment_id=' + assignmentId}>العودة إلى الطلاب</Link>
+                <Link className="teacher-monitoring-link" to={'/portal/teacher/monitoring?assignment_id=' + assignmentId}>العودة إلى الطلاب</Link>
                 <h1 id="teacher-monitoring-detail-title">تفاصيل متابعة الطالب</h1>
                 <p>اختر منهجًا وإصدارًا منشورًا أو متقاعدًا لعرض الحقائق المسجلة ضمن ذلك الإصدار فقط.</p>
             </header>

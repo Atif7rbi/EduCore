@@ -52,6 +52,12 @@ vi.mock('../auth/AuthProvider', () => ({
     }),
 }));
 
+vi.mock('../learner/LessonPage', () => ({
+    LessonPage: () => (
+        <h1>Canonical lesson</h1>
+    ),
+}));
+
 vi.mock('../teacher/TeacherContextSelector', () => ({
     TeacherContextSelector: () => (
         <div data-testid="teacher-context-selector" />
@@ -168,12 +174,12 @@ describe('teacher router foundation', () => {
     });
 
     it('redirects the teacher index to the workspace foundation', async () => {
-        await renderAt('/teacher');
+        await renderAt('/portal/teacher');
 
         await waitFor(() => {
             expect(
                 router.state.location.pathname,
-            ).toBe('/teacher/workspace');
+            ).toBe('/portal/teacher/workspace');
         });
 
         expect(
@@ -186,7 +192,7 @@ describe('teacher router foundation', () => {
 
     it('renders a teacher scoped deep link through the context foundation', async () => {
         await renderAt(
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a',
         );
 
         expect(
@@ -197,7 +203,7 @@ describe('teacher router foundation', () => {
     });
 
     it('mounts teacher enrollment requests and active students under the teacher guard', async () => {
-        await renderAt('/teacher/enrollments');
+        await renderAt('/portal/teacher/enrollments');
 
         expect(
             await screen.findByRole('heading', {
@@ -207,7 +213,7 @@ describe('teacher router foundation', () => {
         ).toBeInTheDocument();
 
         await act(async () => {
-            await router.navigate('/teacher/students');
+            await router.navigate('/portal/teacher/students');
         });
 
         expect(
@@ -219,7 +225,7 @@ describe('teacher router foundation', () => {
     });
 
     it('mounts monitoring overview and detail under the Teacher guard', async () => {
-        await renderAt('/teacher/monitoring');
+        await renderAt('/portal/teacher/monitoring');
 
         expect(
             await screen.findByRole('heading', {
@@ -230,7 +236,7 @@ describe('teacher router foundation', () => {
 
         await act(async () => {
             await router.navigate(
-                '/teacher/monitoring/enrollments/enrollment-one',
+                '/portal/teacher/monitoring/enrollments/enrollment-one',
             );
         });
 
@@ -251,7 +257,7 @@ describe('teacher router foundation', () => {
             },
         };
 
-        await renderAt('/teacher/monitoring');
+        await renderAt('/portal/teacher/monitoring');
 
         expect(
             screen.getByRole('heading', {
@@ -271,13 +277,108 @@ describe('teacher router foundation', () => {
         };
 
         await renderAt(
-            '/teacher/monitoring/enrollments/enrollment-one?assignment_id=assignment-one',
+            '/portal/teacher/monitoring/enrollments/enrollment-one?assignment_id=assignment-one',
         );
 
         expect(
             screen.getByRole('heading', {
                 level: 1,
                 name: 'غير مصرح لك بالوصول',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it('renders the canonical Student portal for a Student account', async () => {
+        authState = {
+            ...authState,
+            user: {
+                ...authState.user,
+                role: 'student',
+                learner_profile_id: 'learner-1',
+            },
+        };
+
+        await renderAt('/portal/student');
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'مرحبًا بك في EduCore',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it.each([
+        'teacher',
+        'admin',
+    ] as const)('keeps %s accounts outside Student routes', async (role) => {
+        authState = {
+            ...authState,
+            user: {
+                ...authState.user,
+                role,
+            },
+        };
+
+        await renderAt('/portal/student');
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'غير مصرح لك بالوصول',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it('applies the Student role guard after a legacy app redirect', async () => {
+        await renderAt('/app');
+
+        await waitFor(() => {
+            expect(
+                router.state.location.pathname,
+            ).toBe('/forbidden');
+        });
+
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'غير مصرح لك بالوصول',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it('normalizes a legacy Student deep link with replace while preserving URL context', async () => {
+        authState = {
+            ...authState,
+            user: {
+                ...authState.user,
+                role: 'student',
+                learner_profile_id: 'learner-1',
+            },
+        };
+
+        await renderAt(
+            '/app/lessons/lesson-a?mode=review#answer',
+        );
+
+        await waitFor(() => {
+            expect(
+                router.state.location.pathname,
+            ).toBe(
+                '/portal/student/lessons/lesson-a',
+            );
+        });
+
+        expect(router.state.location.search)
+            .toBe('?mode=review');
+        expect(router.state.location.hash)
+            .toBe('#answer');
+        expect(router.state.historyAction)
+            .toBe('REPLACE');
+        expect(
+            screen.getByRole('heading', {
+                level: 1,
+                name: 'Canonical lesson',
             }),
         ).toBeInTheDocument();
     });

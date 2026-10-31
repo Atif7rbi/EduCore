@@ -51,7 +51,7 @@ interface PendingAdapterRequest {
 }
 
 const scopedPath =
-    '/teacher/workspace/assignment-1'
+    '/portal/teacher/workspace/assignment-1'
     + '/curricula/curriculum-1'
     + '/versions/version-1?section=topics';
 
@@ -653,10 +653,10 @@ describe('Teacher Workspace production authentication integration', () => {
             expect(router.state.location.pathname).toBe('/login');
             expect(
                 transitions.slice(transitionCount),
-            ).not.toContain('/teacher/workspace');
+            ).not.toContain('/portal/teacher/workspace');
             expect(
                 transitions.slice(transitionCount).some(
-                    (path) => path.startsWith('/teacher/workspace'),
+                    (path) => path.startsWith('/portal/teacher/workspace'),
                 ),
             ).toBe(false);
             expect(
@@ -689,7 +689,7 @@ describe('Teacher Workspace production authentication integration', () => {
             expect(router.state.location.pathname).toBe('/login');
             expect(
                 transitions.slice(transitionCount).some(
-                    (path) => path.startsWith('/teacher/workspace'),
+                    (path) => path.startsWith('/portal/teacher/workspace'),
                 ),
             ).toBe(false);
             expect(

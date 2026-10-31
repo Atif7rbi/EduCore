@@ -304,8 +304,8 @@ function AttemptResultView({
                         className="foundation-link"
                         to={
                             isExam
-                                ? '/app/exams'
-                                : '/app/curriculum'
+                                ? '/portal/student/exams'
+                                : '/portal/student/curriculum'
                         }
                     >
                         {isExam

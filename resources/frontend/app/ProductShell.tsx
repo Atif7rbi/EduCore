@@ -323,29 +323,29 @@ export function ProductShell({
 }
 
 export const learnerNavigation: NavigationItem[] = [
-    { label: 'الرئيسية', to: '/app', end: true },
-    { label: 'المناهج', to: '/app/curriculum' },
-    { label: 'الاختبارات', to: '/app/exams' },
-    { label: 'النتائج', to: '/app/results' },
-    { label: 'التقدم', to: '/app/progress' },
+    { label: 'الرئيسية', to: '/portal/student', end: true },
+    { label: 'المناهج', to: '/portal/student/curriculum' },
+    { label: 'الاختبارات', to: '/portal/student/exams' },
+    { label: 'النتائج', to: '/portal/student/results' },
+    { label: 'التقدم', to: '/portal/student/progress' },
 ];
 
 export const teacherNavigation: NavigationItem[] = [
     {
         label: 'مساحة التأليف',
-        to: '/teacher/workspace',
+        to: '/portal/teacher/workspace',
     },
     {
         label: 'طلبات الالتحاق',
-        to: '/teacher/enrollments',
+        to: '/portal/teacher/enrollments',
     },
     {
         label: 'طلابي',
-        to: '/teacher/students',
+        to: '/portal/teacher/students',
     },
     {
         label: 'متابعة الطلاب',
-        to: '/teacher/monitoring',
+        to: '/portal/teacher/monitoring',
     },
 ];
 

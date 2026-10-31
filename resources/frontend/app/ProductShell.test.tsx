@@ -57,7 +57,7 @@ vi.mock('react-router-dom', async () => {
 
 function renderShell(
     navigation = learnerNavigation,
-    initialEntry = '/app',
+    initialEntry = '/portal/student',
     areaLabel = 'مساحة التعلم',
 ) {
     render(
@@ -109,7 +109,7 @@ describe('ProductShell', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/curriculum',
+            '/portal/student/curriculum',
         );
 
         expect(
@@ -121,7 +121,7 @@ describe('ProductShell', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/results',
+            '/portal/student/results',
         );
 
         expect(
@@ -133,14 +133,14 @@ describe('ProductShell', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/progress',
+            '/portal/student/progress',
         );
     });
 
     it('marks the current navigation item as active', () => {
         renderShell(
             learnerNavigation,
-            '/app/progress',
+            '/portal/student/progress',
         );
 
         expect(
@@ -217,10 +217,33 @@ describe('ProductShell', () => {
         ).not.toBeInTheDocument();
     });
 
+    it('preserves the Admin Teachers navigation icon', () => {
+        renderShell(
+            adminNavigation,
+            '/admin/teachers',
+            'الإدارة',
+        );
+
+        const teachersLink = screen.getByRole(
+            'link',
+            {
+                name: 'المعلمون',
+            },
+        );
+
+        expect(teachersLink).toHaveAttribute(
+            'href',
+            '/admin/teachers',
+        );
+        expect(
+            teachersLink.querySelector('path[d="M4 4h4M16 4h4"]'),
+        ).not.toBeNull();
+    });
+
     it('keeps Teacher authoring and enrollment navigation beside monitoring', () => {
         renderShell(
             teacherNavigation,
-            '/teacher/monitoring',
+            '/portal/teacher/monitoring',
             'مساحة المعلم',
         );
 
@@ -228,22 +251,22 @@ describe('ProductShell', () => {
             screen.getByRole('link', {
                 name: 'مساحة التأليف',
             }),
-        ).toHaveAttribute('href', '/teacher/workspace');
+        ).toHaveAttribute('href', '/portal/teacher/workspace');
         expect(
             screen.getByRole('link', {
                 name: 'طلبات الالتحاق',
             }),
-        ).toHaveAttribute('href', '/teacher/enrollments');
+        ).toHaveAttribute('href', '/portal/teacher/enrollments');
         expect(
             screen.getByRole('link', {
                 name: 'طلابي',
             }),
-        ).toHaveAttribute('href', '/teacher/students');
+        ).toHaveAttribute('href', '/portal/teacher/students');
         expect(
             screen.getByRole('link', {
                 name: 'متابعة الطلاب',
             }),
-        ).toHaveAttribute('href', '/teacher/monitoring');
+        ).toHaveAttribute('href', '/portal/teacher/monitoring');
     });
 
     it('persists the collapsed sidebar preference for the user and area', () => {
@@ -324,19 +347,19 @@ describe('ProductShell', () => {
     });
 
     it('defines teacher navigation separately', () => {
-        renderShell(teacherNavigation, '/teacher/workspace', 'مساحة المعلم');
+        renderShell(teacherNavigation, '/portal/teacher/workspace', 'مساحة المعلم');
 
         expect(screen.getByRole('link', { name: 'مساحة التأليف' })).toHaveAttribute(
             'href',
-            '/teacher/workspace',
+            '/portal/teacher/workspace',
         );
         expect(screen.getByRole('link', { name: 'طلبات الالتحاق' })).toHaveAttribute(
             'href',
-            '/teacher/enrollments',
+            '/portal/teacher/enrollments',
         );
         expect(screen.getByRole('link', { name: 'طلابي' })).toHaveAttribute(
             'href',
-            '/teacher/students',
+            '/portal/teacher/students',
         );
         expect(screen.queryByRole('link', { name: 'المحتوى' })).not.toBeInTheDocument();
     });

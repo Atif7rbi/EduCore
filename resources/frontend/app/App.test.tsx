@@ -42,7 +42,7 @@ function renderRoute(
 describe('frontend foundation pages', () => {
     it('renders the learner foundation in the RTL environment', () => {
         renderRoute(
-            '/app',
+            '/portal/student',
             <LearnerFoundationPage />,
         );
 
@@ -59,7 +59,7 @@ describe('frontend foundation pages', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app/curriculum',
+            '/portal/student/curriculum',
         );
 
         expect(
@@ -68,7 +68,7 @@ describe('frontend foundation pages', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app/progress',
+            '/portal/student/progress',
         );
 
         expect(
@@ -131,7 +131,7 @@ describe('frontend foundation pages', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app',
+            '/login',
         );
     });
 
@@ -147,6 +147,15 @@ describe('frontend foundation pages', () => {
                 name: 'الصفحة غير موجودة',
             }),
         ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole('link', {
+                name: 'العودة إلى التطبيق',
+            }),
+        ).toHaveAttribute(
+            'href',
+            '/login',
+        );
     });
 
 });

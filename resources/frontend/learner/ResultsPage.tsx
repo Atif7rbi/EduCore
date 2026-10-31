@@ -311,14 +311,14 @@ export function ResultsPage() {
                                             === 'in_progress' ? (
                                             <Link
                                                 className="foundation-link learner-results__action"
-                                                to={`/app/attempts/${attempt.id}`}
+                                                to={`/portal/student/attempts/${attempt.id}`}
                                             >
                                                 استئناف المحاولة
                                             </Link>
                                         ) : (
                                             <Link
                                                 className="foundation-link learner-results__action"
-                                                to={`/app/attempts/${attempt.id}`}
+                                                to={`/portal/student/attempts/${attempt.id}`}
                                             >
                                                 عرض النتيجة
                                             </Link>

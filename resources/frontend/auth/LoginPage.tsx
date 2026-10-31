@@ -73,10 +73,10 @@ function destinationForRole(
     }
 
     if (role === 'teacher') {
-        return '/teacher';
+        return '/portal/teacher';
     }
 
-    return '/app';
+    return '/portal/student';
 }
 
 function isWithinPath(
@@ -105,14 +105,23 @@ function requestedDestination(
         return destinationForRole(role);
     }
 
-    if (
-        role === 'student'
-        && isWithinPath(
+    if (role === 'student') {
+        if (isWithinPath(
+            from,
+            '/portal/student',
+        )) {
+            return from;
+        }
+
+        if (isWithinPath(
             from,
             '/app',
-        )
-    ) {
-        return from;
+        )) {
+            return (
+                '/portal/student'
+                + from.slice('/app'.length)
+            );
+        }
     }
 
     if (
@@ -129,7 +138,7 @@ function requestedDestination(
         role === 'teacher'
         && isWithinPath(
             from,
-            '/teacher',
+            '/portal/teacher',
         )
     ) {
         return from;

@@ -289,7 +289,7 @@ function MonitoringTestRoutes({ withControls }: { withControls: boolean }) {
                     <button
                         type="button"
                         onClick={() => navigate(
-                            '/teacher/monitoring/enrollments/enrollment-2?curriculum_id=curriculum-2',
+                            '/portal/teacher/monitoring/enrollments/enrollment-2?curriculum_id=curriculum-2',
                         )}
                     >
                         انتقل إلى الطالب الثاني
@@ -306,8 +306,8 @@ function MonitoringTestRoutes({ withControls }: { withControls: boolean }) {
                 </div>
             ) : null}
             <Routes>
-                <Route path="/teacher/monitoring" element={<TeacherMonitoringOverviewPage />} />
-                <Route path="/teacher/monitoring/enrollments/:enrollmentId" element={<TeacherMonitoringDetailPage />} />
+                <Route path="/portal/teacher/monitoring" element={<TeacherMonitoringOverviewPage />} />
+                <Route path="/portal/teacher/monitoring/enrollments/:enrollmentId" element={<TeacherMonitoringDetailPage />} />
             </Routes>
         </>
     );
@@ -395,14 +395,14 @@ describe('TeacherMonitoringPages', () => {
     });
 
     it('lists active students with assignment filtering and scoped detail links', async () => {
-        renderMonitoring('/teacher/monitoring');
+        renderMonitoring('/portal/teacher/monitoring');
 
         expect(await screen.findByText('الطالب التجريبي')).toBeInTheDocument();
         expect(screen.getAllByText('الرياضيات')).toHaveLength(2);
         expect(screen.getByText('حالة الالتحاق: نشط')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'فتح المتابعة' })).toHaveAttribute(
             'href',
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1',
         );
 
         fireEvent.change(screen.getByLabelText('التكليف والمادة'), {
@@ -442,7 +442,7 @@ describe('TeacherMonitoringPages', () => {
             },
         ]));
 
-        renderMonitoring('/teacher/monitoring');
+        renderMonitoring('/portal/teacher/monitoring');
 
         expect(await screen.findByText('حالة الالتحاق: نشط')).toBeInTheDocument();
         expect(screen.getByText('حالة الالتحاق: قيد الانتظار')).toBeInTheDocument();
@@ -456,7 +456,7 @@ describe('TeacherMonitoringPages', () => {
             status: 'unexpected' as 'active',
         });
 
-        renderMonitoring('/teacher/monitoring/enrollments/enrollment-1');
+        renderMonitoring('/portal/teacher/monitoring/enrollments/enrollment-1');
 
         expect(await screen.findByText('حالة غير معروفة')).toBeInTheDocument();
         expect(screen.queryByText('قيد الانتظار')).not.toBeInTheDocument();
@@ -464,7 +464,7 @@ describe('TeacherMonitoringPages', () => {
 
     it('shows an understandable empty overview and read-only retry on failure', async () => {
         apiMocks.enrollments.mockRejectedValueOnce(new Error('read failed'));
-        renderMonitoring('/teacher/monitoring');
+        renderMonitoring('/portal/teacher/monitoring');
 
         expect(await screen.findByRole('alert')).toHaveTextContent('تعذر تحميل الطلاب');
         apiMocks.enrollments.mockResolvedValueOnce(enrollmentPage([]));
@@ -476,7 +476,7 @@ describe('TeacherMonitoringPages', () => {
         apiMocks.enrollments.mockResolvedValue(
             enrollmentPage([enrollment], 1, 2),
         );
-        renderMonitoring('/teacher/monitoring?assignment_id=assignment-1');
+        renderMonitoring('/portal/teacher/monitoring?assignment_id=assignment-1');
 
         fireEvent.click(await screen.findByRole('button', { name: 'التالي' }));
 
@@ -493,7 +493,7 @@ describe('TeacherMonitoringPages', () => {
     it('requires an explicit curriculum and authorized version selection before reading progress', async () => {
         const user = userEvent.setup();
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1',
         );
 
         expect(await screen.findByText('اختر المنهج ثم الإصدار لعرض بيانات المتابعة.')).toBeInTheDocument();
@@ -531,7 +531,7 @@ describe('TeacherMonitoringPages', () => {
 
     it('discovers only published and retired versions and renders recorded facts', async () => {
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1',
         );
 
         expect(await screen.findByText('درس الأعداد')).toBeInTheDocument();
@@ -559,7 +559,7 @@ describe('TeacherMonitoringPages', () => {
         });
 
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1',
         );
 
         await screen.findByText('جارٍ تحميل تقدم الدروس...');
@@ -576,7 +576,7 @@ describe('TeacherMonitoringPages', () => {
 
     it('renders finalized attempts and explicit abandoned semantics', async () => {
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=attempts',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=attempts',
         );
 
         expect(await screen.findByText('محاولة ممارسة')).toBeInTheDocument();
@@ -588,7 +588,7 @@ describe('TeacherMonitoringPages', () => {
 
     it('uses the result endpoint only for submitted result summaries', async () => {
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=results',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=results',
         );
 
         fireEvent.click(await screen.findByRole('button', { name: 'عرض ملخص النتيجة' }));
@@ -614,7 +614,7 @@ describe('TeacherMonitoringPages', () => {
             },
         });
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=attempts&kind=practice&status=submitted',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?assignment_id=assignment-1&curriculum_id=curriculum-1&version_id=version-1&tab=attempts&kind=practice&status=submitted',
         );
 
         await screen.findByText('محاولة ممارسة');
@@ -633,7 +633,7 @@ describe('TeacherMonitoringPages', () => {
     });
 
     it('resolves a standalone detail route through the authenticated Teacher enrollment scope', async () => {
-        renderMonitoring('/teacher/monitoring/enrollments/enrollment-1');
+        renderMonitoring('/portal/teacher/monitoring/enrollments/enrollment-1');
 
         expect(await screen.findByText('الطالب التجريبي')).toBeInTheDocument();
         expect(screen.getByText('حالة الالتحاق')).toBeInTheDocument();
@@ -654,7 +654,7 @@ describe('TeacherMonitoringPages', () => {
         apiMocks.enrollmentContext.mockResolvedValueOnce(null);
 
         renderMonitoring(
-            '/teacher/monitoring/enrollments/foreign-enrollment?assignment_id=assignment-1',
+            '/portal/teacher/monitoring/enrollments/foreign-enrollment?assignment_id=assignment-1',
         );
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -675,7 +675,7 @@ describe('TeacherMonitoringPages', () => {
         apiMocks.versions.mockReturnValueOnce(firstRead.promise);
 
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1',
         );
 
         expect(await screen.findByText('جارٍ تحميل إصدارات المنهج المخولة...')).toBeInTheDocument();
@@ -704,7 +704,7 @@ describe('TeacherMonitoringPages', () => {
 
     it('implements a complete direction-aware RTL tab keyboard contract', async () => {
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1&version_id=version-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1&version_id=version-1',
         );
 
         const progressTab = await screen.findByRole('tab', { name: 'التقدم' });
@@ -781,7 +781,7 @@ describe('TeacherMonitoringPages', () => {
                 : Promise.resolve(secondEnrollment)
         ));
 
-        renderMonitoring('/teacher/monitoring/enrollments/enrollment-1', true);
+        renderMonitoring('/portal/teacher/monitoring/enrollments/enrollment-1', true);
         expect(await screen.findByText('جارٍ التحقق من نطاق الطالب المخول...')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'انتقل إلى الطالب الثاني' }));
 
@@ -806,7 +806,7 @@ describe('TeacherMonitoringPages', () => {
                 : Promise.resolve(teacherTwoEnrollment)
         ));
 
-        renderMonitoring('/teacher/monitoring/enrollments/enrollment-1', true);
+        renderMonitoring('/portal/teacher/monitoring/enrollments/enrollment-1', true);
         await screen.findByText('جارٍ التحقق من نطاق الطالب المخول...');
         fireEvent.click(screen.getByRole('button', { name: 'بدّل هوية المعلم' }));
 
@@ -859,7 +859,7 @@ describe('TeacherMonitoringPages', () => {
         ));
 
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1',
             true,
         );
         await screen.findByText('جارٍ تحميل إصدارات المنهج المخولة...');
@@ -891,7 +891,7 @@ describe('TeacherMonitoringPages', () => {
         ));
 
         renderMonitoring(
-            '/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1&version_id=version-1&tab=results',
+            '/portal/teacher/monitoring/enrollments/enrollment-1?curriculum_id=curriculum-1&version_id=version-1&tab=results',
             true,
         );
         fireEvent.click(await screen.findByRole('button', { name: 'عرض ملخص النتيجة' }));

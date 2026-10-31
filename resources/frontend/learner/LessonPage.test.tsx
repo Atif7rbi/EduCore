@@ -52,12 +52,12 @@ function renderPage() {
         <QueryClientProvider client={queryClient}>
             <MemoryRouter
                 initialEntries={[
-                    '/app/lessons/lesson-1',
+                    '/portal/student/lessons/lesson-1',
                 ]}
             >
                 <Routes>
                     <Route
-                        path="/app/lessons/:lessonId"
+                        path="/portal/student/lessons/:lessonId"
                         element={<LessonPage />}
                     />
                 </Routes>
@@ -226,7 +226,7 @@ describe('LessonPage', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app/practice/practice-1',
+            '/portal/student/practice/practice-1',
         );
 
         expect(
@@ -236,7 +236,7 @@ describe('LessonPage', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app/curriculum/version-1',
+            '/portal/student/curriculum/version-1',
         );
     });
 

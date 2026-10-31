@@ -159,7 +159,7 @@ describe('LoginPage', () => {
         });
 
         expect(navigateMock).toHaveBeenCalledWith(
-            '/app',
+            '/portal/student',
             {
                 replace: true,
             },
@@ -242,7 +242,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/teacher',
+                '/portal/teacher',
                 {
                     replace: true,
                 },
@@ -261,7 +261,7 @@ describe('LoginPage', () => {
         });
 
         renderPage(
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
         );
 
         fireEvent.click(
@@ -272,7 +272,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
+                '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-a?section=lessons',
                 {
                     replace: true,
                 },
@@ -300,7 +300,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/teacher',
+                '/portal/teacher',
                 {
                     replace: true,
                 },
@@ -318,7 +318,7 @@ describe('LoginPage', () => {
             learner_profile_id: null,
         });
 
-        renderPage('/app/lessons/123');
+        renderPage('/portal/student/lessons/123');
 
         fireEvent.click(
             screen.getByRole('button', {
@@ -328,7 +328,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/teacher',
+                '/portal/teacher',
                 {
                     replace: true,
                 },
@@ -356,7 +356,63 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/teacher',
+                '/portal/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects a reserved Teacher return destination', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-reserved',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('/teacher/workspace');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/portal/teacher',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects a canonical Teacher lookalike prefix', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'teacher-lookalike',
+            name: 'Teacher',
+            email: 'teacher@example.com',
+            role: 'teacher',
+            status: 'active',
+            learner_profile_id: null,
+        });
+
+        renderPage('/portal/teacher-other/workspace');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/portal/teacher',
                 {
                     replace: true,
                 },
@@ -548,7 +604,7 @@ describe('LoginPage', () => {
             learner_profile_id: 'learner-2',
         });
 
-        renderPage('/app/lessons/123');
+        renderPage('/portal/student/lessons/123');
 
         fireEvent.click(
             screen.getByRole('button', {
@@ -558,7 +614,63 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/app/lessons/123',
+                '/portal/student/lessons/123',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('normalizes a legacy Student return path and preserves query and hash', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'student-legacy',
+            name: 'Student',
+            email: 'student@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-legacy',
+        });
+
+        renderPage('/app/lessons/123?mode=review#answer');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/portal/student/lessons/123?mode=review#answer',
+                {
+                    replace: true,
+                },
+            );
+        });
+    });
+
+    it('rejects a canonical Student lookalike prefix', async () => {
+        loginMock.mockResolvedValueOnce({
+            id: 'student-lookalike',
+            name: 'Student',
+            email: 'student@example.com',
+            role: 'student',
+            status: 'active',
+            learner_profile_id: 'learner-lookalike',
+        });
+
+        renderPage('/portal/student-other/results');
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'تسجيل الدخول',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(navigateMock).toHaveBeenCalledWith(
+                '/portal/student',
                 {
                     replace: true,
                 },
@@ -614,7 +726,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/app',
+                '/portal/student',
                 {
                     replace: true,
                 },
@@ -634,7 +746,7 @@ describe('LoginPage', () => {
         });
 
         renderPage(
-            '/app?page=2#progress',
+            '/portal/student?page=2#progress',
         );
 
         fireEvent.click(
@@ -645,7 +757,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(navigateMock).toHaveBeenCalledWith(
-                '/app?page=2#progress',
+                '/portal/student?page=2#progress',
                 {
                     replace: true,
                 },
@@ -665,7 +777,7 @@ describe('LoginPage', () => {
             },
         };
 
-        renderPage('/app/practice');
+        renderPage('/portal/student/practice');
 
         expect(
             screen.getByRole('status'),
@@ -691,7 +803,7 @@ describe('LoginPage', () => {
             },
         };
 
-        renderPage('/app/exams');
+        renderPage('/portal/student/exams');
 
         expect(
             screen.getByRole('status'),

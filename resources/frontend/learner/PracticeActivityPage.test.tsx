@@ -48,19 +48,19 @@ function renderPage() {
         <QueryClientProvider client={queryClient}>
             <MemoryRouter
                 initialEntries={[
-                    '/app/practice/practice-1',
+                    '/portal/student/practice/practice-1',
                 ]}
             >
                 <Routes>
                     <Route
-                        path="/app/practice/:practiceActivityId"
+                        path="/portal/student/practice/:practiceActivityId"
                         element={
                             <PracticeActivityPage />
                         }
                     />
 
                     <Route
-                        path="/app/attempts/:attemptId"
+                        path="/portal/student/attempts/:attemptId"
                         element={
                             <div>
                                 Attempt destination

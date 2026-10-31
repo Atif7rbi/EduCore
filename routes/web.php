@@ -49,11 +49,14 @@ Route::view('/forgot-password', 'app')
 Route::view('/reset-password/{token}', 'app')
     ->name('password.reset');
 
-Route::view('/app/{path?}', 'app')
+Route::view('/portal/student/{path?}', 'app')
+    ->where('path', '.*');
+
+Route::view('/portal/teacher/{path?}', 'app')
     ->where('path', '.*');
 
 Route::view('/admin/{path?}', 'app')
     ->where('path', '.*');
 
-Route::view('/teacher/{path?}', 'app')
+Route::view('/app/{path?}', 'app')
     ->where('path', '.*');

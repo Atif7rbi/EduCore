@@ -31,7 +31,7 @@ import {
 } from './TeacherWorkspacePage';
 
 const scopedPath =
-    '/teacher/workspace/assignment-a/'
+    '/portal/teacher/workspace/assignment-a/'
     + 'curricula/curriculum-a/versions/version-a';
 const selectorProps = vi.fn();
 
@@ -332,12 +332,12 @@ function renderWorkspace(path: string) {
         [
             {
                 element: <WorkspaceRoute />,
-                path: '/teacher/workspace',
+                path: '/portal/teacher/workspace',
             },
             {
                 element: <WorkspaceRoute />,
                 path:
-                    '/teacher/workspace/:assignmentId/'
+                    '/portal/teacher/workspace/:assignmentId/'
                     + 'curricula/:curriculumId/versions/:versionId',
             },
         ],
@@ -703,15 +703,15 @@ describe('TeacherWorkspacePage', () => {
     it.each([
         [
             'Select assignment B',
-            '/teacher/workspace/assignment-b/curricula/curriculum-a/versions/version-a',
+            '/portal/teacher/workspace/assignment-b/curricula/curriculum-a/versions/version-a',
         ],
         [
             'Select curriculum B',
-            '/teacher/workspace/assignment-a/curricula/curriculum-b/versions/version-a',
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-b/versions/version-a',
         ],
         [
             'Select version B',
-            '/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-b',
+            '/portal/teacher/workspace/assignment-a/curricula/curriculum-a/versions/version-b',
         ],
     ])(
         'preserves the current section during %s',
@@ -748,7 +748,7 @@ describe('TeacherWorkspacePage', () => {
 
         await waitFor(() => {
             expectLocation(
-                '/teacher/workspace/assignment-a/curricula/'
+                '/portal/teacher/workspace/assignment-a/curricula/'
                 + 'curriculum-a/versions/version-b?section=topics',
             );
         });
@@ -785,7 +785,7 @@ describe('TeacherWorkspacePage', () => {
                 screen.queryByTestId('teacher-topics'),
             ).not.toBeInTheDocument();
             await waitFor(() => {
-                expectLocation('/teacher/workspace');
+                expectLocation('/portal/teacher/workspace');
             });
             expect(confirm).not.toHaveBeenCalled();
             expect(
@@ -847,7 +847,7 @@ describe('TeacherWorkspacePage', () => {
         });
 
         await act(async () => {
-            await router.navigate('/teacher/workspace');
+            await router.navigate('/portal/teacher/workspace');
         });
 
         await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));

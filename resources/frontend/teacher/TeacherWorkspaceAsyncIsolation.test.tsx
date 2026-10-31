@@ -55,10 +55,10 @@ type Settlement = 'success' | 403 | 404 | 409;
 
 const apiRequestMock = vi.mocked(apiRequest);
 const contextA =
-    '/teacher/workspace/assignment-a/'
+    '/portal/teacher/workspace/assignment-a/'
     + 'curricula/curriculum-a/versions/version-a';
 const contextB =
-    '/teacher/workspace/assignment-b/'
+    '/portal/teacher/workspace/assignment-b/'
     + 'curricula/curriculum-b/versions/version-b';
 
 let currentPrincipal = 'teacher-a';
@@ -273,12 +273,12 @@ function renderWorkspace(path = `${contextA}?section=topics`) {
         [
             {
                 element: <WorkspaceRoute />,
-                path: '/teacher/workspace',
+                path: '/portal/teacher/workspace',
             },
             {
                 element: <WorkspaceRoute />,
                 path:
-                    '/teacher/workspace/:assignmentId/'
+                    '/portal/teacher/workspace/:assignmentId/'
                     + 'curricula/:curriculumId/versions/:versionId',
             },
         ],

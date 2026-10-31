@@ -149,7 +149,7 @@ describe('CurriculumDiscoveryPage', () => {
             }),
         ).toHaveAttribute(
             'href',
-            '/app/curriculum/version-1',
+            '/portal/student/curriculum/version-1',
         );
 
         expect(
