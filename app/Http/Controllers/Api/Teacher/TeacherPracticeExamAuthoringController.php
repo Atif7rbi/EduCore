@@ -219,7 +219,9 @@ class TeacherPracticeExamAuthoringController extends Controller
 
     private function templateVersionData($v): array
     {
-        return ['id' => $v->id, 'exam_template_id' => $v->exam_template_id, 'curriculum_version_id' => $v->curriculum_version_id, 'version_number' => $v->version_number, 'label' => $v->label, 'status' => $v->status, 'rules_payload' => $v->rules_payload, 'rules_schema_version' => $v->rules_schema_version];
+        $rulesPayload = $v->rules_payload;
+
+        return ['id' => $v->id, 'exam_template_id' => $v->exam_template_id, 'curriculum_version_id' => $v->curriculum_version_id, 'version_number' => $v->version_number, 'label' => $v->label, 'status' => $v->status, 'rules_payload' => $rulesPayload === [] ? (object) [] : $rulesPayload, 'rules_schema_version' => $v->rules_schema_version];
     }
 
     private function generation($g): array

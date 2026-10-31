@@ -309,6 +309,240 @@ class TeacherPracticeExamAuthoringApiTest extends TestCase
         );
     }
 
+    public function test_teacher_canonicalizes_empty_rules_payloads_to_json_objects_on_create_and_readback(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $templateId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates', ['name' => 'Canonical empty rules'])
+            ->assertCreated()
+            ->json('data.id');
+
+        foreach ([(object) [], []] as $index => $rulesPayload) {
+            $response = $this->actingAs($teacher)
+                ->postJson($base.'/exam-templates/'.$templateId.'/versions', [
+                    'version_number' => $index + 1,
+                    'label' => 'Empty '.($index + 1),
+                    'rules_payload' => $rulesPayload,
+                    'rules_schema_version' => 1,
+                ])
+                ->assertCreated();
+
+            $body = json_decode($response->getContent(), false, 512, JSON_THROW_ON_ERROR);
+            $this->assertIsObject($body->data->rules_payload);
+            $this->assertSame([], get_object_vars($body->data->rules_payload));
+
+            $row = DB::selectOne(
+                'SELECT jsonb_typeof(rules_payload) AS payload_type, rules_payload::text AS payload_json FROM exam_template_versions WHERE id = ?',
+                [$body->data->id],
+            );
+            $this->assertNotNull($row);
+            $this->assertSame('object', $row->payload_type);
+            $this->assertSame('{}', $row->payload_json);
+
+            $read = $this->actingAs($teacher)
+                ->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$body->data->id)
+                ->assertOk();
+            $readBody = json_decode($read->getContent(), false, 512, JSON_THROW_ON_ERROR);
+            $this->assertIsObject($readBody->data->rules_payload);
+            $this->assertSame([], get_object_vars($readBody->data->rules_payload));
+        }
+
+        $collection = $this->actingAs($teacher)
+            ->getJson($base.'/exam-templates/'.$templateId.'/versions')
+            ->assertOk();
+        $collectionBody = json_decode($collection->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsObject($collectionBody->data[0]->rules_payload);
+        $this->assertIsObject($collectionBody->data[1]->rules_payload);
+    }
+
+    public function test_teacher_preserves_non_empty_rules_payload_compatibility_on_create_and_readback(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $templateId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates', ['name' => 'Nonempty rules'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $object = ['mode' => 'balanced', 'nested' => ['limit' => 3]];
+        $objectResponse = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions', [
+                'version_number' => 1,
+                'label' => 'Object',
+                'rules_payload' => $object,
+                'rules_schema_version' => 1,
+            ])
+            ->assertCreated();
+        $objectBody = json_decode($objectResponse->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsObject($objectBody->data->rules_payload);
+        $this->assertSame('balanced', $objectBody->data->rules_payload->mode);
+        $this->assertSame(3, $objectBody->data->rules_payload->nested->limit);
+
+        $array = [['kind' => 'topic'], 2, true];
+        $arrayResponse = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions', [
+                'version_number' => 2,
+                'label' => 'Array',
+                'rules_payload' => $array,
+                'rules_schema_version' => 1,
+            ])
+            ->assertCreated();
+        $arrayBody = json_decode($arrayResponse->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsArray($arrayBody->data->rules_payload);
+        $this->assertSame($array, json_decode(json_encode($arrayBody->data->rules_payload, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR));
+
+        foreach ([$objectBody->data->id => 'object', $arrayBody->data->id => 'object'] as $versionId => $expectedType) {
+            $row = DB::selectOne('SELECT jsonb_typeof(rules_payload) AS payload_type FROM exam_template_versions WHERE id = ?', [$versionId]);
+            $this->assertNotNull($row);
+            $this->assertSame($expectedType, $row->payload_type);
+
+            $read = $this->actingAs($teacher)
+                ->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$versionId)
+                ->assertOk();
+            $readBody = json_decode($read->getContent(), false, 512, JSON_THROW_ON_ERROR);
+            if ($versionId === $objectBody->data->id) {
+                $this->assertIsObject($readBody->data->rules_payload);
+                $this->assertSame('balanced', $readBody->data->rules_payload->mode);
+            } else {
+                $this->assertIsArray($readBody->data->rules_payload);
+                $this->assertSame($array, json_decode(json_encode($readBody->data->rules_payload, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR));
+            }
+        }
+    }
+
+    public function test_teacher_canonicalizes_empty_rules_payloads_on_update_and_preserves_published_history_and_generation_snapshot(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $revision = $this->revision($version, true);
+        $templateId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates', ['name' => 'Updated rules'])
+            ->assertCreated()
+            ->json('data.id');
+        $templateVersionId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions', [
+                'version_number' => 1,
+                'label' => 'Before update',
+                'rules_payload' => ['before' => true],
+                'rules_schema_version' => 1,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $updated = $this->actingAs($teacher)
+            ->putJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId, [
+                'label' => 'After update',
+                'rules_payload' => [],
+                'rules_schema_version' => 1,
+            ])
+            ->assertOk();
+        $updatedBody = json_decode($updated->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsObject($updatedBody->data->rules_payload);
+        $this->assertSame([], get_object_vars($updatedBody->data->rules_payload));
+
+        $row = DB::selectOne('SELECT jsonb_typeof(rules_payload) AS payload_type, rules_payload::text AS payload_json FROM exam_template_versions WHERE id = ?', [$templateVersionId]);
+        $this->assertNotNull($row);
+        $this->assertSame('object', $row->payload_type);
+        $this->assertSame('{}', $row->payload_json);
+
+        $read = $this->actingAs($teacher)
+            ->getJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId)
+            ->assertOk();
+        $readBody = json_decode($read->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsObject($readBody->data->rules_payload);
+        $this->assertSame([], get_object_vars($readBody->data->rules_payload));
+
+        $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId.'/publish')
+            ->assertOk();
+        $generationId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId.'/generations', [
+                'generator_version' => 'type-001',
+                'seed' => 'canonical-empty-rules',
+                'assessment_item_revision_ids' => [$revision->id],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $snapshot = DB::selectOne('SELECT jsonb_typeof(rules_snapshot) AS payload_type, rules_snapshot::text AS payload_json, exam_template_version_id FROM exam_generations WHERE id = ?', [$generationId]);
+        $this->assertNotNull($snapshot);
+        $this->assertSame('object', $snapshot->payload_type);
+        $this->assertSame('{}', $snapshot->payload_json);
+        $this->assertSame($templateVersionId, $snapshot->exam_template_version_id);
+
+        $this->actingAs($teacher)
+            ->putJson($base.'/exam-templates/'.$templateId.'/versions/'.$templateVersionId, [
+                'label' => 'Illegal historical update',
+                'rules_payload' => (object) [],
+                'rules_schema_version' => 1,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'exam_template_version_not_draft');
+
+        $historical = DB::selectOne('SELECT rules_payload::text AS payload_json, label FROM exam_template_versions WHERE id = ?', [$templateVersionId]);
+        $this->assertNotNull($historical);
+        $this->assertSame('{}', $historical->payload_json);
+        $this->assertSame('After update', $historical->label);
+    }
+
+    public function test_teacher_rules_payload_validation_and_authorization_boundaries_remain_unchanged(): void
+    {
+        [$teacher, $assignment, $curriculum, $version] = $this->fixture();
+        $base = $this->base($assignment, $curriculum, $version);
+        $templateId = $this->actingAs($teacher)
+            ->postJson($base.'/exam-templates', ['name' => 'Validation rules'])
+            ->assertCreated()
+            ->json('data.id');
+        $uri = $base.'/exam-templates/'.$templateId.'/versions';
+        $invalid = ['literal', 42, true, null];
+
+        foreach ($invalid as $index => $rulesPayload) {
+            $this->actingAs($teacher)
+                ->postJson($uri, [
+                    'version_number' => $index + 1,
+                    'label' => 'Invalid '.($index + 1),
+                    'rules_payload' => $rulesPayload,
+                    'rules_schema_version' => 1,
+                ])
+                ->assertUnprocessable()
+                ->assertJsonPath('error.code', 'validation_failed')
+                ->assertJsonPath('error.details.rules_payload.0', 'The rules payload field must be an array.');
+        }
+
+        $this->actingAs($teacher)
+            ->postJson($uri, [
+                'version_number' => 5,
+                'label' => 'Missing rules',
+                'rules_schema_version' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'validation_failed');
+
+        $this->actingAs($teacher)
+            ->call('POST', $uri, [], [], [], [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json',
+            ], '{"version_number":6,"label":"Malformed","rules_payload":')
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'validation_failed');
+
+        $this->assertSame(0, DB::table('exam_template_versions')->where('exam_template_id', $templateId)->count());
+
+        foreach (['student', 'admin'] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role, 'status' => 'active']))
+                ->postJson($uri, [
+                    'version_number' => 7,
+                    'label' => 'Forbidden',
+                    'rules_payload' => (object) [],
+                    'rules_schema_version' => 1,
+                ])
+                ->assertForbidden()
+                ->assertJsonPath('error.code', 'teacher_forbidden');
+        }
+
+        $this->assertSame(0, DB::table('exam_template_versions')->where('exam_template_id', $templateId)->count());
+    }
+
     public function test_teacher_reads_authorized_h4_resources_without_mutation(): void
     {
         [$teacher, $assignment, $curriculum, $version] = $this->fixture();
