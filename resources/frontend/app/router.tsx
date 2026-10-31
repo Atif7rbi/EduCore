@@ -1,6 +1,7 @@
 import {
     Navigate,
     createBrowserRouter,
+    useLocation,
 } from 'react-router-dom';
 
 import {
@@ -77,6 +78,21 @@ import {
     TeacherProductShell,
 } from './App';
 
+function LegacyStudentPortalRedirect() {
+    const location = useLocation();
+    const legacyRoot = '/app';
+    const suffix = location.pathname.slice(
+        legacyRoot.length,
+    );
+
+    return (
+        <Navigate
+            replace
+            to={'/portal/student' + suffix + location.search + location.hash}
+        />
+    );
+}
+
 export const router = createBrowserRouter([
     {
         element: <App />,
@@ -102,11 +118,19 @@ export const router = createBrowserRouter([
                 ),
             },
             {
-                path: '/app',
+                path: '/app/*',
                 element: (
-                    <RequireAuth>
+                    <LegacyStudentPortalRedirect />
+                ),
+            },
+            {
+                path: '/portal/student',
+                element: (
+                    <RequireRole
+                        allowedRoles={['student']}
+                    >
                         <LearnerProductShell />
-                    </RequireAuth>
+                    </RequireRole>
                 ),
                 children: [
                     {
@@ -138,7 +162,7 @@ export const router = createBrowserRouter([
                         element: (
                             <Navigate
                                 replace
-                                to="/app/curriculum"
+                                to="/portal/student/curriculum"
                             />
                         ),
                     },
@@ -175,7 +199,7 @@ export const router = createBrowserRouter([
                 ],
             },
             {
-                path: '/teacher',
+                path: '/portal/teacher',
                 element: (
                     <RequireRole
                         allowedRoles={[
@@ -191,7 +215,7 @@ export const router = createBrowserRouter([
                         element: (
                             <Navigate
                                 replace
-                                to="/teacher/workspace"
+                                to="/portal/teacher/workspace"
                             />
                         ),
                     },

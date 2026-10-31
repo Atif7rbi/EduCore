@@ -85,17 +85,17 @@ function renderPage() {
         <QueryClientProvider client={client}>
             <MemoryRouter
                 initialEntries={[
-                    '/app/exams',
+                    '/portal/student/exams',
                 ]}
             >
                 <Routes>
                     <Route
-                        path="/app/exams"
+                        path="/portal/student/exams"
                         element={<ExamsPage />}
                     />
 
                     <Route
-                        path="/app/attempts/:attemptId"
+                        path="/portal/student/attempts/:attemptId"
                         element={
                             <div>
                                 attempt target
@@ -242,7 +242,7 @@ describe('ExamsPage', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/attempts/attempt-1',
+            '/portal/student/attempts/attempt-1',
         );
 
         expect(
@@ -279,7 +279,7 @@ describe('ExamsPage', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/attempts/attempt-1',
+            '/portal/student/attempts/attempt-1',
         );
 
         expect(

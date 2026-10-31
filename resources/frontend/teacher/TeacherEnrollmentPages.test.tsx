@@ -144,7 +144,7 @@ function ContextSwitchControl() {
             type="button"
             onClick={() => {
                 navigate(
-                    '/teacher/enrollments?assignment_id=assignment-two',
+                    '/portal/teacher/enrollments?assignment_id=assignment-two',
                 );
             }}
         >
@@ -155,7 +155,7 @@ function ContextSwitchControl() {
 
 function renderPage(
     page: 'requests' | 'students',
-    initialEntry = '/teacher/enrollments',
+    initialEntry = '/portal/teacher/enrollments',
 ) {
     const queryClient = new QueryClient({
         defaultOptions: {
@@ -503,7 +503,7 @@ describe('TeacherEnrollmentPages', () => {
 
         renderPage(
             'requests',
-            '/teacher/enrollments?assignment_id=assignment-one',
+            '/portal/teacher/enrollments?assignment_id=assignment-one',
         );
 
         fireEvent.click(
@@ -603,7 +603,7 @@ describe('TeacherEnrollmentPages', () => {
 
         renderPage(
             'requests',
-            '/teacher/enrollments?assignment_id=assignment-one',
+            '/portal/teacher/enrollments?assignment_id=assignment-one',
         );
 
         fireEvent.click(
@@ -724,7 +724,7 @@ describe('TeacherEnrollmentPages', () => {
 
         renderPage(
             'requests',
-            '/teacher/enrollments?assignment_id=assignment-one',
+            '/portal/teacher/enrollments?assignment_id=assignment-one',
         );
 
         fireEvent.click(
@@ -916,7 +916,7 @@ describe('TeacherEnrollmentPages', () => {
 
         renderPage(
             'requests',
-            '/teacher/enrollments?assignment_id=assignment-one',
+            '/portal/teacher/enrollments?assignment_id=assignment-one',
         );
 
         fireEvent.click(

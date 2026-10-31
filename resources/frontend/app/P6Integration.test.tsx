@@ -91,7 +91,7 @@ function renderRoutes(
             >
                 <Routes>
                     <Route
-                        path="/app"
+                        path="/portal/student"
                         element={
                             <LearnerProductShell />
                         }
@@ -146,7 +146,7 @@ function renderRoutes(
                             element={
                                 <Navigate
                                     replace
-                                    to="/app/curriculum"
+                                    to="/portal/student/curriculum"
                                 />
                             }
                         />
@@ -230,7 +230,7 @@ describe(
         it(
             'exposes only real learner MVP navigation surfaces',
             () => {
-                renderRoutes('/app');
+                renderRoutes('/portal/student');
 
                 expect(
                     screen.getByRole(
@@ -241,7 +241,7 @@ describe(
                     ),
                 ).toHaveAttribute(
                     'href',
-                    '/app/curriculum',
+                    '/portal/student/curriculum',
                 );
 
                 expect(
@@ -253,7 +253,7 @@ describe(
                     ),
                 ).toHaveAttribute(
                     'href',
-                    '/app/exams',
+                    '/portal/student/exams',
                 );
 
                 expect(
@@ -265,7 +265,7 @@ describe(
                     ),
                 ).toHaveAttribute(
                     'href',
-                    '/app/results',
+                    '/portal/student/results',
                 );
 
                 expect(
@@ -277,7 +277,7 @@ describe(
                     ),
                 ).toHaveAttribute(
                     'href',
-                    '/app/progress',
+                    '/portal/student/progress',
                 );
 
                 expect(
@@ -343,8 +343,8 @@ describe(
 
         it.each([
             [
-                '/app/practice',
-                '/app/curriculum',
+                '/portal/student/practice',
+                '/portal/student/curriculum',
                 'Curriculum Surface',
             ],
             [

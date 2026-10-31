@@ -369,7 +369,7 @@ export function LessonPage() {
                 <Link
                     className="foundation-link learner-back-link"
                     to={
-                        `/app/curriculum/${lesson.curriculum_version_id}`
+                        `/portal/student/curriculum/${lesson.curriculum_version_id}`
                     }
                 >
                     العودة إلى المنهج
@@ -526,7 +526,7 @@ export function LessonPage() {
                                     >
                                         <Link
                                             className="learner-practice-item learner-practice-item--link"
-                                            to={`/app/practice/${activity.id}`}
+                                            to={`/portal/student/practice/${activity.id}`}
                                         >
                                             <strong>
                                                 {activity.name}

@@ -100,7 +100,7 @@ function IntegrationRoutes() {
             />
 
             <Route
-                path="/app"
+                path="/portal/student"
                 element={
                     <RequireAuth>
                         <LearnerProductShell />
@@ -215,7 +215,7 @@ describe('P2 authentication and product-shell integration', () => {
         );
 
         renderIntegration(
-            '/app/practice?mode=guided#question-2',
+            '/portal/student/practice?mode=guided#question-2',
         );
 
         await waitFor(() => {
@@ -301,7 +301,7 @@ describe('P2 authentication and product-shell integration', () => {
             ),
         ).toHaveAttribute(
             'href',
-            '/app/curriculum',
+            '/portal/student/curriculum',
         );
     });
 
@@ -314,7 +314,7 @@ describe('P2 authentication and product-shell integration', () => {
         );
 
         renderIntegration(
-            '/app/practice?mode=timed#question-3',
+            '/portal/student/practice?mode=timed#question-3',
         );
 
         await waitFor(() => {
@@ -524,7 +524,7 @@ describe('P2 authentication and product-shell integration', () => {
             },
         );
 
-        renderIntegration('/app');
+        renderIntegration('/portal/student');
 
         await waitFor(() => {
             expect(

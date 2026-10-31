@@ -165,7 +165,7 @@ export function PracticeActivityPage() {
                 ),
             onSuccess: (attempt) => {
                 void navigate(
-                    `/app/attempts/${attempt.id}`,
+                    `/portal/student/attempts/${attempt.id}`,
                 );
             },
         });
@@ -209,7 +209,7 @@ export function PracticeActivityPage() {
                     <Link
                         className="foundation-link learner-back-link"
                         to={
-                            `/app/lessons/${activity.lesson_id}`
+                            `/portal/student/lessons/${activity.lesson_id}`
                         }
                     >
                         العودة إلى الدرس
@@ -218,7 +218,7 @@ export function PracticeActivityPage() {
                     <Link
                         className="foundation-link learner-back-link"
                         to={
-                            `/app/curriculum/${activity.curriculum_version_id}`
+                            `/portal/student/curriculum/${activity.curriculum_version_id}`
                         }
                     >
                         العودة إلى المنهج

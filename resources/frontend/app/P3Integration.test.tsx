@@ -83,43 +83,43 @@ function renderProduct(
             >
                 <Routes>
                     <Route
-                        path="/app/curriculum"
+                        path="/portal/student/curriculum"
                         element={
                             <CurriculumDiscoveryPage />
                         }
                     />
 
                     <Route
-                        path="/app/curriculum/:curriculumVersionId"
+                        path="/portal/student/curriculum/:curriculumVersionId"
                         element={
                             <CurriculumVersionPage />
                         }
                     />
 
                     <Route
-                        path="/app/lessons/:lessonId"
+                        path="/portal/student/lessons/:lessonId"
                         element={<LessonPage />}
                     />
 
                     <Route
-                        path="/app/practice/:practiceActivityId"
+                        path="/portal/student/practice/:practiceActivityId"
                         element={
                             <PracticeActivityPage />
                         }
                     />
 
                     <Route
-                        path="/app/exams"
+                        path="/portal/student/exams"
                         element={<ExamsPage />}
                     />
 
                     <Route
-                        path="/app/results"
+                        path="/portal/student/results"
                         element={<ResultsPage />}
                     />
 
                     <Route
-                        path="/app/attempts/:attemptId"
+                        path="/portal/student/attempts/:attemptId"
                         element={<AttemptPage />}
                     />
                 </Routes>
@@ -468,7 +468,7 @@ describe(
                 );
 
                 renderProduct(
-                    '/app/curriculum',
+                    '/portal/student/curriculum',
                 );
 
                 fireEvent.click(
@@ -627,7 +627,7 @@ describe(
                 );
 
                 renderProduct(
-                    '/app/exams',
+                    '/portal/student/exams',
                 );
 
                 expect(
@@ -740,7 +740,7 @@ describe(
                 );
 
                 renderProduct(
-                    '/app/results',
+                    '/portal/student/results',
                 );
 
                 expect(
@@ -797,7 +797,7 @@ describe(
                     ),
                 ).toHaveAttribute(
                     'href',
-                    '/app/exams',
+                    '/portal/student/exams',
                 );
             },
         );

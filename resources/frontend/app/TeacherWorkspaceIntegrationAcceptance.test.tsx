@@ -59,11 +59,11 @@ type ContextSuffix = 'a' | 'b';
 type MutationSettlement = 'success' | 403 | 404 | 409;
 
 const contextA =
-    '/teacher/workspace/assignment-a'
+    '/portal/teacher/workspace/assignment-a'
     + '/curricula/curriculum-a'
     + '/versions/version-a';
 const contextB =
-    '/teacher/workspace/assignment-b'
+    '/portal/teacher/workspace/assignment-b'
     + '/curricula/curriculum-b'
     + '/versions/version-b';
 
@@ -645,7 +645,7 @@ describe('H6-S7 Teacher Workspace cross-section integration acceptance', () => {
             .mockReturnValueOnce(false)
             .mockReturnValueOnce(true);
 
-        await renderProduction('/teacher/workspace');
+        await renderProduction('/portal/teacher/workspace');
         await expectWorkspace();
 
         const contextSelector = await screen.findByRole('group', {
@@ -865,7 +865,7 @@ describe('H6-S7 Teacher Workspace cross-section integration acceptance', () => {
         await settleMutation(403);
 
         await waitFor(() => {
-            expect(exactLocation()).toBe('/teacher/workspace');
+            expect(exactLocation()).toBe('/portal/teacher/workspace');
         });
         expect(screen.getByText(/سياق التأليف غير متاح/))
             .toBeInTheDocument();

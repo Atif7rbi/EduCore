@@ -56,7 +56,7 @@ vi.mock('./AuthProvider', () => ({
 }));
 
 function renderAuthRoute(
-    initialEntry = '/app',
+    initialEntry = '/portal/student',
 ) {
     render(
         <MemoryRouter
@@ -73,7 +73,7 @@ function renderAuthRoute(
                 />
 
                 <Route
-                    path="/app"
+                    path="/portal/student"
                     element={
                         <RequireAuth>
                             <div>

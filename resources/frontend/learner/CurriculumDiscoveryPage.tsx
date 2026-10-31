@@ -219,7 +219,7 @@ export function CurriculumDiscoveryPage() {
                                                 >
                                                     <Link
                                                         className="curriculum-card__version"
-                                                        to={`/app/curriculum/${version.id}`}
+                                                        to={`/portal/student/curriculum/${version.id}`}
                                                     >
                                                         <span>
                                                             {version.label}

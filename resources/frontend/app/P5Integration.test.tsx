@@ -58,12 +58,12 @@ function renderProgressRoute() {
         >
             <MemoryRouter
                 initialEntries={[
-                    '/app/progress',
+                    '/portal/student/progress',
                 ]}
             >
                 <Routes>
                     <Route
-                        path="/app/progress"
+                        path="/portal/student/progress"
                         element={
                             <ProgressPage />
                         }

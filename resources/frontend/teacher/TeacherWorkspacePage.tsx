@@ -343,7 +343,7 @@ export function TeacherWorkspacePage() {
     const handleContextResolved = useCallback(
         (nextContext: TeacherContext) => {
             const destinationPathname =
-                '/teacher/workspace/'
+                '/portal/teacher/workspace/'
                 + nextContext.assignmentId
                 + '/curricula/'
                 + nextContext.curriculumId
@@ -395,12 +395,12 @@ export function TeacherWorkspacePage() {
 
     const handleContextUnavailable = useCallback(
         () => {
-            forcedNavigationTarget.current = '/teacher/workspace';
+            forcedNavigationTarget.current = '/portal/teacher/workspace';
             approvedNavigationTarget.current = null;
             setContext(null);
             clearDirtyState();
             navigate(
-                '/teacher/workspace',
+                '/portal/teacher/workspace',
                 {
                     replace: true,
                     state: {

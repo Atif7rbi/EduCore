@@ -208,7 +208,7 @@ export function CurriculumVersionPage() {
             <div className="foundation-page__heading">
                 <Link
                     className="foundation-link learner-back-link"
-                    to="/app/curriculum"
+                    to="/portal/student/curriculum"
                 >
                     العودة إلى المناهج
                 </Link>
@@ -274,7 +274,7 @@ export function CurriculumVersionPage() {
                                         <Link
                                             key={lesson.id}
                                             className="learner-lesson-card"
-                                            to={`/app/lessons/${lesson.id}`}
+                                            to={`/portal/student/lessons/${lesson.id}`}
                                         >
                                             <strong>
                                                 {lesson.title}
