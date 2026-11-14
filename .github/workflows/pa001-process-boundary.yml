@@ -1,0 +1,33 @@
+name: PA001 isolated process-boundary
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  process-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify disposable hosted runner
+        run: |
+          set -Eeuo pipefail
+          test "${RUNNER_ENVIRONMENT:-}" = github-hosted
+          test "${RUNNER_OS:-}" = Linux
+          test "${RUNNER_NAME:-}" != ""
+          test "${GITHUB_ACTIONS:-}" = true
+      - name: Run PA001 isolated boundary harness
+        run: ./scripts/run_pa001_process_boundary.sh
+      - name: Collect nonsecret evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pa001-process-boundary-evidence
+          path: out/pa001-process-boundary/
+          if-no-files-found: error
+          retention-days: 7
