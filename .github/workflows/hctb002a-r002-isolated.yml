@@ -52,7 +52,7 @@ jobs:
           docker run --rm --pull always \
             --user 0:0 --network none --read-only \
             --tmpfs /tmp:rw,nosuid,nodev,size=64m,mode=1777 \
-            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
+            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE \
             --security-opt no-new-privileges \
             --pids-limit 128 --memory 512m --cpus 2 \
             -e PYTHONDONTWRITEBYTECODE=1 \
