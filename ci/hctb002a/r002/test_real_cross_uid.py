@@ -13,6 +13,7 @@ from hctb_contract import SCHEMA, canonical
 from trusted_provisioner import ExternalVector, ProvisioningInputs, seal_pre_controller, finalize_broker_binding
 from unprivileged_controller import EvidenceDirectoryAnchor, persist_evidence, request_for
 from evidence_broker import send_pinned_evidence, receive_pinned_evidence, BrokerBinding, DirectoryIdentity, Reject as BrokerReject
+from durable_replay import JournalAnchor
 from root_evidence_verifier import verify_received_file_fd
 
 CONTROLLER = 31021
@@ -38,6 +39,12 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
     def test_real_wrong_verifier_uid_rejected_before_file_access(self):
         with tempfile.TemporaryDirectory(prefix='educore-crossuid-peer-') as home:
             os.chmod(home,0o755)
+            journal=os.path.join(home,'transfer-journal')
+            os.mkdir(journal,0o700)
+            journal_fd=os.open(journal,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+            st=os.fstat(journal_fd)
+            journal_anchor=JournalAnchor(st.st_dev,st.st_ino,st.st_uid,st.st_gid)
+            self.addCleanup(os.close,journal_fd)
             address=os.path.join(home,'broker.sock')
             sock=socket.socket(socket.AF_UNIX,socket.SOCK_SEQPACKET)
             sock.bind(address);os.chmod(address,0o666)
@@ -62,8 +69,9 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
                     DirectoryIdentity(1,1,0,0),31021,31021,1,1,VERIFIER,VERIFIER)
                 used=set()
                 with self.assertRaisesRegex(BrokerReject,'unauthorized verifier'):
-                    send_pinned_evidence(conn,-1,binding,used_ids=used)
+                    send_pinned_evidence(conn,-1,binding,journal_dir_fd=journal_fd,journal_anchor=journal_anchor,used_ids=used)
                 self.assertFalse(used)
+                self.assertEqual(os.listdir(journal),[])
                 conn.close()
                 result=os.read(read_pipe,256).decode('ascii')
                 _,status=os.waitpid(child,0)
@@ -75,8 +83,8 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
     def test_controller_dac_deny_and_broker_verified_one_fd(self):
         with tempfile.TemporaryDirectory(prefix='educore-crossuid-') as home:
             os.chmod(home, 0o755)
-            fixture, evidence, trust = [os.path.join(home, p) for p in ('fixture','evidence','trust')]
-            for p in (fixture, evidence, trust):
+            fixture, evidence, trust, journal = [os.path.join(home, p) for p in ('fixture','evidence','trust','transfer-journal')]
+            for p in (fixture, evidence, trust, journal):
                 os.mkdir(p, 0o700)
             os.chown(evidence, CONTROLLER, CONTROLLER)
             with open(os.path.join(fixture, 'journal'), 'wb') as f:
@@ -85,6 +93,10 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
             fixture_fd = os.open(fixture, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
             evidence_fd = os.open(evidence, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
             trust_fd = os.open(trust, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+            journal_fd = os.open(journal,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+            journal_stat = os.fstat(journal_fd)
+            journal_anchor = JournalAnchor(journal_stat.st_dev,journal_stat.st_ino,
+                                           journal_stat.st_uid,journal_stat.st_gid)
             try:
                 inputs = ProvisioningInputs('run-1','case-1','collect_journal',CONTROLLER,CONTROLLER,VERIFIER,VERIFIER)
                 vector = ExternalVector('1'*64,'fixture.journal', hashlib.sha256(b'cross-UID fixture source bytes').hexdigest())
@@ -101,7 +113,7 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
                 if child == 0:
                     try:
                         os.close(pipe_r)
-                        for fd in (fixture_fd, evidence_fd, trust_fd): os.close(fd)
+                        for fd in (fixture_fd, evidence_fd, trust_fd, journal_fd): os.close(fd)
                         _drop(CONTROLLER)
                         local = os.open(evidence,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
                         st = os.fstat(local)
@@ -127,7 +139,7 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
                 if verifier_pid==0:
                     try:
                         os.close(r);server.close()
-                        for fd in (fixture_fd,evidence_fd,trust_fd):os.close(fd)
+                        for fd in (fixture_fd,evidence_fd,trust_fd,journal_fd):os.close(fd)
                         _drop(VERIFIER)
                         denied=0
                         for private_dir in (fixture,evidence,trust):
@@ -148,16 +160,17 @@ class CrossUidProcessBoundaryTests(unittest.TestCase):
                 os.close(w)
                 try:
                     conn,_=server.accept();conn.settimeout(4)
-                    try:send_pinned_evidence(conn,evidence_fd,binding,used_ids=set())
+                    try:send_pinned_evidence(conn,evidence_fd,binding,journal_dir_fd=journal_fd,journal_anchor=journal_anchor,used_ids=set())
                     finally:conn.close()
                     vr=os.read(r,512).decode('ascii')
                 finally:
                     os.close(r);server.close()
                 _,status=os.waitpid(verifier_pid,0)
                 self.assertEqual(status,0);self.assertEqual(vr,'VERIFIER_PASS_DAC_3')
+                self.assertEqual(len(os.listdir(journal)),1)
                 self.assertEqual(os.stat(evidence).st_mode & 0o777,0o700)
                 self.assertEqual(os.stat(os.path.join(evidence,'evidence-case-1.json')).st_mode & 0o777,0o600)
             finally:
-                for fd in (fixture_fd,evidence_fd,trust_fd): os.close(fd)
+                for fd in (fixture_fd,evidence_fd,trust_fd,journal_fd): os.close(fd)
 
 if __name__ == '__main__': unittest.main()

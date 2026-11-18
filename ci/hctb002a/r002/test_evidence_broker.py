@@ -9,6 +9,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
+from durable_replay import JournalAnchor
 from evidence_broker import (BrokerBinding, DirectoryIdentity, Reject,
                              send_pinned_evidence, receive_pinned_evidence)
 
@@ -29,11 +30,18 @@ class BrokerTests(unittest.TestCase):
         self.addCleanup(self.a.close);self.addCleanup(self.b.close)
         self.a.settimeout(0.6);self.b.settimeout(0.6)
         self.used=set()
+        self.journal_path=os.path.join(self.tmp.name, 'durable-journal')
+        os.mkdir(self.journal_path,0o700)
+        self.journal_fd=os.open(self.journal_path,os.O_RDONLY|os.O_DIRECTORY)
+        self.addCleanup(os.close,self.journal_fd)
+        j=os.fstat(self.journal_fd)
+        self.journal_anchor=JournalAnchor(j.st_dev,j.st_ino,j.st_uid,j.st_gid)
+        self.durable_args={'journal_dir_fd':self.journal_fd,'journal_anchor':self.journal_anchor}
     def serve(self,binding=None,fd=None,conn=None):
         errors=[]
         def go():
             try:send_pinned_evidence(conn or self.a,self.dfd if fd is None else fd,
-                                     self.binding if binding is None else binding,used_ids=self.used)
+                                     self.binding if binding is None else binding,used_ids=self.used,**self.durable_args)
             except Exception as exc:errors.append(exc)
             finally:(conn or self.a).close()
         t=threading.Thread(target=go);t.start();self.addCleanup(lambda:t.join(timeout=1))
@@ -50,35 +58,35 @@ class BrokerTests(unittest.TestCase):
         t.join();self.assertFalse(errors)
     def test_wrong_verifier_uid(self):
         with self.assertRaisesRegex(Reject,'unauthorized'):
-            send_pinned_evidence(self.a,self.dfd,replace(self.binding,verifier_uid=os.geteuid()+1),used_ids=self.used)
+            send_pinned_evidence(self.a,self.dfd,replace(self.binding,verifier_uid=os.geteuid()+1),used_ids=self.used,**self.durable_args)
         self.assertFalse(self.used)
     def test_wrong_broker_uid(self):
         with self.assertRaisesRegex(Reject,'unauthorized'):
             receive_pinned_evidence(self.b,self.binding,broker_uid=os.geteuid()+1)
     def test_replay_rejected(self):
         t,err=self.serve();fd=self.receive();os.close(fd);t.join()
-        with self.assertRaisesRegex(Reject,'repeated'):
-            send_pinned_evidence(self.b,self.dfd,self.binding,used_ids=self.used)
+        with self.assertRaisesRegex(Reject,'intent refused'):
+            send_pinned_evidence(self.b,self.dfd,self.binding,used_ids=self.used,**self.durable_args)
     def test_directory_identity_mismatch(self):
         with self.assertRaisesRegex(Reject,'directory'):
-            send_pinned_evidence(self.a,self.dfd,replace(self.binding,directory=replace(self.binding.directory,inode=1)),used_ids=self.used)
+            send_pinned_evidence(self.a,self.dfd,replace(self.binding,directory=replace(self.binding.directory,inode=1)),used_ids=self.used,**self.durable_args)
     def test_missing_file(self):
         os.unlink(self.path)
-        with self.assertRaises(Reject):send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used)
+        with self.assertRaises(Reject):send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used,**self.durable_args)
     def test_symlink_refused(self):
         os.unlink(self.path);os.symlink('/etc/passwd',self.path)
-        with self.assertRaises(Reject):send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used)
+        with self.assertRaises(Reject):send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used,**self.durable_args)
     def test_hardlink_refused(self):
         os.link(self.path,self.path+'.2')
         with self.assertRaisesRegex(Reject,'descriptor mismatch'):
-            send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used)
+            send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used,**self.durable_args)
     def test_wrong_inode(self):
         with self.assertRaisesRegex(Reject,'descriptor mismatch'):
-            send_pinned_evidence(self.a,self.dfd,replace(self.binding,evidence_inode=2),used_ids=self.used)
+            send_pinned_evidence(self.a,self.dfd,replace(self.binding,evidence_inode=2),used_ids=self.used,**self.durable_args)
     def test_wrong_file_mode(self):
         os.chmod(self.path,0o640)
         with self.assertRaisesRegex(Reject,'descriptor mismatch'):
-            send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used)
+            send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used,**self.durable_args)
     def test_empty_ancillary(self):
         self.a.send(b'EDUCORE-BROKER-FD-V1:run-1:case-1:collect_journal');self.a.shutdown(socket.SHUT_WR)
         with self.assertRaisesRegex(Reject,'ancillary'):
@@ -114,7 +122,7 @@ class BrokerTests(unittest.TestCase):
         self.b.settimeout(.02)
         with self.assertRaisesRegex(Reject,'receive failure'):self.receive()
     def test_missing_manifest_binding(self):
-        with self.assertRaisesRegex(Reject,'binding'):send_pinned_evidence(self.a,self.dfd,None,used_ids=self.used)
+        with self.assertRaisesRegex(Reject,'binding'):send_pinned_evidence(self.a,self.dfd,None,used_ids=self.used,**self.durable_args)
     def test_controller_selected_filename_impossible(self):
         with self.assertRaises(TypeError):send_pinned_evidence(self.a,self.dfd,self.binding,used_ids=self.used,filename='/etc/passwd')
 

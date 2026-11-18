@@ -9,6 +9,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 from hctb_contract import SCHEMA, canonical
+from durable_replay import JournalAnchor
 from evidence_broker import BrokerBinding, DirectoryIdentity, send_pinned_evidence, receive_pinned_evidence
 from root_evidence_verifier import TrustedReference, verify_received_file_fd, Reject
 
@@ -31,6 +32,12 @@ class FileFDVerifierTests(unittest.TestCase):
             DirectoryIdentity(d.st_dev,d.st_ino,d.st_uid,d.st_gid),f.st_uid,f.st_gid,
             f.st_dev,f.st_ino,os.geteuid(),os.getegid())
         self.ref=TrustedReference('case-1','collect_journal','fixture.journal',self.source_digest)
+        self.journal_path=os.path.join(self.temp.name,'journal-dir')
+        os.mkdir(self.journal_path,0o700)
+        self.journal_fd=os.open(self.journal_path,os.O_RDONLY|os.O_DIRECTORY)
+        self.addCleanup(os.close,self.journal_fd)
+        j=os.fstat(self.journal_fd)
+        self.journal_anchor=JournalAnchor(j.st_dev,j.st_ino,j.st_uid,j.st_gid)
     def write(self, data=None):
         with open(self.path,'wb') as f:f.write(canonical(self.response) if data is None else data)
         os.chmod(self.path,0o600)
@@ -46,7 +53,8 @@ class FileFDVerifierTests(unittest.TestCase):
         a.settimeout(.5);b.settimeout(.5)
         errors=[]
         def send():
-            try:send_pinned_evidence(a,self.dfd,self.binding,used_ids=set())
+            try:send_pinned_evidence(a,self.dfd,self.binding,used_ids=set(),
+                journal_dir_fd=self.journal_fd,journal_anchor=self.journal_anchor)
             except Exception as e:errors.append(e)
             finally:a.close()
         t=threading.Thread(target=send);t.start()

@@ -94,11 +94,12 @@ def _peer(conn):
         raise Reject('peer credentials unavailable') from exc
 
 
-def send_pinned_evidence(conn, evidence_directory_fd, binding, *, used_ids):
-    """One-shot send; `used_ids` is a harness-owned mutable set, not client input.
+def send_pinned_evidence(conn, evidence_directory_fd, binding, *, journal_dir_fd=None, journal_anchor=None, used_ids=None):
+    """Mandatory durable one-shot send; no legacy in-memory-only transfer route.
 
-    The caller must launch/own a dedicated SOCK_SEQPACKET endpoint and close it.
-    A successful transfer consumes the run/request pair; failure also consumes it.
+    A separately trusted harness MUST supply the journal FD and its pinned anchor.
+    Every authorized transfer is consumed on disk before opening/sending evidence.
+    Passing only the legacy `used_ids` parameter cannot bypass the journal.
     """
     payload = _check_binding(binding)
     if len(payload) > MAX_BINDING:
@@ -108,10 +109,18 @@ def send_pinned_evidence(conn, evidence_directory_fd, binding, *, used_ids):
     pid, uid, gid = _peer(conn)
     if pid <= 0 or (uid, gid) != (binding.verifier_uid, binding.verifier_gid):
         raise Reject('unauthorized verifier peer')
-    key = (binding.run_id, binding.request_id)
-    if key in used_ids:
-        raise Reject('repeated transfer')
-    used_ids.add(key)  # fail closed: no retry after ambiguous transfer
+    # Import at point of use to avoid a module initialization cycle.
+    # The durable journal MUST be verified and fsynced before any sendmsg.
+    if journal_dir_fd is None or journal_anchor is None:
+        raise Reject('durable journal required before FD transfer')
+    from durable_replay import claim_transfer, Reject as JournalReject
+    try:
+        claim_transfer(journal_dir_fd, journal_anchor, binding)
+    except JournalReject as exc:
+        raise Reject('durable transfer intent refused') from exc
+    # Memory IDs may serve diagnostic callers but are never authoritative.
+    if used_ids is not None:
+        used_ids.add((binding.run_id, binding.request_id))
     _directory_check(evidence_directory_fd, binding)
     filename = 'evidence-' + binding.request_id + '.json'
     fd = None
