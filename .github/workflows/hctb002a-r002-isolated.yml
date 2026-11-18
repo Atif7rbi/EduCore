@@ -45,6 +45,8 @@ jobs:
           echo "R002_RESULTS_DIR=$results" >> "$GITHUB_ENV"
           trap 'rm -rf -- "$stage"' EXIT
           cp -- ci/hctb002a/r002/*.py ci/hctb002a/r002/SHA256SUMS "$stage/"
+          chmod 0755 "$stage"
+          chmod 0644 "$stage"/*.py "$stage/SHA256SUMS"
           cd "$stage"
           sha256sum --check SHA256SUMS
           docker run --rm --pull always \
