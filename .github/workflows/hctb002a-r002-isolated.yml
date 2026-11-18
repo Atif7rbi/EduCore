@@ -1,4 +1,4 @@
-name: HCTB-002A R002 isolated UID test
+name: HCTB-002A R002-R003 isolated UID test
 on:
   push:
     branches:
@@ -10,11 +10,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: hctb002a-r002-isolated
+  group: hctb002a-r002-r003-isolated
   cancel-in-progress: false
 
 jobs:
-  r002-synthetic:
+  r002-r003-synthetic:
     if: github.repository == 'Atif7rbi/EduCore' && github.ref == 'refs/heads/ci/hctb002a-r002-isolated-20261118'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -34,8 +34,8 @@ jobs:
           test "${GITHUB_REF:-}" = refs/heads/ci/hctb002a-r002-isolated-20261118
           cd ci/hctb002a/r002
           sha256sum --check SHA256SUMS
-          test "$(find . -maxdepth 1 -type f -name 'test_*.py' | wc -l)" -eq 12
-      - name: Execute 201 synthetic tests in networkless disposable UID-0 container
+          test "$(find . -maxdepth 1 -type f -name 'test_*.py' | wc -l)" -eq 13
+      - name: Execute 203 synthetic tests in networkless disposable UID-0 container
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -52,7 +52,7 @@ jobs:
           docker run --rm --pull always \
             --user 0:0 --network none --read-only \
             --tmpfs /tmp:rw,nosuid,nodev,size=64m,mode=1777 \
-            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE \
+            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID \
             --security-opt no-new-privileges \
             --pids-limit 128 --memory 512m --cpus 2 \
             -e PYTHONDONTWRITEBYTECODE=1 \
@@ -61,16 +61,16 @@ jobs:
             python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df \
             python -W error::ResourceWarning -m unittest discover -s /work -p 'test_*.py' -v \
             2>&1 | tee "$results/TEST_RESULTS.txt"
-          grep -Eq '^Ran 201 tests in ' "$results/TEST_RESULTS.txt"
+          grep -Eq '^Ran 203 tests in ' "$results/TEST_RESULTS.txt"
           grep -Eq '^OK$' "$results/TEST_RESULTS.txt"
           if grep -Ei 'skipped=|failed=|errors=' "$results/TEST_RESULTS.txt"; then exit 1; fi
           sha256sum "$results/TEST_RESULTS.txt" > "$results/TEST_RESULTS.sha256"
-          printf 'S3_R002_ISOLATED_RUNNER=PASS\nTESTS=201_PASS\nHOST_ROOT_EXECUTION=NONE\nPHASE_B=NOT_AUTHORIZED\n' > "$results/VERDICT.txt"
+          printf 'S3_R003_ISOLATED_RUNNER=PASS\nTESTS=203_PASS\nHOST_ROOT_EXECUTION=NONE\nPHASE_B=NOT_AUTHORIZED\n' > "$results/VERDICT.txt"
       - name: Publish nonsecret test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: hctb002a-r002-isolated-evidence
+          name: hctb002a-r003-isolated-evidence
           path: ${{ env.R002_RESULTS_DIR }}/
           if-no-files-found: warn
           retention-days: 7
