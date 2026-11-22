@@ -1,0 +1,10 @@
+name: PA001 HCTB-002 isolated boundary
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  hctb-002:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - run: sudo --preserve-env=NONE bash scripts/run_hctb_002.sh

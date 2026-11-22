@@ -1,0 +1,111 @@
+# REVIEW-ONLY PROPOSAL — not installed at .github/workflows and not dispatched.
+# Intended repository path after separately authorized review:
+# .github/workflows/hctb002a-r005-cross-uid.yml
+name: HCTB-002A R005 privileged Cross-UID validation
+
+on:
+  workflow_dispatch:
+  # Required for the one initial execution: a workflow introduced only on a
+  # non-default branch must not rely on workflow_dispatch discoverability.
+  push:
+    branches:
+      - ci/hctb002a-r005-crossuid-20261122
+    paths:
+      - .github/workflows/hctb002a-r005-cross-uid.yml
+      - ci/hctb002a/r005/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hctb002a-r005-cross-uid
+  cancel-in-progress: false
+
+jobs:
+  r005-cross-uid:
+    # ubuntu-24.04 is GitHub-hosted; the first step independently refuses a
+    # self-hosted environment before any synthetic privileged fixture setup.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review branch without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Verify GitHub-hosted runner and R005 review source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "${RUNNER_ENVIRONMENT:-}" = github-hosted
+          test "${RUNNER_OS:-}" = Linux
+          test "${GITHUB_ACTIONS:-}" = true
+          test "${GITHUB_REPOSITORY:-}" = Atif7rbi/EduCore
+          test "${GITHUB_EVENT_NAME:-}" = workflow_dispatch
+          cd ci/hctb002a/r005
+          test "$(sha256sum source-sha256.txt | awk '{print $1}')" = \
+            2ab97ae1bc134d994a2aa0e7f9deebf58fdf3f62ae01b6c68f8adbdfb23d958d
+          sha256sum --check source-sha256.txt
+          test "$(find . -maxdepth 1 -type f -name 'test_*.py' | wc -l)" -ge 17
+
+      - name: Execute isolated UID-0 cross-UID regression container
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          stage="$(mktemp -d "${RUNNER_TEMP}/hctb-r005.XXXXXX")"
+          results="$(mktemp -d "${RUNNER_TEMP}/hctb-r005-results.XXXXXX")"
+          echo "R005_RESULTS_DIR=$results" >> "$GITHUB_ENV"
+          trap 'rm -rf -- "$stage"' EXIT
+          source_dir="$GITHUB_WORKSPACE/ci/hctb002a/r005"
+          # The accepted manifest is the complete authority for staged files.
+          # Refuse names outside its one-level review package rather than
+          # silently omitting a record needed by `sha256sum --check`.
+          while IFS='  ' read -r digest entry; do
+            test "${#digest}" -eq 64
+            case "$entry" in
+              ./*) relative="${entry#./}" ;;
+              *) echo "unsafe manifest path: $entry" >&2; exit 1 ;;
+            esac
+            case "$relative" in
+              ''|*/*|.*) echo "unsafe manifest path: $entry" >&2; exit 1 ;;
+            esac
+            test -f "$source_dir/$relative"
+            cp -- "$source_dir/$relative" "$stage/$relative"
+          done < "$source_dir/source-sha256.txt"
+          cp -- "$source_dir/source-sha256.txt" "$stage/source-sha256.txt"
+          chmod 0755 "$stage"
+          chmod 0644 "$stage"/*.py "$stage/source-sha256.txt"
+          cd "$stage"
+          sha256sum --check --strict source-sha256.txt
+          docker run --rm --pull always \
+            --user 0:0 --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=64m,mode=1777 \
+            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID \
+            --security-opt no-new-privileges \
+            --pids-limit 128 --memory 512m --cpus 2 \
+            -e PYTHONDONTWRITEBYTECODE=1 \
+            --mount "type=bind,src=$stage,dst=/work,readonly" \
+            -w /work \
+            python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df \
+            python -W error::ResourceWarning -m unittest -v \
+              test_static test_root_evidence_reader test_operation_mapping test_ipc_framing \
+              test_descriptor_trust test_unprivileged_controller test_root_evidence_verifier \
+              test_process_source_integration test_strict_json_r007 test_evidence_broker \
+              test_verifier_file_fd test_durable_replay test_broker_durable_enforcement \
+              test_journal_anchor test_broker_security_remediation test_real_cross_uid \
+            2>&1 | tee "$results/TEST_RESULTS.txt"
+          grep -Eq '^Ran 220 tests in ' "$results/TEST_RESULTS.txt"
+          grep -Eq '^OK$' "$results/TEST_RESULTS.txt"
+          if grep -Ei 'skipped=|failed=|errors=' "$results/TEST_RESULTS.txt"; then exit 1; fi
+          sha256sum "$results/TEST_RESULTS.txt" > "$results/TEST_RESULTS.sha256"
+          printf 'R005_CROSS_UID_RUNNER=PASS\nTESTS=220_PASS\nHOST_ROOT_EXECUTION=NONE\nPHASE_B=NOT_AUTHORIZED\n' > "$results/VERDICT.txt"
+
+      - name: Publish nonsecret test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hctb002a-r005-cross-uid-evidence
+          path: ${{ env.R005_RESULTS_DIR }}/
+          if-no-files-found: warn
+          retention-days: 7

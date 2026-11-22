@@ -1,0 +1,29 @@
+test_controller_directory_swap_refused (test_trusted_provisioner.ProvisioningTests.test_controller_directory_swap_refused) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_duplicate_manifest_identity_run_id (test_trusted_provisioner.ProvisioningTests.test_duplicate_manifest_identity_run_id) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_digest_not_trusted (test_trusted_provisioner.ProvisioningTests.test_evidence_digest_not_trusted) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_hardlink (test_trusted_provisioner.ProvisioningTests.test_evidence_hardlink) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_symlink (test_trusted_provisioner.ProvisioningTests.test_evidence_symlink) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_wrong_authority (test_trusted_provisioner.ProvisioningTests.test_evidence_wrong_authority) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_wrong_operation (test_trusted_provisioner.ProvisioningTests.test_evidence_wrong_operation) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_wrong_source (test_trusted_provisioner.ProvisioningTests.test_evidence_wrong_source) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_evidence_wrong_uid (test_trusted_provisioner.ProvisioningTests.test_evidence_wrong_uid) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_external_fixture_digest_mismatch (test_trusted_provisioner.ProvisioningTests.test_external_fixture_digest_mismatch) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_finalize_only_after_evidence (test_trusted_provisioner.ProvisioningTests.test_finalize_only_after_evidence) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_full_fd_verifier_from_derived_binding (test_trusted_provisioner.ProvisioningTests.test_full_fd_verifier_from_derived_binding) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_invalid_external_expected_sha (test_trusted_provisioner.ProvisioningTests.test_invalid_external_expected_sha) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_manifest_mode_rejected (test_trusted_provisioner.ProvisioningTests.test_manifest_mode_rejected) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_manifest_replacement_rejected (test_trusted_provisioner.ProvisioningTests.test_manifest_replacement_rejected) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_manifest_symlink_refused (test_trusted_provisioner.ProvisioningTests.test_manifest_symlink_refused) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_manifest_tamper_rejected (test_trusted_provisioner.ProvisioningTests.test_manifest_tamper_rejected) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_missing_fixture_source (test_trusted_provisioner.ProvisioningTests.test_missing_fixture_source) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_no_controller_verifier_same_uid (test_trusted_provisioner.ProvisioningTests.test_no_controller_verifier_same_uid) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_no_manifest_before_controller (test_trusted_provisioner.ProvisioningTests.test_no_manifest_before_controller) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_one_shot_no_overwrite (test_trusted_provisioner.ProvisioningTests.test_one_shot_no_overwrite) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_pre_controller_seed (test_trusted_provisioner.ProvisioningTests.test_pre_controller_seed) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_trust_directory_swap_refused (test_trusted_provisioner.ProvisioningTests.test_trust_directory_swap_refused) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+test_wrong_provisioner_identity (test_trusted_provisioner.ProvisioningTests.test_wrong_provisioner_identity) ... skipped 'isolated uid-0 fixture required to create distinct synthetic ownership'
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.004s
+
+OK (skipped=24)
